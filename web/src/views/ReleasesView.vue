@@ -105,7 +105,12 @@ watch(
       const p = deck.byId.get(focus)
       const group = p?.state === 'OPEN' ? 'hf:open' : p?.backmerge && !p.backmerge.backmerged ? 'hf:needs' : 'hf:done'
       v.collapsed[group] = false
-    } else v.collapsed[focus] = false
+    } else {
+      v.collapsed[focus] = false
+      // A merged PR not in a release yet sits in its repo's "not in a release" group
+      const p = deck.byId.get(focus)
+      if (p && isUnreleased(p)) v.collapsed[`unreleased:${p.repo}`] = false
+    }
     await nextTick()
     const el = document.querySelector(`[data-release-id="${CSS.escape(focus)}"]`) ?? document.querySelector(`[data-pr-id="${CSS.escape(focus)}"]`)
     el?.scrollIntoView({ block: 'center', behavior: 'smooth' })

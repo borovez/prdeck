@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { PhCheckCircle, PhCircle, PhCircleDashed, PhEye, PhPlus, PhSlidersHorizontal } from '@phosphor-icons/vue'
+import { PhCaretRight, PhCheckCircle, PhCircle, PhCircleDashed, PhEye, PhPlus, PhRocketLaunch, PhSlidersHorizontal, PhWarning } from '@phosphor-icons/vue'
+import { isUnreleased } from '@/utils/releaseFlow'
+import { useReleaseNav } from '@/composables/releaseNav'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type PanelConfig, type PanelType } from '@/stores/layout'
@@ -48,11 +50,21 @@ const slackNew = computed(() => (deck.overview?.slack ?? []).filter((i) => i.sta
 const slackFor = (p: PanelConfig) => (p.sort === 'oldest' ? [...slackNew.value].reverse() : slackNew.value)
 const myJira = computed(() => (deck.overview?.jira ?? []).filter((j) => j.isMine && j.statusCategory !== 'done'))
 const openChains = computed(() => (deck.overview?.chains ?? []).filter((c) => !c.done))
+/** Releases panel: open releases, hotfixes not back in dev, my merged work not in a release yet */
+const shipNextIds = computed(() => new Set((deck.overview?.trains ?? []).map((t) => t.next).filter(Boolean)))
+// "Ship next" releases first
+const openReleases = computed(() =>
+  deck.prs.filter((p) => p.flow === 'release' && p.state === 'OPEN').sort((a, b) => Number(shipNextIds.value.has(b.id)) - Number(shipNextIds.value.has(a.id))),
+)
+const needsBackmerge = computed(() => deck.prs.filter((p) => p.flow === 'hotfix' && p.state === 'MERGED' && p.backmerge && !p.backmerge.backmerged))
+const myUnreleased = computed(() => deck.prs.filter((p) => p.isMine && isUnreleased(p)))
+const releaseNav = useReleaseNav()
 
 function itemsFor(p: PanelConfig): number {
   if (p.type === 'prs') return prsFor(p).length
   if (p.type === 'slack') return slackNew.value.length
   if (p.type === 'jira') return myJira.value.length
+  if (p.type === 'releases') return openReleases.value.length + needsBackmerge.value.length
   return openChains.value.length
 }
 
@@ -97,7 +109,7 @@ function openTile(t: Tile) {
 }
 
 function addPanel(type: PanelType) {
-  const titles: Record<PanelType, string> = { prs: 'Custom PR list', slack: 'Slack', jira: 'Jira', chains: 'Chains' }
+  const titles: Record<PanelType, string> = { prs: 'Custom PR list', slack: 'Slack', jira: 'Jira', chains: 'Chains', releases: 'Releases' }
   layout.addPanel(type, titles[type], type === 'prs' ? { mine: true } : {})
 }
 const stateOf = (id: string) => deck.byId.get(id)
@@ -136,6 +148,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
               <DropdownMenuItem @select="addPanel('prs')">PR list (filterable)</DropdownMenuItem>
               <DropdownMenuItem @select="addPanel('slack')">Slack inbox</DropdownMenuItem>
               <DropdownMenuItem @select="addPanel('jira')">Jira tasks</DropdownMenuItem>
+              <DropdownMenuItem @select="addPanel('releases')">Releases</DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuCheckboxItem v-model="layout.prefs.dense" @select.prevent>Compact rows</DropdownMenuCheckboxItem>
@@ -221,6 +234,36 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
               <Badge v-if="j.prs.length" variant="muted">{{ j.prs.length }} PR</Badge>
               <Badge :variant="jiraTone(j.statusCategory)">{{ j.status }}</Badge>
             </a>
+          </template>
+
+          <!-- Releases -->
+          <template v-else-if="p.type === 'releases'">
+            <div v-if="!openReleases.length && !needsBackmerge.length && !myUnreleased.length" class="p-6 text-center text-sm text-muted-foreground">
+              No open releases or hotfixes waiting.
+            </div>
+            <section v-if="openReleases.length">
+              <h4 class="px-3 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Open releases</h4>
+              <PrRow v-for="r in openReleases.slice(0, p.limit)" :key="r.id" :pr="r" compact>
+                <template #badges>
+                  <Badge v-if="shipNextIds.has(r.id)" variant="primary">Ship next</Badge>
+                  <Badge variant="count" :title="`${deck.releaseById.get(r.id)?.items.length ?? 0} PR(s) in this release`">{{ deck.releaseById.get(r.id)?.items.length ?? 0 }}</Badge>
+                </template>
+              </PrRow>
+            </section>
+            <section v-if="needsBackmerge.length">
+              <h4 class="flex items-center gap-1.5 px-3 pt-2 pb-0.5 text-xs font-medium text-warning"><PhWarning :size="13" weight="fill" />Hotfixes not back in dev</h4>
+              <PrRow v-for="h in needsBackmerge.slice(0, p.limit)" :key="h.id" :pr="h" compact />
+            </section>
+            <button
+              v-if="myUnreleased.length"
+              class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+              @click="releaseNav.openReleases(myUnreleased[0].id)"
+            >
+              <PhRocketLaunch :size="15" class="text-muted-foreground" />
+              <span class="flex-1">{{ myUnreleased.length }} of my merged PR(s) aren't in a release yet</span>
+              <PhCaretRight :size="13" class="text-muted-foreground" />
+            </button>
+            <Button variant="ghost" size="xs" class="w-full" as-child><RouterLink to="/releases">Open Releases</RouterLink></Button>
           </template>
 
           <!-- Chains -->

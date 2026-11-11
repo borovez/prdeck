@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { ActionKind, Bucket, PrView } from '@shared/types'
 
-export type PanelType = 'prs' | 'chains' | 'slack' | 'jira'
+export type PanelType = 'prs' | 'chains' | 'slack' | 'jira' | 'releases'
 export type PrSort = 'urgency' | 'updated' | 'created' | 'repo' | 'size'
 export type SortDir = 'asc' | 'desc'
 
@@ -60,6 +60,7 @@ export const DEFAULT_PANELS: PanelConfig[] = [
   panel({ id: 'action', type: 'prs', title: 'Needs my action', filter: { buckets: ['action'] }, pinned: true, width: 'full' }),
   panel({ id: 'slack', type: 'slack', title: 'Slack inbox', sort: 'newest' }),
   panel({ id: 'chains', type: 'chains', title: 'Dependency chains' }),
+  panel({ id: 'releases', type: 'releases', title: 'Releases' }),
   panel({ id: 'blocked', type: 'prs', title: 'Blocked by dependencies', filter: { buckets: ['blocked'] } }),
   panel({ id: 'waiting', type: 'prs', title: 'Waiting on others', filter: { buckets: ['waiting'] }, sort: 'updated' }),
   panel({ id: 'jira', type: 'jira', title: 'My Jira tasks', sort: 'updated' }),
