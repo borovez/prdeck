@@ -174,6 +174,24 @@ export interface TagRelease extends ReleaseContents {
   url: string
 }
 
+/**
+ * Releases in different repos that belong together: a PR in one depends on a PR in another (order),
+ * or they ship the same Jira issues (jira).
+ */
+export interface ReleaseTrain {
+  id: string
+  /** Suggested shipping order: prerequisites first; releases with no known order keep a stable order */
+  releases: PrId[]
+  /** order: `from` ships before `to`; jira: shared issues, no order implied */
+  links: { from: PrId; to: PrId; kind: 'order' | 'jira'; reasons: string[] }[]
+  /** Jira issues shipped by more than one release of the train */
+  jiraKeys: string[]
+  /** First open release whose prerequisites are all merged */
+  next: PrId | null
+  /** Some releases wait on each other in a circle; the order is a best effort */
+  cycle: boolean
+}
+
 /** Has a merged hotfix made it back into the integration branch? */
 export interface BackmergeInfo {
   backmerged: boolean
@@ -281,6 +299,8 @@ export interface Overview {
   chains: DependencyChain[]
   /** Contents of release PRs (see PrView.flow) */
   releases: ReleaseContents[]
+  /** Releases across repos that ship together */
+  trains: ReleaseTrain[]
   /** Latest tags of tag-based repos, newest first, with what each shipped */
   tags: TagRelease[]
   jira: JiraIssueView[]

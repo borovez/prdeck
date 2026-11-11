@@ -9,6 +9,7 @@ import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
   PhArrowsClockwise,
+  PhTrain,
   PhInfo,
   PhWarning,
   PhCheckCircle,
@@ -25,6 +26,7 @@ import type { DepEdge, PrDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
+import { useRouter } from 'vue-router'
 import { ACTION_TONE, CHECK_STYLE, jiraCardTone, timeAgo } from '@/utils/format'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -57,6 +59,8 @@ import { FLOW_LABEL } from '@/utils/releaseFlow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
+const router = useRouter()
+const releasesView = useLayout().view('releases', { tab: 'releases' as string })
 /** The action's badge tone, where alerts have a matching one */
 const alertTone = computed(() => {
   const t = pr.value ? ACTION_TONE[pr.value.action.kind] : 'default'
@@ -83,6 +87,24 @@ async function refreshContents() {
 const tab = computed(() => (dv.tab === 'contents' && pr.value?.flow !== 'release' ? 'details' : dv.tab))
 const contents = computed(() => (pr.value ? deck.releaseById.get(pr.value.id) : undefined))
 const ALERT_ICON = { default: PhInfo, info: PhInfo, success: PhCheckCircle, warning: PhWarning, destructive: PhXCircle } as const
+/** The release train this release PR is part of, and its place in it */
+const train = computed(() => {
+  const id = pr.value?.id
+  const t = id ? deck.overview?.trains.find((t) => t.releases.includes(id)) : undefined
+  if (!t || !id) return null
+  return {
+    step: t.releases.indexOf(id) + 1,
+    ordered: t.links.some((l) => l.kind === 'order'),
+    total: t.releases.length,
+    next: t.next === id,
+    after: t.links.filter((l) => l.kind === 'order' && l.to === id).map((l) => l.from),
+    with: t.releases.filter((r) => r !== id && !t.links.some((l) => l.kind === 'order' && (l.from === r || l.to === r) && (l.from === id || l.to === id))),
+  }
+})
+function openTrains() {
+  releasesView.tab = 'trains'
+  router.push('/releases')
+}
 /** Banner: the next step, why, and where the release stands (merged PRs) */
 const banner = computed(() => {
   const p = pr.value
@@ -96,7 +118,7 @@ const banner = computed(() => {
   const c = contents.value
   if (p.flow === 'release')
     lines.push(c ? `${p.state === 'MERGED' ? 'Shipped' : 'Ships'} ${c.items.length} PR(s) and ${c.jiraKeys.length} Jira issue(s) from ${p.headRef} to ${p.baseRef}.` : `Release from ${p.headRef} to ${p.baseRef}; contents load on the next sync.`)
-  const hasContext = lines.length || p.shipsIn.length || (p.backmerge && p.state === 'MERGED') || p.releasedIn
+  const hasContext = lines.length || p.shipsIn.length || (p.backmerge && p.state === 'MERGED') || p.releasedIn || train.value
   if (!hasContext && (p.action.kind === 'none' || p.action.kind === 'done')) return null
   return { title: p.action.label, lines }
 })
@@ -242,6 +264,19 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                   <span>{{ i ? 'and' : s.state === 'OPEN' ? 'Ships in' : 'Shipped via' }}</span>
                   <button class="font-mono text-primary hover:underline" @click="deck.selectedId = s.id"><RepoName :id="s.id" /></button>
                   <span v-if="i === 0 && s.state === 'OPEN'" class="text-muted-foreground">(open release)</span>
+                </template>
+              </p>
+              <p v-if="train" class="flex flex-wrap items-center gap-x-1.5">
+                <PhTrain :size="14" class="self-center" />
+                <button class="hover:underline" @click="openTrains">{{ train.ordered ? `Release train: step ${train.step} of ${train.total}` : `Release train of ${train.total}` }}</button>
+                <Badge v-if="train.next" variant="primary" class="h-4 px-1.5 text-[10px]">Ship next</Badge>
+                <template v-if="train.after.length">
+                  · after
+                  <button v-for="a in train.after" :key="a" class="font-mono text-primary hover:underline" @click="deck.selectedId = a"><RepoName :id="a" /></button>
+                </template>
+                <template v-if="train.with.length">
+                  · with
+                  <button v-for="w in train.with" :key="w" class="font-mono text-primary hover:underline" @click="deck.selectedId = w"><RepoName :id="w" /></button>
                 </template>
               </p>
               <p v-if="pr.releasedIn" class="flex items-center gap-1.5">

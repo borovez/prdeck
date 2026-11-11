@@ -363,6 +363,27 @@ const baseEdges = computed<Edge[]>(() => {
     }
   }
 
+  // Release trains: releases in different repos that ship the same Jira issues (no order implied)
+  const placedIds = new Set(placed.value.out.map((o) => o.item.id))
+  for (const t of deck.overview?.trains ?? [])
+    for (const l of t.links) {
+      if (l.kind !== 'jira' || !placedIds.has(l.from) || !placedIds.has(l.to)) continue
+      const id = `jira:${l.from}|${l.to}`
+      out.set(id, {
+        id,
+        source: l.from,
+        sourceHandle: 'out:group',
+        target: l.to,
+        targetHandle: 'in:group',
+        type: 'smoothstep',
+        label: 'same Jira',
+        labelStyle: { fill: 'var(--info)', fontSize: '11px' },
+        labelBgStyle: { fill: 'var(--card)' },
+        style: { stroke: 'var(--info)', strokeWidth: 1.5, strokeDasharray: '1 5', strokeLinecap: 'round' },
+        data: { text: `Release train: ${l.from} and ${l.to} ${l.reasons.join('; ')}` },
+      })
+    }
+
   // Releases inside releases: inner rolls into outer
   for (const { item } of placed.value.out) {
     if (item.data.kind !== 'release') continue
@@ -496,6 +517,7 @@ const viewSections = computed<ViewSection[]>(() => [
         <Panel position="bottom-right" class="graph-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-xs text-muted-foreground">
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--primary)" stroke-width="2.5" /></svg>release goes first</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--merged)" stroke-width="1.75" stroke-dasharray="2 4" /></svg>rolls into</span>
+          <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--info)" stroke-width="1.5" stroke-dasharray="1 5" stroke-linecap="round" /></svg>same Jira</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--destructive)" stroke-width="1.75" stroke-dasharray="6 4" /></svg>back into dev</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" stroke-width="1.5" /></svg>needs merge</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" stroke-width="1.5" stroke-dasharray="6 4" /></svg>needs release</span>

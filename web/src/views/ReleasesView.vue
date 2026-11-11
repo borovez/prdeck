@@ -13,6 +13,7 @@ import PrRow from '@/components/PrRow.vue'
 import RepoName from '@/components/RepoName.vue'
 import ReleaseItems from '@/components/ReleaseItems.vue'
 import ReleaseGraph from '@/components/ReleaseGraph.vue'
+import TrainCard from '@/components/TrainCard.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,7 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
  * Hotfixes: PRs straight to the release branch, and whether they made it back into dev.
  */
 const deck = useDeck()
-const v = useLayout().view('releases', { tab: 'releases' as 'releases' | 'hotfixes' | 'graph', query: '', collapsed: {} as Record<string, boolean> })
+const v = useLayout().view('releases', { tab: 'releases' as 'releases' | 'hotfixes' | 'trains' | 'graph', query: '', collapsed: {} as Record<string, boolean> })
 
 const matches = (p: PrView) => {
   const q = v.query.trim().toLowerCase()
@@ -65,8 +66,20 @@ const needsBackmerge = computed(() => hotfixes.value.filter((p) => p.state === '
 const openHotfixes = computed(() => hotfixes.value.filter((p) => p.state === 'OPEN'))
 const doneHotfixes = computed(() => hotfixes.value.filter((p) => p.state === 'MERGED' && !(p.backmerge && !p.backmerge.backmerged)))
 
+/** Release trains, filtered by the search */
+const trains = computed(() =>
+  (deck.overview?.trains ?? []).filter((t) => {
+    const q = v.query.trim().toLowerCase()
+    if (!q) return true
+    const hay = `${t.releases.join(' ')} ${t.jiraKeys.join(' ')} ${t.releases.map((id) => deck.byId.get(id)?.title ?? '').join(' ')}`.toLowerCase()
+    return q.split(/\s+/).every((w) => hay.includes(w))
+  }),
+)
+
 const groupKeys = computed(() =>
-  v.tab === 'releases'
+  v.tab === 'trains'
+    ? []
+    : v.tab === 'releases'
     ? [...releases.value.map((p) => p.id), ...tags.value.map((t) => t.prId), ...unreleased.value.map((u) => `unreleased:${u.repo}`)]
     : ['hf:needs', 'hf:open', 'hf:done'],
 )
@@ -99,6 +112,7 @@ async function refresh(id: string) {
         <TabsList>
           <TabsTrigger value="releases" :count="openReleases.length">Releases</TabsTrigger>
           <TabsTrigger value="hotfixes" :count="needsBackmerge.length + openHotfixes.length">Hotfixes</TabsTrigger>
+          <TabsTrigger value="trains" :count="trains.length">Trains</TabsTrigger>
           <TabsTrigger value="graph">Graph</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -184,6 +198,14 @@ async function refresh(id: string) {
           </template>
           <div v-if="!releases.length && !unreleased.length && !tags.length" class="py-16 text-center text-muted-foreground">
             No release PRs found. A release PR targets master/main from dev (or a release/* branch).
+          </div>
+        </template>
+
+        <template v-else-if="v.tab === 'trains'">
+          <TrainCard v-for="t in trains" :key="t.id" :train="t" />
+          <div v-if="!trains.length" class="py-16 text-center text-muted-foreground">
+            No release trains. Open releases in different repos form a train when a PR in one depends on a PR in another, or when
+            they ship the same Jira issues.
           </div>
         </template>
 
