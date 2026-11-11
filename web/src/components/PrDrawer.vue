@@ -314,17 +314,18 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
             </form>
           </section>
 
-          <section>
-            <MarkdownEditor v-model="note" placeholder="Private note… (Markdown)" :height="120" state-key="pr-note" @blur="saveMeta()">
-              <template #label>
-                <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">My note</h3>
-              </template>
-            </MarkdownEditor>
-          </section>
         </div>
       </ScrollArea>
       </TabsContent>
       </Tabs>
+    <!-- Always visible at the bottom, whichever tab is open -->
+    <template v-if="pr" #footer>
+      <MarkdownEditor v-model="note" placeholder="Private note… (Markdown)" :height="96" state-key="pr-note" class="w-full" @blur="saveMeta()">
+        <template #label>
+          <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">My note</h3>
+        </template>
+      </MarkdownEditor>
+    </template>
   </SidePanel>
 </template>
 
