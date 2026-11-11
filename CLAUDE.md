@@ -28,22 +28,30 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 - `web/src/`: Vue 3 + TS, Pinia, vue-router, **shadcn-vue** (`components/ui/*`, generated, reka-ui based), Tailwind v4, Phosphor icons.
   - `stores/deck.ts`: overview data, selected PR (drawer), slackToJira (dialog).
   - `stores/layout.ts`: customizable dashboard panels (order, pin, collapse, width, sort, filter, limit), per-view state via `layout.view(name, defaults)`. Persisted to `/api/prefs`.
-  - `components/`: PrRow, PrDrawer (resizable detail panel, add/remove dependencies), DashPanel (panel chrome), SlackRow, SlackToJiraModal, JiraPill, JiraTransition.
-  - `views/`: Dashboard, PullRequests, Slack, Graph, Settings; `ComingSoonView` is a placeholder for /jira.
+  - `components/`: PrRow, PrDrawer (resizable detail panel, add/remove dependencies), DashPanel (panel chrome), GroupCard (collapsible list section), SortDirButton, ActionBar (sticky bottom toolbar), SlackRow, SlackToJiraModal, JiraRow, JiraPill, JiraTransition, GraphNode.
+  - `views/`: Dashboard, PullRequests, Slack, Graph, Jira, Settings.
 
 ## UI conventions
 
-- Use shadcn-vue components wherever one fits. Add new ones with `npx shadcn-vue@latest add <name> --yes </dev/null`, then fix any `from 'cn'` imports to `from '@/lib/utils'` (a CLI bug).
+- Use shadcn-vue components wherever one fits. Add new ones with `npx shadcn-vue@latest add <name> --yes </dev/null`, then fix any `from 'cn'` imports to `from '@/lib/utils'` and `npm uninstall cn` if the CLI added it (a CLI bug).
+- Local tweaks to generated components: `TabsTrigger` takes `count` (right-aligned badge), `Alert` takes `closable` (emits `close`), `AlertAction` is vertically centred, Toggle/ToggleGroup on-state is primary, Switch off-track is visible in light mode.
+- Writes go through `deck.mutate(fn, successMsg?)`: it toasts errors (and the success message), reloads, and returns whether it worked. Don't keep per-component error state for writes. Transient feedback is a toast (vue-sonner, `toast` from 'vue-sonner'); alerts are for persistent state.
+- Page-level save/actions live in `ActionBar` (sticky bottom), not floating buttons.
 - Colours only via theme tokens in `web/src/style.css` (zinc + indigo; light, `.dark`, and System via `useTheme()`). Status tokens: `success`, `warning`, `info`, `merged`, `destructive`. Badge has matching soft variants (`primary|success|warning|info|merged|muted`). Never hard-code colours. Check both themes.
 - Persist user view choices through `useLayout().view(...)`, not localStorage.
 - No DaisyUI (removed on purpose).
 
-## Dependency graph (`/graph`)
+## Pages
+
+### Dependency graph (`/graph`)
 
 `views/GraphView.vue` + `components/GraphNode.vue` (Vue Flow + dagre LR). Edges drawn prerequisite → dependent (solid merge, dashed release; green/muted satisfied, amber waiting). Filters persist via `layout.view('graph', …)`. Drag right handle → left handle creates a manual dep (kind from the "New links" toggle); click an edge to see it and delete manual ones. "Unlinked PRs" shows open PRs without deps so links can be drawn to them. Vue Flow is themed in the view's unscoped `<style>` (`.dep-graph`).
 
+### Jira (`/jira`)
+
+One row per Jira key: my JQL issues plus keys found in PRs, so it works before Jira is connected (details fill in once it is). Linked PRs render as compact `PrRow`s. Scope tabs (Mine, With PRs, No PRs) with counts, project/status filters, group by status/project/parent.
+
 ## Other open items
 
-- `/jira` page (Jira tasks with their linked PRs) is still a placeholder.
 - Slack, Jira and Claude drafting are not yet tested against real credentials (Slack needs scopes incl. `stars:read`, `reactions:read`).
-- Graph page not yet checked in a browser (Chrome extension wasn't connected).
+- Graph, Jira, toasts and ActionBar not yet checked in a browser (Chrome extension wasn't connected). Jira page untested with real Jira data.

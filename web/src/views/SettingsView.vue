@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
+  PhCheck,
   PhCircleNotch,
   PhGithubLogo,
   PhKanban,
@@ -14,6 +15,7 @@ import type { GithubAccount, Settings } from '@shared/types'
 import { toast } from 'vue-sonner'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
+import ActionBar from '@/components/ActionBar.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,11 +28,19 @@ import { Switch } from '@/components/ui/switch'
 
 const deck = useDeck()
 const s = ref<Settings | null>(null)
+/** Last loaded/saved settings, to show unsaved changes and allow discarding them */
+const saved = ref('')
+const dirty = computed(() => !!s.value && JSON.stringify(s.value) !== saved.value)
+function setSettings(next: Settings) {
+  s.value = next
+  saved.value = JSON.stringify(next)
+}
+const discard = () => setSettings(JSON.parse(saved.value))
 const busy = ref('')
 const mcp = ref<Awaited<ReturnType<typeof api.mcpInfo>> | null>(null)
 
 onMounted(async () => {
-  s.value = await api.settings()
+  setSettings(await api.settings())
   mcp.value = await api.mcpInfo().catch(() => null)
 })
 
@@ -47,7 +57,7 @@ async function run(label: string, fn: () => Promise<string>) {
 
 const save = () =>
   run('save', async () => {
-    s.value = await api.saveSettings(s.value!)
+    setSettings(await api.saveSettings(s.value!))
     await deck.load()
     return 'Settings saved.'
   })
@@ -56,7 +66,7 @@ const save = () =>
 const importGh = () =>
   run('gh', async () => {
     const r = await api.importGhCli()
-    s.value = r.settings
+    setSettings(r.settings)
     await deck.load()
     return `Connected as ${r.login} via gh CLI (orgs: ${r.orgs.join(', ') || 'none'}). Press Sync to load your PRs.`
   })
@@ -325,10 +335,15 @@ const SLACK_SCOPES =
       </CardContent>
     </Card>
 
-    <div class="sticky bottom-4 flex justify-end">
-      <Button size="lg" class="shadow-lg" :disabled="busy === 'save'" @click="save">
-        <PhCircleNotch v-if="busy === 'save'" class="animate-spin" /> Save settings
-      </Button>
-    </div>
+    <ActionBar>
+      <template v-if="dirty"><span class="size-2 rounded-full bg-warning" />Unsaved changes</template>
+      <template v-else><PhCheck class="text-success" />All changes saved</template>
+      <template #actions>
+        <Button v-if="dirty" variant="ghost" size="sm" :disabled="busy === 'save'" @click="discard">Discard</Button>
+        <Button size="sm" :disabled="!dirty || busy === 'save'" @click="save">
+          <PhCircleNotch v-if="busy === 'save'" class="animate-spin" /> Save settings
+        </Button>
+      </template>
+    </ActionBar>
   </div>
 </template>
