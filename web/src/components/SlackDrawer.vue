@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { PhArrowDown, PhArrowSquareOut, PhArrowUp, PhCircleNotch } from '@phosphor-icons/vue'
 import type { SlackContext } from '@shared/types'
 import { api } from '@/api'
@@ -31,13 +31,22 @@ const error = ref('')
 /** Fetched once per item and window for this page session */
 const cache = new Map<string, Promise<SlackContext>>()
 
-async function load(id: string) {
+/** The list element; its scroll container is the ScrollArea viewport around it */
+const list = ref<HTMLElement | null>(null)
+const viewport = () => list.value?.closest<HTMLElement>('[data-slot=scroll-area-viewport]') ?? null
+
+async function load(id: string, opts: { reveal?: boolean } = {}) {
   const { before, after } = counts.value
   const key = `${id}|${before}|${after}`
   if (!cache.has(key)) cache.set(key, api.slackAround(id, before, after))
   try {
     const c = await cache.get(key)!
-    if (item.value?.id === id) ctx.value = c
+    if (item.value?.id !== id) return
+    ctx.value = c
+    if (opts.reveal) {
+      await nextTick()
+      list.value?.querySelector('[data-target]')?.scrollIntoView({ block: 'center' })
+    }
   } catch (e) {
     cache.delete(key)
     if (item.value?.id === id) error.value = (e as Error).message
@@ -49,7 +58,7 @@ watch(
     ctx.value = null
     error.value = ''
     counts.value = { before: 2, after: 2 }
-    if (id) load(id)
+    if (id) load(id, { reveal: true })
   },
   { immediate: true },
 )
@@ -58,7 +67,14 @@ async function more(side: 'before' | 'after') {
   if (!item.value || loading.value) return
   loading.value = side
   counts.value = { ...counts.value, [side]: counts.value[side] + STEP }
+  // Messages added above would push the view down: keep the reader where they were
+  const vp = viewport()
+  const fromBottom = vp ? vp.scrollHeight - vp.scrollTop : 0
   await load(item.value.id)
+  if (side === 'before' && vp) {
+    await nextTick()
+    vp.scrollTop = vp.scrollHeight - fromBottom
+  }
   loading.value = ''
 }
 </script>
@@ -78,7 +94,7 @@ async function more(side: 'before' | 'after') {
     </template>
 
     <ScrollArea v-if="item" class="min-h-0 flex-1">
-      <div class="space-y-2 p-4">
+      <div ref="list" class="space-y-2 p-4">
         <p class="text-xs text-muted-foreground">{{ item.threadTs ? 'In the thread' : 'In the conversation' }}</p>
         <template v-if="ctx">
           <!-- More conversation above: faded placeholder rows and a button to load them -->
@@ -96,6 +112,7 @@ async function more(side: 'before' | 'after') {
           <div
             v-for="m in ctx.messages"
             :key="m.ts"
+            :data-target="m.isTarget || undefined"
             :class="cn('flex gap-3 rounded-lg border p-3', m.isTarget ? 'border-primary bg-primary/10' : 'border-transparent')"
           >
             <Avatar class="size-7 shrink-0">
