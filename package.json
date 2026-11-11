@@ -12,7 +12,10 @@
     "build": "npm run build -w web",
     "start": "npm run start -w server",
     "mcp": "npm run mcp -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "app:install": "sh scripts/app-install.sh",
+    "app:uninstall": "sh scripts/app-uninstall.sh",
+    "app:logs": "tail -f ~/Library/Logs/PRDeck.log"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

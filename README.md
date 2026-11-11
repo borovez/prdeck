@@ -64,6 +64,37 @@ Open <http://localhost:5317> and go to **Settings**:
 Then press **Sync**. With **Auto** on, the server syncs in the background (every 5 minutes by
 default).
 
+## Install as a Mac app
+
+PR Deck is a Progressive Web App: install it from the browser and it gets a Dock icon, its own
+window and Launchpad/Spotlight entries. The installed app talks to the local server, so first make
+the server run in the background:
+
+```bash
+npm run app:install
+```
+
+This builds the web app and registers a macOS LaunchAgent (`prdeck.server`) that starts the server
+at login and restarts it if it stops. It serves the app at <http://127.0.0.1:4317>. Logs go to
+`~/Library/Logs/PRDeck.log` (`npm run app:logs`).
+
+Then install the app from that address:
+
+- **Chrome, Edge, Arc**: the install icon at the right of the address bar, or the menu → *Cast, save
+  and share* → *Install page as app*.
+- **Safari**: *File* → *Add to Dock*.
+
+Updating: pull, then run `npm run app:install` again (it rebuilds and restarts; the installed app
+picks up the new version on its next load).
+
+Removing: `npm run app:uninstall` stops the server and removes it from login. Remove the app itself
+like any other app (in Chrome, its window menu → *Uninstall*; for Safari web apps, drag it out of
+`~/Applications`). Your data in `~/.prdeck` stays.
+
+The background server and `npm run dev` both use port 4317 by default, so stop one before starting
+the other (`npm run app:uninstall`, or give the service another port with
+`PRDECK_PORT=4320 npm run app:install`).
+
 ### Use from Claude Code
 
 Settings → MCP shows the exact `claude mcp add` command for your machine. It runs `npm run mcp`
@@ -78,6 +109,9 @@ Settings → MCP shows the exact `claude mcp add` command for your machine. It r
 | `npm start` | Run the API, which also serves the built app |
 | `npm run mcp` | Run the MCP server (stdio) |
 | `npm run typecheck` | Typecheck the server and the web app |
+| `npm run app:install` | Build and run the server in the background at login (macOS), for the installed app |
+| `npm run app:uninstall` | Stop the background server and remove it from login |
+| `npm run app:logs` | Follow the background server's log |
 
 ## Configuration
 

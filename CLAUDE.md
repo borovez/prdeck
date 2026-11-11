@@ -11,6 +11,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 - `npm run dev` (root) runs API `127.0.0.1:4317` (tsx watch) and Vite `localhost:5317` (proxies `/api`). The user usually has this running already; both hot-reload.
 - `npm run mcp` runs the stdio MCP server. Settings → MCP shows the `claude mcp add` command.
 - Typecheck: `npx tsc --noEmit -p server` and `cd web && npx vue-tsc -b`. Build: `cd web && npx vite build`.
+- Installed app: the web app is a PWA (`web/public/manifest.webmanifest`, `sw.js` that caches nothing, registered in production only). `npm run app:install` builds and runs the server as a LaunchAgent (`prdeck.server`, port 4317, log `~/Library/Logs/PRDeck.log`); it conflicts with `npm run dev` on the same port.
 - Data: SQLite at `~/.prdeck/prdeck.db` (`PRDECK_DATA_DIR` overrides). Tokens live there; the API binds to loopback only and never returns tokens (masked as `hasToken`).
 
 ## Layout
