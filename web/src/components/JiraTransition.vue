@@ -35,12 +35,18 @@ async function run(t: { id: string; to: string }) {
     <DropdownMenuTrigger as-child>
       <Button variant="ghost" size="xs" :disabled="busy" @click.stop>Move <PhCaretDown /></Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" class="w-56">
+    <DropdownMenuContent align="end" class="w-max min-w-48 max-w-sm">
       <DropdownMenuLabel v-if="error" class="text-xs text-destructive">{{ error }}</DropdownMenuLabel>
       <DropdownMenuLabel v-else-if="!transitions" class="text-xs text-muted-foreground">Loading…</DropdownMenuLabel>
       <DropdownMenuItem v-for="t in transitions ?? []" :key="t.id" @select="run(t)">
-        {{ t.name }}
-        <span v-if="t.to.toLowerCase() !== t.name.toLowerCase()" class="ml-auto text-xs text-muted-foreground">→ {{ t.to }}</span>
+        <span class="whitespace-nowrap">{{ t.name }}</span>
+        <span
+          v-if="t.to.toLowerCase() !== t.name.toLowerCase()"
+          class="ml-auto pl-4 text-xs whitespace-nowrap text-muted-foreground"
+          :title="`Moves to the status ${t.to}`"
+        >
+          → {{ t.to }}
+        </span>
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
