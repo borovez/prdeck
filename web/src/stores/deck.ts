@@ -13,8 +13,11 @@ export const useDeck = defineStore('deck', () => {
   const selectedId = ref<string | null>(null)
   /** Slack item shown in the side panel; only one side panel is open at a time */
   const selectedSlackId = ref<string | null>(null)
-  watch(selectedId, (id) => id && (selectedSlackId.value = null))
-  watch(selectedSlackId, (id) => id && (selectedId.value = null))
+  /** Jira issue shown in the side panel */
+  const selectedJiraKey = ref<string | null>(null)
+  // One side panel at a time: opening one closes the others
+  const panels = [selectedId, selectedSlackId, selectedJiraKey]
+  for (const p of panels) watch(p, (v) => v && panels.forEach((o) => o !== p && (o.value = null)))
   /** Slack item being turned into a Jira task (opens the modal) */
   const slackToJira = ref<SlackItem | null>(null)
 
@@ -73,5 +76,5 @@ export const useDeck = defineStore('deck', () => {
     timer = window.setInterval(() => !syncing.value && load(), 60_000)
   }
 
-  return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, slackToJira, prs, byId, selected, jiraByKey, repos, load, sync, mutate, startPolling }
+  return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, prs, byId, selected, jiraByKey, repos, load, sync, mutate, startPolling }
 })

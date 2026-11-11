@@ -168,6 +168,15 @@ export interface PrView extends Omit<PrRecord, 'body'> {
   changesRequestedBy: string[]
 }
 
+/** Loaded on demand for the Jira side panel. Rich text stays in Jira's document format (ADF). */
+export interface JiraIssueDetail {
+  key: string
+  description: import('./adf.ts').AdfDoc | null
+  comments: { id: string; author: string; avatarUrl: string | null; created: string; body: import('./adf.ts').AdfDoc }[]
+  /** Total comments on the issue (only the latest are included) */
+  commentTotal: number
+}
+
 export interface JiraIssueView extends JiraIssue {
   prs: PrId[]
 }

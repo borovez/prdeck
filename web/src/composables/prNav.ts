@@ -4,7 +4,7 @@ import { LAYER_OPEN } from './escape'
 /**
  * Arrow up/down moves an open side panel to the previous/next item on the page, in on-screen order.
  * Items are visible elements with `data-{kind}-id` (e.g. data-pr-id on PR rows, board cards, graph
- * nodes; data-slack-id on Slack rows), so views don't register their lists. An item can appear more
+ * nodes; data-slack-id on Slack rows; data-jira-id on Jira rows), so views don't register their lists. An item can appear more
  * than once; the occurrence last clicked or navigated to is the starting point.
  */
 /** Visible items of a kind in on-screen order, outside side panels */
@@ -12,14 +12,14 @@ const itemsOf = (attr: string) =>
   [...document.querySelectorAll<HTMLElement>(`[${attr}]`)].filter((el) => el.offsetParent && !el.closest('[data-side-panel]'))
 
 /** The id after (or else before) `id` on screen, e.g. to move on once an item leaves the list */
-export function neighbourId(kind: 'pr' | 'slack', id: string): string | null {
+export function neighbourId(kind: 'pr' | 'slack' | 'jira', id: string): string | null {
   const attr = `data-${kind}-id`
   const ids = [...new Set(itemsOf(attr).map((el) => el.getAttribute(attr)!))]
   const i = ids.indexOf(id)
   return i < 0 ? null : (ids[i + 1] ?? ids[i - 1] ?? null)
 }
 
-export function useArrowNav(kind: 'pr' | 'slack', selected: () => string | null, select: (id: string) => void) {
+export function useArrowNav(kind: 'pr' | 'slack' | 'jira', selected: () => string | null, select: (id: string) => void) {
   const attr = `data-${kind}-id`
   const idOf = (el: HTMLElement) => el.getAttribute(attr)
   let cursor: HTMLElement | null = null

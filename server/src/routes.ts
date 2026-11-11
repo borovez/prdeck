@@ -21,7 +21,7 @@ import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
 import { ghCliToken, listRepos, whoAmI } from './github.ts'
-import { createIssue, getTransitions, jiraMyself, requiredFields, transition } from './jira.ts'
+import { createIssue, getIssueDetail, getTransitions, jiraMyself, requiredFields, transition } from './jira.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
 import { runSync } from './sync.ts'
@@ -200,6 +200,13 @@ api.put('/prs/meta', async (c) => {
   const { id, note, pinned } = await c.req.json<{ id: string; note: string | null; pinned: boolean }>()
   setMeta(id, note?.trim() || null, !!pinned)
   return c.json({ ok: true })
+})
+
+// ---------- Jira issue detail (side panel) ----------
+api.get('/jira/:key/detail', async (c) => {
+  const cfg = getSettings().jira
+  if (!cfg?.apiToken) throw bad('Jira not configured')
+  return c.json(await getIssueDetail(cfg, c.req.param('key')))
 })
 
 // ---------- Jira transitions ----------

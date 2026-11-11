@@ -3,12 +3,18 @@ import { computed } from 'vue'
 import type { JiraIssueView, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { jiraTone, timeAgo } from '@/utils/format'
+import { cn } from '@/lib/utils'
 import JiraTransition from './JiraTransition.vue'
 import PrRow from './PrRow.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 
 const props = defineProps<{ issueKey: string; issue: JiraIssueView | null; prs: PrView[]; dense?: boolean }>()
+/** Opens the Jira panel, unless the click was on a linked PR, a link or a button (they do their own thing) */
+function select(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest('a, button, [data-pr-id], [role="menu"]')) return
+  deck.selectedJiraKey = props.issueKey
+}
 const deck = useDeck()
 const href = computed(
   () => props.issue?.url ?? (deck.overview?.jiraBaseUrl ? `${deck.overview.jiraBaseUrl}/browse/${props.issueKey}` : undefined),
@@ -28,7 +34,11 @@ const initials = (name: string) =>
 </script>
 
 <template>
-  <div class="px-4 py-3">
+  <div
+    :data-jira-id="issueKey"
+    :class="cn('cursor-pointer px-4 py-3 transition-colors hover:bg-accent/50', deck.selectedJiraKey === issueKey && 'bg-accent/60')"
+    @click="select"
+  >
     <div class="flex items-start gap-2">
       <img v-if="issue?.typeIconUrl" :src="issue.typeIconUrl" :title="issue.type" class="mt-0.5 size-4 shrink-0" alt="" />
       <div class="min-w-0 flex-1">

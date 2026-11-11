@@ -14,7 +14,7 @@ import {
   PhTrash,
   PhXCircle,
 } from '@phosphor-icons/vue'
-import type { DepEdge, JiraLink } from '@shared/types'
+import type { DepEdge } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
@@ -38,28 +38,17 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraTransition from './JiraTransition.vue'
 import ThreadList from './ThreadList.vue'
+import JiraLinks from './JiraLinks.vue'
 import RepoName from './RepoName.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
-/** Blocking links first, then the rest; Jira can return the same link twice */
-const LINK_ORDER = ['is blocked by', 'blocks']
-function sortedLinks(links: JiraLink[]) {
-  const seen = new Set<string>()
-  return links
-    .filter((l) => !seen.has(l.label + l.key) && seen.add(l.label + l.key))
-    .sort((a, b) => {
-      const rank = (l: JiraLink) => (LINK_ORDER.indexOf(l.label) + 1 || LINK_ORDER.length + 1)
-      return rank(a) - rank(b) || a.label.localeCompare(b.label)
-    })
-}
 /** The action's badge tone, where alerts have a matching one */
 const alertTone = computed(() => {
   const t = pr.value ? ACTION_TONE[pr.value.action.kind] : 'default'
   return t === 'destructive' || t === 'warning' || t === 'success' || t === 'info' ? t : 'default'
 })
-const jiraUrl = (key: string) => (deck.overview?.jiraBaseUrl ? `${deck.overview.jiraBaseUrl}/browse/${key}` : undefined)
 const dv = useLayout().view('drawer', {
   tab: 'details' as 'details' | 'conversations',
   // Last dependency type used in the add form
@@ -203,17 +192,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                 <div class="mt-1 text-xs text-muted-foreground">
                   {{ issue.assignee?.displayName ?? 'Unassigned' }}<template v-if="issue.fixVersions.length"> · fix: {{ issue.fixVersions.join(', ') }}</template>
                 </div>
-                <ul
-                  v-if="issue.links.length"
-                  class="mt-2 grid grid-cols-[max-content_max-content_minmax(0,1fr)_max-content] items-center gap-x-3 gap-y-1 text-xs"
-                >
-                  <li v-for="l in sortedLinks(issue.links)" :key="l.key + l.label" class="contents">
-                    <span class="whitespace-nowrap text-muted-foreground">{{ l.label }}</span>
-                    <a :href="jiraUrl(l.key)" target="_blank" rel="noopener" class="font-mono whitespace-nowrap underline underline-offset-2 hover:text-primary">{{ l.key }}</a>
-                    <a :href="jiraUrl(l.key)" target="_blank" rel="noopener" class="truncate underline underline-offset-2 hover:text-primary" :title="l.summary">{{ l.summary }}</a>
-                    <Badge :variant="jiraTone(l.statusCategory)" class="h-4 justify-self-end text-[10px]">{{ l.status }}</Badge>
-                  </li>
-                </ul>
+<JiraLinks :links="issue.links" class="mt-2" />
               </template>
               <span v-else class="font-mono text-sm">{{ key }} <span class="text-muted-foreground">(not synced)</span></span>
             </div>

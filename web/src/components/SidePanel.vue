@@ -17,7 +17,7 @@ onEscape(() => props.open && (emit('close'), true))
 
 /** Clicks that shouldn't close it: other items (they switch the panel), and layers on top of it */
 const KEEP_OPEN_TARGETS =
-  '[data-side-panel], [data-pr-id], [data-slack-id], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-sonner-toaster], [data-reka-popper-content-wrapper]'
+  '[data-side-panel], [data-pr-id], [data-slack-id], [data-jira-id], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-sonner-toaster], [data-reka-popper-content-wrapper]'
 useEventListener(
   document,
   'pointerdown',

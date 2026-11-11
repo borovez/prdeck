@@ -2,15 +2,16 @@
 // exactly what the server sends: headings, paragraphs, bullet/numbered lists, > quotes, code blocks,
 // and inline **bold**, *italic* / _italic_, `code`, [links](url) and bare URLs.
 
+/** Marks we write: strong, em, code, link. Jira's own documents also use strike, underline, textColor… */
 export interface AdfMark {
-  type: 'strong' | 'em' | 'code' | 'link'
-  attrs?: { href: string }
+  type: string
+  attrs?: { href?: string; [k: string]: unknown }
 }
 export interface AdfNode {
   type: string
   text?: string
   marks?: AdfMark[]
-  attrs?: { level?: number }
+  attrs?: { level?: number; url?: string; text?: string; shortName?: string; [k: string]: unknown }
   content?: AdfNode[]
 }
 export interface AdfDoc {

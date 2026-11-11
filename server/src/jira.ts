@@ -1,5 +1,5 @@
-import { markdownToAdf } from '../../shared/adf.ts'
-import type { JiraConfig, JiraIssue, JiraLink, JiraRequiredField } from '../../shared/types.ts'
+import { markdownToAdf, type AdfDoc } from '../../shared/adf.ts'
+import type { JiraConfig, JiraIssue, JiraIssueDetail, JiraLink, JiraRequiredField } from '../../shared/types.ts'
 
 const FIELDS = [
   'summary',
@@ -128,6 +128,31 @@ export async function fetchIssuesByKey(cfg: JiraConfig, keys: string[]): Promise
     }
   }
   return { issues, missing }
+}
+
+/** Description and the latest comments, for the Jira side panel */
+export async function getIssueDetail(cfg: JiraConfig, key: string, maxComments = 10): Promise<JiraIssueDetail> {
+  const [issue, comments] = await Promise.all([
+    request<{ fields: { description?: AdfDoc | null } }>(cfg, `/rest/api/3/issue/${encodeURIComponent(key)}?fields=description`),
+    request<{ total: number; comments: any[] }>(
+      cfg,
+      `/rest/api/3/issue/${encodeURIComponent(key)}/comment?orderBy=-created&maxResults=${maxComments}`,
+    ),
+  ])
+  return {
+    key,
+    description: issue.fields.description ?? null,
+    commentTotal: comments.total ?? comments.comments.length,
+    comments: comments.comments
+      .map((c) => ({
+        id: String(c.id),
+        author: c.author?.displayName ?? 'Unknown',
+        avatarUrl: c.author?.avatarUrls?.['48x48'] ?? null,
+        created: c.created,
+        body: c.body as AdfDoc,
+      }))
+      .reverse(), // oldest of the latest first, like a conversation
+  }
 }
 
 export async function getTransitions(cfg: JiraConfig, key: string) {
