@@ -88,14 +88,15 @@ const banner = computed(() => {
   const p = pr.value
   if (!p) return null
   const lines = p.action.detail ? [p.action.detail] : []
-  if (p.state === 'MERGED' && p.release) {
+  // The exact tag (releasedIn, shown below) is more precise than "in the latest tag"
+  if (p.state === 'MERGED' && p.release && !p.releasedIn) {
     const r = releaseStatus(p.release).long
     if (!lines.includes(r)) lines.push(r)
   }
   const c = contents.value
   if (p.flow === 'release')
     lines.push(c ? `${p.state === 'MERGED' ? 'Shipped' : 'Ships'} ${c.items.length} PR(s) and ${c.jiraKeys.length} Jira issue(s) from ${p.headRef} to ${p.baseRef}.` : `Release from ${p.headRef} to ${p.baseRef}; contents load on the next sync.`)
-  const hasContext = lines.length || p.shipsIn.length || (p.backmerge && p.state === 'MERGED')
+  const hasContext = lines.length || p.shipsIn.length || (p.backmerge && p.state === 'MERGED') || p.releasedIn
   if (!hasContext && (p.action.kind === 'none' || p.action.kind === 'done')) return null
   return { title: p.action.label, lines }
 })
@@ -242,6 +243,10 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                   <button class="font-mono text-primary hover:underline" @click="deck.selectedId = s.id"><RepoName :id="s.id" /></button>
                   <span v-if="i === 0 && s.state === 'OPEN'" class="text-muted-foreground">(open release)</span>
                 </template>
+              </p>
+              <p v-if="pr.releasedIn" class="flex items-center gap-1.5">
+                <PhRocketLaunch :size="14" />Released in
+                <a :href="pr.releasedIn.url" target="_blank" rel="noopener" class="font-mono text-primary hover:underline">{{ pr.releasedIn.tag }}</a>
               </p>
               <p v-if="pr.backmerge && pr.state === 'MERGED'">
                 <template v-if="pr.backmerge.backmerged">Back in {{ pr.backmerge.into }}.</template>

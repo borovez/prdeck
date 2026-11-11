@@ -1,6 +1,6 @@
 # Plan: see what a release contains (Releases view)
 
-Status: phase 1 done (Releases page, Contents tab, hotfixes); phase 2 done (Graph tab on the Releases page); phase 3 (contents per tag) open
+Status: phase 1 done (Releases page, Contents tab, hotfixes); phases 1-3 done (Releases page with tags, Graph tab); phase 4 (release trains) open
 
 ## Goal
 
@@ -130,7 +130,7 @@ setup and `PrCard` from the Dependencies page. No new API calls: everything is i
 1. **Data** (done): release-PR detection, contents resolution for promotion and cherry-pick PRs, cache,
    `GET /api/releases/:prId`; Contents tab in the PR panel; "Ships in" badge. *Smallest useful step.*
 2. **Releases graph mode**: group nodes, dagre layout per group, Unreleased bucket, filters.
-3. **Tags**: contents per tag (previous → current), "Released in" from contents instead of
+3. **Tags** (done): contents per tag (previous → current), "Released in" from contents instead of
    compare-per-PR, last N tags per repo in the graph.
 4. **Release trains**: link releases across repos that share Jira keys or dependency edges, and
    suggest an order.

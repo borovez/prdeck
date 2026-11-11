@@ -25,6 +25,7 @@ import {
   listSlack,
   listBackmerges,
   listReleaseContents,
+  listTagContents,
   type StoredPr,
 } from './db.ts'
 import { integrationBranches, prFlow, releaseBranches, releaseRefFor } from './flow.ts'
@@ -107,6 +108,10 @@ export function buildOverview(): Overview {
   }
   for (const list of shipsIn.values()) list.sort((a, b) => Number(b.state === 'OPEN') - Number(a.state === 'OPEN'))
   const backmerges = listBackmerges()
+  // Tags, newest first per repo; each PR's tag is the oldest tag that contains it
+  const tags = listTagContents().sort((a, b) => a.repo.localeCompare(b.repo) || (b.date ?? '').localeCompare(a.date ?? ''))
+  const releasedIn = new Map<PrId, { tag: string; url: string }>()
+  for (const t of tags) for (const i of t.items) releasedIn.set(i.id, { tag: t.tag, url: t.url })
   // Open backmerge PRs per repo (release branch → integration branch)
   const openBackmerge = new Map<string, PrId>()
   for (const { pr } of stored)
@@ -196,6 +201,7 @@ export function buildOverview(): Overview {
       shipsIn: shipsIn.get(pr.id) ?? [],
       backmerge: flows.get(pr.id) === 'hotfix' ? (backmerges.get(pr.id) ?? null) : null,
       backmergePr: flows.get(pr.id) === 'hotfix' && pr.state === 'MERGED' ? (openBackmerge.get(pr.repo.toLowerCase()) ?? null) : null,
+      releasedIn: releasedIn.get(pr.id) ?? null,
     }
   })
 
@@ -230,6 +236,7 @@ export function buildOverview(): Overview {
     edges,
     chains: buildChains(prs, edges),
     releases,
+    tags,
     jira: jiraViews,
     slack,
     stats,

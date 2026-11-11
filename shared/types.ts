@@ -164,6 +164,16 @@ export interface ReleaseContents {
   error?: string
 }
 
+/** What a tag shipped: the PRs between the previous tag and this one. prId is "<repo>@<tag>". */
+export interface TagRelease extends ReleaseContents {
+  repo: string
+  tag: string
+  previous: string | null
+  /** Commit date of the tag */
+  date: string | null
+  url: string
+}
+
 /** Has a merged hotfix made it back into the integration branch? */
 export interface BackmergeInfo {
   backmerged: boolean
@@ -237,6 +247,8 @@ export interface PrView extends Omit<PrRecord, 'body'> {
   /** Hotfixes: whether the merge reached the integration branch, and an open backmerge PR if there is one */
   backmerge: BackmergeInfo | null
   backmergePr: PrId | null
+  /** The tag that shipped this PR (tag-based repos) */
+  releasedIn: { tag: string; url: string } | null
 }
 
 /** Loaded on demand for the Jira side panel. Rich text stays in Jira's document format (ADF). */
@@ -269,6 +281,8 @@ export interface Overview {
   chains: DependencyChain[]
   /** Contents of release PRs (see PrView.flow) */
   releases: ReleaseContents[]
+  /** Latest tags of tag-based repos, newest first, with what each shipped */
+  tags: TagRelease[]
   jira: JiraIssueView[]
   slack: SlackItem[]
   stats: Record<Bucket, number> & {

@@ -14,6 +14,7 @@ import type {
   ReleaseInfo,
   ReleaseContents,
   BackmergeInfo,
+  TagRelease,
   Settings,
   SyncState,
 } from '../../shared/types.ts'
@@ -59,6 +60,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS pr_meta (pr_id TEXT PRIMARY KEY, note TEXT, pinned INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE IF NOT EXISTS release_contents (pr_id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS backmerges (pr_id TEXT PRIMARY KEY, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS tag_contents (id TEXT PRIMARY KEY, repo TEXT NOT NULL, data TEXT NOT NULL);
 `)
 
 // ---------- kv ----------
@@ -159,6 +161,19 @@ export function listReleaseContents(): ReleaseContents[] {
 export function setReleaseContents(c: ReleaseContents) {
   db.prepare('INSERT INTO release_contents (pr_id, data) VALUES (?, ?) ON CONFLICT(pr_id) DO UPDATE SET data = excluded.data').run(c.prId, JSON.stringify(c))
 }
+export function listTagContents(): TagRelease[] {
+  return (db.prepare('SELECT data FROM tag_contents').all() as { data: string }[]).map((r) => JSON.parse(r.data))
+}
+export function setTagContents(t: TagRelease) {
+  db.prepare('INSERT INTO tag_contents (id, repo, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data').run(t.prId, t.repo.toLowerCase(), JSON.stringify(t))
+}
+/** Keep only the given tags of a repo (older ones drop off) */
+export function pruneTagContents(repo: string, keep: string[]) {
+  const rows = db.prepare('SELECT id FROM tag_contents WHERE repo = ?').all(repo.toLowerCase()) as { id: string }[]
+  const del = db.prepare('DELETE FROM tag_contents WHERE id = ?')
+  for (const { id } of rows) if (!keep.includes(id)) del.run(id)
+}
+
 export function listBackmerges(): Map<PrId, BackmergeInfo> {
   const rows = db.prepare('SELECT pr_id, data FROM backmerges').all() as { pr_id: string; data: string }[]
   return new Map(rows.map((r) => [r.pr_id, JSON.parse(r.data)]))

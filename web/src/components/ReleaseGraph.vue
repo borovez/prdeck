@@ -134,6 +134,16 @@ const allLanes = computed<Lane[]>(() => {
       put(repo, group({ kind: 'hotfixes', id: `hotfixes:${k}`, repo, branch: prs[0].baseRef, rows, jiraKeys: [...new Set(prs.flatMap((p) => p.jiraKeys))] }, col))
     }
   }
+  if (v.showTags) {
+    // Tag-based repos: the latest tag's contents (what it shipped since the previous tag)
+    const latest = new Map<string, NonNullable<typeof deck.overview>['tags'][number]>()
+    for (const t of deck.overview?.tags ?? []) if (!latest.has(t.repo.toLowerCase())) latest.set(t.repo.toLowerCase(), t)
+    for (const [key, t] of latest) {
+      if (tagged.has(key)) continue
+      const rows = t.items.map((i) => ({ id: i.id, title: i.title, url: i.url, pr: deck.byId.get(i.id), via: i.via }))
+      put(t.repo, group({ kind: 'tag', id: `tag:${key}`, repo: t.repo, branch: t.tag, rows, jiraKeys: t.jiraKeys, tag: { name: t.tag, url: t.url, branch: false } }, 3))
+    }
+  }
   if (v.showTags)
     for (const [key, { repo, prs }] of tagged) {
       // The tag the merges were checked against (the repo's latest release)

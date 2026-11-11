@@ -39,6 +39,21 @@ const releases = computed(() => deck.prs.filter((p) => p.flow === 'release' && p
 const openReleases = computed(() => releases.value.filter((p) => p.state === 'OPEN'))
 const mergedReleases = computed(() => releases.value.filter((p) => p.state === 'MERGED'))
 /** Merged into dev but in no release PR yet, per repo */
+/** Tags of tag-based repos (newest first per repo), filtered by the search */
+const tags = computed(() => {
+  const q = v.query.trim().toLowerCase()
+  return (deck.overview?.tags ?? []).filter((t) => {
+    if (!q) return true
+    const hay = `${t.repo} ${t.tag} ${t.jiraKeys.join(' ')} ${t.items.map((i) => `${i.id} ${i.title}`).join(' ')}`.toLowerCase()
+    return q.split(/\s+/).every((w) => hay.includes(w))
+  })
+})
+/** The newest tag of each repo starts expanded */
+const latestPerRepo = computed(() => {
+  const seen = new Set<string>()
+  return new Set(tags.value.filter((t) => !seen.has(t.repo) && seen.add(t.repo)).map((t) => t.prId))
+})
+
 const unreleased = computed(() => {
   const m = new Map<string, PrView[]>()
   for (const p of deck.prs.filter((p) => isUnreleased(p) && matches(p)).sort(byRecent)) m.set(p.repo, [...(m.get(p.repo) ?? []), p])
@@ -52,7 +67,7 @@ const doneHotfixes = computed(() => hotfixes.value.filter((p) => p.state === 'ME
 
 const groupKeys = computed(() =>
   v.tab === 'releases'
-    ? [...releases.value.map((p) => p.id), ...unreleased.value.map((u) => `unreleased:${u.repo}`)]
+    ? [...releases.value.map((p) => p.id), ...tags.value.map((t) => t.prId), ...unreleased.value.map((u) => `unreleased:${u.repo}`)]
     : ['hf:needs', 'hf:open', 'hf:done'],
 )
 /** Merged releases and finished hotfixes start collapsed */
@@ -129,6 +144,30 @@ async function refresh(id: string) {
           </GroupCard>
           </template>
 
+          <template v-if="tags.length">
+            <h3 class="flex items-center gap-2 pt-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Tags <Badge variant="count">{{ tags.length }}</Badge>
+            </h3>
+            <GroupCard
+              v-for="t in tags"
+              :key="t.prId"
+              label=""
+              :count="t.items.length"
+              :collapsed="isCollapsed(t.prId, !latestPerRepo.has(t.prId))"
+              @update:collapsed="(c: boolean) => (v.collapsed[t.prId] = c)"
+            >
+              <template #label>
+                <span class="flex min-w-0 items-center gap-2">
+                  <Badge variant="success" class="shrink-0">{{ t.date ? `Tagged ${timeAgo(t.date)}` : 'Tag' }}</Badge>
+                  <RepoName :repo="t.repo" class="max-w-64 font-mono text-xs" />
+                  <a :href="t.url" target="_blank" rel="noopener" class="shrink-0 font-mono text-xs text-primary hover:underline" @click.stop>{{ t.tag }}</a>
+                  <span v-if="t.previous" class="shrink-0 font-mono text-xs font-normal text-muted-foreground">since {{ t.previous }}</span>
+                </span>
+              </template>
+              <ReleaseItems :contents="t" />
+            </GroupCard>
+          </template>
+
           <template v-if="unreleased.length">
             <h3 class="pt-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Merged, not in a release yet</h3>
             <GroupCard
@@ -143,7 +182,7 @@ async function refresh(id: string) {
               <div class="-m-1.5 divide-y"><PrRow v-for="p in u.prs" :key="p.id" :pr="p" compact /></div>
             </GroupCard>
           </template>
-          <div v-if="!releases.length && !unreleased.length" class="py-16 text-center text-muted-foreground">
+          <div v-if="!releases.length && !unreleased.length && !tags.length" class="py-16 text-center text-muted-foreground">
             No release PRs found. A release PR targets master/main from dev (or a release/* branch).
           </div>
         </template>

@@ -411,20 +411,9 @@ export async function releaseContents(
     after = commits.pageInfo.hasNextPage && scanned < MAX_RELEASE_COMMITS ? commits.pageInfo.endCursor : null
   } while (after)
 
-  // 2. Original commits of cherry-picks, 50 per query
-  const shas = [...picked]
-  for (let i = 0; i < shas.length; i += 50) {
-    const part = shas.slice(i, i + 50)
-    const data: any = await graphql(
-      account.token,
-      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
-         ${part.map((sha, j) => `c${j}: object(expression: "${sha}") { ... on Commit { associatedPullRequests(first: 5) { nodes { ${RELEASE_PR_FIELDS} } } } }`).join('\n')}
-       } }`,
-      { owner, name },
-    )
-    for (let j = 0; j < part.length; j++)
-      for (const p of data.repository?.[`c${j}`]?.associatedPullRequests?.nodes ?? []) if (p.number !== number) add(p, 'cherry-pick')
-  }
+  // 2. Original commits of cherry-picks
+  for (const prs of (await prsForCommits(account, owner, name, [...picked])).values())
+    for (const p of prs) if (p.number !== number) add(p, 'cherry-pick')
 
   // 3. PRs referenced in the description: #12 (this repo) and PR URLs (any repo)
   const refs = new Map<string, { owner: string; name: string; number: number }>()
@@ -456,4 +445,63 @@ export async function getPrBody(account: GithubAccount, repo: string, number: nu
 
 export async function updatePrBody(account: GithubAccount, repo: string, number: number, body: string): Promise<void> {
   await request(account.token, `/repos/${repo}/pulls/${number}`, { method: 'PATCH', body: JSON.stringify({ body }) })
+}
+
+/** PRs associated with each commit (by sha), 50 commits per query */
+async function prsForCommits(account: GithubAccount, owner: string, name: string, shas: string[]): Promise<Map<string, FoundPr[]>> {
+  const out = new Map<string, FoundPr[]>()
+  for (let i = 0; i < shas.length; i += 50) {
+    const part = shas.slice(i, i + 50)
+    const data: any = await graphql(
+      account.token,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
+         ${part.map((sha, j) => `c${j}: object(expression: "${sha}") { ... on Commit { associatedPullRequests(first: 5) { nodes { ${RELEASE_PR_FIELDS} } } } }`).join('\n')}
+       } }`,
+      { owner, name },
+    )
+    part.forEach((sha, j) => out.set(sha, data.repository?.[`c${j}`]?.associatedPullRequests?.nodes ?? []))
+  }
+  return out
+}
+
+// ---------- Tags ----------
+
+/** Newest tags first (by commit date), with the commit date */
+export async function latestTags(account: GithubAccount, repo: string, n: number): Promise<{ name: string; date: string | null }[]> {
+  const [owner, name] = repo.split('/')
+  const data: any = await graphql(
+    account.token,
+    `query($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) {
+       refs(refPrefix: "refs/tags/", first: $n, orderBy: { field: TAG_COMMIT_DATE, direction: DESC }) {
+         nodes { name target { ... on Commit { committedDate } ... on Tag { target { ... on Commit { committedDate } } } } }
+       }
+     } }`,
+    { owner, name, n },
+  )
+  return (data.repository?.refs?.nodes ?? []).map((t: any) => ({ name: t.name, date: t.target?.committedDate ?? t.target?.target?.committedDate ?? null }))
+}
+
+/** PRs shipped between two tags: the compare's commits (up to 250) → associated PRs, plus cherry-pick originals */
+export async function tagContents(
+  account: GithubAccount,
+  repo: string,
+  previous: string,
+  tag: string,
+  keep: (pr: FoundPr) => boolean,
+): Promise<{ items: (FoundPr & { via: 'commit' | 'cherry-pick' })[]; commitsScanned: number; truncated: boolean }> {
+  const [owner, name] = repo.split('/')
+  const cmp = await request<{ total_commits: number; commits: { sha: string; commit: { message: string } }[] }>(
+    account.token,
+    `/repos/${repo}/compare/${encodeURIComponent(previous)}...${encodeURIComponent(tag)}?per_page=250`,
+  )
+  const found = new Map<string, FoundPr & { via: 'commit' | 'cherry-pick' }>()
+  const add = (p: FoundPr, via: 'commit' | 'cherry-pick') => {
+    const key = `${p.repository.nameWithOwner.toLowerCase()}#${p.number}`
+    if (!found.has(key) && keep(p)) found.set(key, { ...p, via })
+  }
+  const byCommit = await prsForCommits(account, owner, name, cmp.commits.map((c) => c.sha))
+  for (const prs of byCommit.values()) for (const p of prs) add(p, 'commit')
+  const picked = cmp.commits.flatMap((c) => [...c.commit.message.matchAll(/\(cherry picked from commit ([0-9a-f]{7,40})\)/g)].map((m) => m[1]))
+  for (const prs of (await prsForCommits(account, owner, name, picked)).values()) for (const p of prs) add(p, 'cherry-pick')
+  return { items: [...found.values()], commitsScanned: cmp.commits.length, truncated: cmp.total_commits > cmp.commits.length }
 }

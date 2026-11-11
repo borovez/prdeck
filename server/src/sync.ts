@@ -16,7 +16,7 @@ import {
   setRelease,
   upsertPr,
 } from './db.ts'
-import { syncReleaseFlow } from './releases.ts'
+import { syncReleaseFlow, syncTags } from './releases.ts'
 import { integrationBranches, releaseBranches, releaseRefFor } from './flow.ts'
 import { fetchPrsByRef, isCommitIn, resolveReleaseRef, searchPrs, whoAmI } from './github.ts'
 import { fetchIssuesByKey, searchJql } from './jira.ts'
@@ -165,6 +165,7 @@ async function doSync(): Promise<SyncState> {
   if (accounts.length) {
     try {
       await syncReleaseFlow(accounts, errors)
+      await syncTags(accounts, errors)
     } catch (e) {
       errors.push(`release contents: ${(e as Error).message}`)
     }
