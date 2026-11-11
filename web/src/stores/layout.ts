@@ -188,9 +188,26 @@ export const useLayout = defineStore('layout', () => {
   const removePanel = (id: string) => (prefs.value.panels = prefs.value.panels.filter((p) => p.id !== id))
   const reset = () => (prefs.value = { ...prefs.value, panels: structuredClone(DEFAULT_PANELS) })
 
+  /**
+   * Per-view state saved with the prefs. The returned object reads and writes through to
+   * prefs.views[name] on every access, so it stays live when the saved prefs load (or reset) after a
+   * component asked for it, and keys added to `defaults` later get their default.
+   */
   function view<T extends Record<string, unknown>>(name: string, defaults: T): T {
-    if (!prefs.value.views[name]) prefs.value.views[name] = { ...defaults }
-    return prefs.value.views[name] as T
+    const current = () => {
+      const v = (prefs.value.views[name] ??= structuredClone(defaults)) as Record<string, unknown>
+      for (const k of Object.keys(defaults)) if (!(k in v)) v[k] = structuredClone(defaults[k])
+      return v
+    }
+    current()
+    return new Proxy({} as T, {
+      get: (_, k) => current()[k as string],
+      set: (_, k, value) => ((current()[k as string] = value), true),
+      has: (_, k) => k in current(),
+      ownKeys: () => Reflect.ownKeys(current()),
+      getOwnPropertyDescriptor: (_, k) => ({ ...Reflect.getOwnPropertyDescriptor(current(), k), configurable: true }),
+      deleteProperty: (_, k) => delete current()[k as string],
+    })
   }
 
   return { prefs, loaded, orderedPanels, load, update, move, addPanel, removePanel, reset, view }

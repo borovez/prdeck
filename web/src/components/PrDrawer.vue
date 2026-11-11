@@ -58,7 +58,12 @@ const alertTone = computed(() => {
   return t === 'destructive' || t === 'warning' || t === 'success' || t === 'info' ? t : 'default'
 })
 const jiraUrl = (key: string) => (deck.overview?.jiraBaseUrl ? `${deck.overview.jiraBaseUrl}/browse/${key}` : undefined)
-const dv = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
+const dv = useLayout().view('drawer', {
+  tab: 'details' as 'details' | 'conversations',
+  // Last dependency type used in the add form
+  depDirection: 'dependsOn' as 'dependsOn' | 'blocks',
+  depKind: 'merge' as 'merge' | 'release',
+})
 useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
@@ -68,12 +73,10 @@ watch(pr, (p) => (note.value = p?.note ?? ''), { immediate: true })
 const saveMeta = (pinned = pr.value!.pinned) => deck.mutate(() => api.setMeta(pr.value!.id, note.value, pinned))
 
 const depTarget = ref('')
-const depKind = ref<'merge' | 'release'>('merge')
-const depDirection = ref<'dependsOn' | 'blocks'>('dependsOn')
 const candidates = computed(() => deck.prs.filter((p) => p.id !== pr.value?.id).map((p) => p.id))
 async function addDep() {
-  const [from, to] = depDirection.value === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
-  if (await deck.mutate(() => api.addDep(from, to, depKind.value), 'Dependency added')) depTarget.value = ''
+  const [from, to] = dv.depDirection === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
+  if (await deck.mutate(() => api.addDep(from, to, dv.depKind), 'Dependency added')) depTarget.value = ''
 }
 const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!), 'Dependency removed')
 
@@ -251,8 +254,8 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                 <!-- Split button: add with the current choice, or switch direction / kind from the menu -->
                 <ButtonGroup class="shrink-0">
                   <Button size="sm" type="submit">
-                    <PhPlus /> {{ depDirection === 'dependsOn' ? 'Depends on' : 'Blocks' }}
-                    <span class="opacity-75">· {{ depKind }}</span>
+                    <PhPlus /> {{ dv.depDirection === 'dependsOn' ? 'Depends on' : 'Blocks' }}
+                    <span class="opacity-75">· {{ dv.depKind }}</span>
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
@@ -262,13 +265,13 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" class="w-56">
                       <DropdownMenuLabel class="text-xs text-muted-foreground">This PR…</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup v-model="depDirection">
+                      <DropdownMenuRadioGroup v-model="dv.depDirection">
                         <DropdownMenuRadioItem value="dependsOn">depends on it</DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="blocks">blocks it</DropdownMenuRadioItem>
                       </DropdownMenuRadioGroup>
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel class="text-xs text-muted-foreground">…waits for</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup v-model="depKind">
+                      <DropdownMenuRadioGroup v-model="dv.depKind">
                         <DropdownMenuRadioItem value="merge">the merge</DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="release">the release</DropdownMenuRadioItem>
                       </DropdownMenuRadioGroup>
