@@ -201,7 +201,7 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
 </script>
 
 <template>
-  <div class="flex h-[calc(100svh-5.5rem)] flex-col gap-3 lg:h-[calc(100svh-6.5rem)]">
+  <div class="h-page flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
       <NativeSelect v-model="v.org" size="sm" @update:model-value="v.repo = ''">
         <NativeSelectOption value="">All orgs</NativeSelectOption>

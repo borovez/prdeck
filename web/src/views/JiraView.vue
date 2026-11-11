@@ -9,6 +9,7 @@ import JiraRow from '@/components/JiraRow.vue'
 import SortDirButton from '@/components/SortDirButton.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -123,7 +124,7 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl space-y-4">
+  <div class="h-page mx-auto flex max-w-6xl flex-col gap-4">
     <Alert v-if="deck.overview && !deck.overview.configured.jira">
       <PhKanban />
       <AlertTitle>Jira isn't connected yet</AlertTitle>
@@ -172,11 +173,16 @@ const groups = computed(() => {
       <Label class="gap-2 font-normal"><Switch v-model="v.showDone" /> Done</Label>
     </div>
 
-    <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.items.length">
-      <div class="-m-1.5 divide-y">
-        <JiraRow v-for="i in g.items" :key="i.key" :issue-key="i.key" :issue="i.issue" :prs="i.prs" :dense="layout.prefs.dense" />
+    <ScrollArea type="auto" class="min-h-0 flex-1">
+      <!-- p-px keeps the cards' rings inside the clipping viewport; pr-3 clears the scrollbar -->
+      <div class="space-y-4 p-px pr-3">
+        <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.items.length">
+          <div class="-m-1.5 divide-y">
+            <JiraRow v-for="i in g.items" :key="i.key" :issue-key="i.key" :issue="i.issue" :prs="i.prs" :dense="layout.prefs.dense" />
+          </div>
+        </GroupCard>
+        <div v-if="!filtered.length" class="py-16 text-center text-muted-foreground">No Jira issues match.</div>
       </div>
-    </GroupCard>
-    <div v-if="!filtered.length" class="py-16 text-center text-muted-foreground">No Jira issues match.</div>
+    </ScrollArea>
   </div>
 </template>

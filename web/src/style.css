@@ -199,3 +199,13 @@ html, body, #app { height: 100%; }
     padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 1rem);
   }
 }
+
+/* Pages whose content scrolls inside (board, graph, lists): fill the window below the app header and main padding */
+.h-page {
+  height: calc(100svh - 5.5rem);
+}
+@media (width >= 64rem) {
+  .h-page {
+    height: calc(100svh - 6.5rem);
+  }
+}

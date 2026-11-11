@@ -72,7 +72,7 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
 </script>
 
 <template>
-  <div :class="v.display === 'board' ? 'flex h-[calc(100svh-5.5rem)] flex-col gap-4 lg:h-[calc(100svh-6.5rem)]' : 'mx-auto max-w-6xl space-y-4'">
+  <div :class="v.display === 'board' ? 'h-page flex flex-col gap-4' : 'mx-auto max-w-6xl space-y-4'">
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative w-72">
         <PhMagnifyingGlass class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" :size="14" />

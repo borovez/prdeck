@@ -9,6 +9,7 @@ import SortDirButton from '@/components/SortDirButton.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -36,7 +37,7 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
 </script>
 
 <template>
-  <div class="mx-auto max-w-4xl space-y-4">
+  <div class="h-page mx-auto flex max-w-4xl flex-col gap-4">
     <Alert v-if="!deck.overview?.configured.slack">
       <PhSlackLogo />
       <AlertTitle>Slack isn't connected yet</AlertTitle>
@@ -58,10 +59,15 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
       <span class="flex-1" />
       <SortDirButton v-model="v.dir" desc-label="Newest first" asc-label="Oldest first" />
     </div>
-    <!-- overflow-visible: Card clips by default, which makes it the sticky container and offsets the headings inside it -->
-    <Card class="gap-0 overflow-visible py-0">
-      <SlackList :items="items" sticky class="[&>section:first-child>h3]:rounded-t-xl [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl" />
-      <div v-if="!items.length" class="py-12 text-center text-muted-foreground">Nothing here.</div>
-    </Card>
+    <ScrollArea type="auto" class="min-h-0 flex-1">
+      <!-- p-px keeps the card's ring inside the clipping viewport; pr-3 clears the scrollbar -->
+      <div class="p-px pr-3">
+        <!-- overflow-visible: Card clips by default, which would make it the sticky container for the headings -->
+        <Card class="gap-0 overflow-visible py-0">
+          <SlackList :items="items" sticky class="[&>section:first-child>h3]:rounded-t-xl [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl" />
+          <div v-if="!items.length" class="py-12 text-center text-muted-foreground">Nothing here.</div>
+        </Card>
+      </div>
+    </ScrollArea>
   </div>
 </template>
