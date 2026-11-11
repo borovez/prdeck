@@ -1,11 +1,41 @@
 <script setup lang="ts">
 import { h, type VNode } from 'vue'
+import { useDeck } from '@/stores/deck'
+import RepoName from './RepoName.vue'
 
 /**
  * Renders Slack mrkdwn (links, mentions, *bold*, _italic_, ~strike~, `code`, ``` blocks, > quotes)
  * as Vue elements, never as HTML strings. Without `rich` (older items) it shows the plain text.
  */
 const props = defineProps<{ text: string; rich?: string | null }>()
+
+const deck = useDeck()
+/** https://github.com/owner/repo/pull/123 (with anything after: /files, #discussion…) */
+const GITHUB_PR = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)(?:[/?#].*)?$/i
+
+/** A PR link as a chip: opens the PR panel when PR Deck has the PR, GitHub otherwise */
+function prChip(url: string, owner: string, repo: string, n: string): VNode {
+  const shown = `${owner}/${repo}#${n}`
+  const pr = deck.byId.get(shown.toLowerCase()) ?? deck.byId.get(shown)
+  return h(
+    'a',
+    {
+      href: url,
+      target: '_blank',
+      rel: 'noopener',
+      title: pr ? `${pr.title} (open in PR Deck)` : `${shown} (open on GitHub)`,
+      class: 'inline-flex max-w-full items-baseline rounded bg-primary/12 px-1 align-baseline font-mono text-[0.85em] text-primary hover:bg-primary/20',
+      onClick: (e: MouseEvent) => {
+        e.stopPropagation()
+        if (pr && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault()
+          deck.selectedId = pr.id
+        }
+      },
+    },
+    [h(RepoName, { id: shown })],
+  )
+}
 
 const decode = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
 const SAFE_URL = /^(https?:|mailto:)/i
@@ -19,6 +49,8 @@ function token(body: string): VNode | string {
   if (target.startsWith('!subteam')) return chip(label ?? '@group')
   if (target.startsWith('!')) return chip(`@${target.slice(1)}`)
   if (!SAFE_URL.test(target)) return decode(label ?? target)
+  const gh = GITHUB_PR.exec(target)
+  if (gh) return prChip(target, gh[1], gh[2], gh[3])
   const shown = decode(label ?? target.replace(/^mailto:/, ''))
   return h('a', { href: target, target: '_blank', rel: 'noopener', class: 'text-primary underline underline-offset-2 break-all', onClick: (e: Event) => e.stopPropagation() }, shown)
 }
