@@ -55,7 +55,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 
 ### Feature flags (LaunchDarkly, read only)
 
-PRs name flags in their description: `Feature flag: key` / `Flags: a, b` lines (colon required; with backticks only the backticked keys count), qualified prose ("`key` LaunchDarkly flag", "feature flags `a` / `b`"), or LaunchDarkly flag links (`parseFeatureFlags` in refs.ts; `PrView.flags`). Sync step 4c (`launchdarkly.ts`, GET only) caches each referenced flag's on/off per configured environment (`feature_flags`, Overview `flags`). UI: `FlagStatus` (rows/cards), `FlagList` (PR panel), `settings/LaunchDarklySettings.vue` (Reader access token, project key, environments).
+PRs name flags in their description: `Feature flag: key` / `Flags: a, b` lines (colon required; with backticks only the backticked keys count), qualified prose ("`key` LaunchDarkly flag", "feature flags `a` / `b`"), or LaunchDarkly flag links (`parseFeatureFlags` in refs.ts; `PrView.flags`). Sync step 4c (`launchdarkly.ts`, GET only) caches each referenced flag's on/off per configured environment (`feature_flags`, Overview `flags`). UI: `FlagStatus` (rows/cards), `FlagList` (PR panel), `FlagChip` (release contents roll-up), flag icon on release graph rows, `settings/LaunchDarklySettings.vue` (Reader access token, project key, environments).
 
 ### Dependencies written to GitHub
 

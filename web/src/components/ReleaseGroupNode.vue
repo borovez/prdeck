@@ -42,7 +42,7 @@ export const groupHeight = (d: Pick<ReleaseGroupData, 'rows' | 'expanded'>) =>
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
-import { PhCaretDown, PhCaretRight, PhGitMerge, PhGitPullRequest, PhRocketLaunch, PhWarning } from '@phosphor-icons/vue'
+import { PhCaretDown, PhCaretRight, PhGitMerge, PhFlag, PhGitPullRequest, PhRocketLaunch, PhWarning } from '@phosphor-icons/vue'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { timeAgo } from '@/utils/format'
@@ -81,6 +81,11 @@ function openRow(r: GroupRow, e: MouseEvent) {
   e.stopPropagation()
   if (r.pr && !e.metaKey && !e.ctrlKey) deck.selectedId = r.id
   else window.open(r.url, '_blank', 'noopener')
+}
+/** Green when all its flags are on in the first environment, amber when some are off */
+function flagTone(r: GroupRow) {
+  const on = (r.pr?.flags ?? []).map((k) => deck.flagByKey.get(k)?.envs[0]?.on)
+  return on.some((x) => x === undefined) ? 'text-muted-foreground' : on.every(Boolean) ? 'text-success' : 'text-warning'
 }
 const stateOf = (r: GroupRow) => r.pr?.state ?? 'MERGED'
 const KIND_LABEL: Record<ReleaseGroupData['kind'], string> = {
@@ -183,6 +188,7 @@ const subtitle = computed(() => {
         <PhGitMerge v-else :size="13" class="text-merged" />
         <span class="shrink-0 font-mono text-muted-foreground">#{{ r.id.split('#')[1] }}</span>
         <span class="min-w-0 flex-1 truncate">{{ r.title }}</span>
+        <PhFlag v-if="r.pr?.flags.length" :size="12" weight="fill" class="shrink-0" :class="flagTone(r)" :title="`Feature flags: ${r.pr.flags.join(', ')}`" />
         <PhWarning v-if="r.warn" :size="13" weight="fill" class="shrink-0 text-warning" />
         <Badge v-if="r.via && r.via !== 'commit'" variant="muted" class="h-4 shrink-0 px-1 text-[10px]">{{ r.via }}</Badge>
       </div>

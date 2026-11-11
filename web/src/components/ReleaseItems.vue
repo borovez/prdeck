@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import PrRow from './PrRow.vue'
 import RepoName from './RepoName.vue'
 import JiraPill from './JiraPill.vue'
+import FlagChip from './FlagChip.vue'
 
 /**
  * PRs and Jira issues a release ships. Synced PRs render as rows (they open the PR panel); others link to GitHub.
@@ -25,6 +26,11 @@ const rows = computed(() =>
     return { item: i, pr: deck.byId.get(i.id), nested: nested && !path.value.includes(i.id) ? nested : undefined }
   }),
 )
+/** Flags named by the release PR and the synced PRs it ships */
+const flags = computed(() => {
+  const own = deck.byId.get(props.contents.prId)?.flags ?? []
+  return [...new Set([...own, ...props.contents.items.flatMap((i) => deck.byId.get(i.id)?.flags ?? [])])]
+})
 const indent = computed(() => ({ paddingLeft: `${props.depth * 20}px` }))
 </script>
 
@@ -33,6 +39,10 @@ const indent = computed(() => ({ paddingLeft: `${props.depth * 20}px` }))
     <div v-if="!depth && contents.jiraKeys.length" class="flex flex-wrap items-center gap-1.5 px-2.5 pt-1">
       <span class="text-xs text-muted-foreground">Jira</span>
       <JiraPill v-for="k in contents.jiraKeys" :key="k" :issue-key="k" />
+    </div>
+    <div v-if="!depth && flags.length" class="flex flex-wrap items-center gap-1.5 px-2.5">
+      <span class="text-xs text-muted-foreground">Flags</span>
+      <FlagChip v-for="k in flags" :key="k" :flag-key="k" />
     </div>
     <div class="divide-y" :class="{ 'border-t': depth > 0 }">
       <div v-for="{ item, pr, nested } in rows" :key="item.id">
