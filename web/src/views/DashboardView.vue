@@ -83,6 +83,7 @@ interface Tile {
 }
 const tiles = computed<Tile[]>(() => {
   const s = stats.value
+  const next = openReleases.value.find((r) => shipNextIds.value.has(r.id))
   return [
     { label: 'Needs action', value: s?.action ?? 0, cls: 'text-primary', focus: 'action' },
     { label: 'Review requests', value: s?.reviewRequests ?? 0, cls: '', focus: 'review' },
@@ -96,6 +97,14 @@ const tiles = computed<Tile[]>(() => {
       focus: 'threads',
     },
     { label: 'Slack to handle', value: s?.slackNew ?? 0, cls: '', to: '/slack' },
+    {
+      label: 'Open releases',
+      value: openReleases.value.length,
+      // Hotfixes missing from dev matter most; else what ships next
+      cls: needsBackmerge.value.length ? 'text-warning' : '',
+      hint: needsBackmerge.value.length ? `${needsBackmerge.value.length} hotfix(es) not in dev` : next ? `next: ${next.repo.split('/')[1]}#${next.number}` : undefined,
+      to: '/releases',
+    },
   ]
 })
 const router = useRouter()
@@ -158,7 +167,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
       </DropdownMenu>
     </div>
 
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
       <button
         v-for="t in tiles"
         :key="t.label"
