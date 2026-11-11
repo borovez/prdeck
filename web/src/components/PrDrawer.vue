@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useArrowNav } from '@/composables/prNav'
 import { followBeside, openBeside } from '@/composables/besideWindow'
+import { loadPrDetail } from '@/composables/prDetail'
 import { releaseStatus } from '@shared/release'
 import SidePanel from './SidePanel.vue'
 import { computed, ref, watch } from 'vue'
@@ -64,24 +65,22 @@ useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
 
-// ---- Description / Files: loaded when one of those tabs is shown, cached per PR version
-const detailCache = new Map<string, Promise<PrDetail>>()
+// ---- Description / Files: loaded when one of those tabs is shown (cache shared with card previews)
 const detail = ref<PrDetail | null>(null)
+const detailFor = ref('')
 const detailError = ref('')
 watch(
   () => [pr.value?.id, pr.value?.updatedAt, dv.tab] as const,
   async ([id, updatedAt, tab]) => {
-    if (!id || (tab !== 'description' && tab !== 'files')) return
+    if (!id || !updatedAt || (tab !== 'description' && tab !== 'files')) return
     const key = `${id}|${updatedAt}`
-    if (detail.value && detailCache.get(key) && (await detailCache.get(key)) === detail.value) return
+    if (detailFor.value === key && detail.value) return
     detail.value = null
     detailError.value = ''
-    if (!detailCache.has(key)) detailCache.set(key, api.prDetail(id))
     try {
-      const d = await detailCache.get(key)!
-      if (pr.value?.id === id) detail.value = d
+      const d = await loadPrDetail({ id, updatedAt })
+      if (pr.value?.id === id) ((detail.value = d), (detailFor.value = key))
     } catch (e) {
-      detailCache.delete(key)
       if (pr.value?.id === id) detailError.value = (e as Error).message
     }
   },

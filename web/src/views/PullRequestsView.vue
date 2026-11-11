@@ -11,9 +11,11 @@ import FilterChips from '@/components/FilterChips.vue'
 import GroupCard from '@/components/GroupCard.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import PrCard from '@/components/PrCard.vue'
+import PrPreview from '@/components/PrPreview.vue'
 import PrRow from '@/components/PrRow.vue'
 import RepoName from '@/components/RepoName.vue'
 import { Badge } from '@/components/ui/badge'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -140,7 +142,15 @@ const toggleAll = () => {
         <ScrollArea type="auto" class="min-h-0 flex-1">
           <!-- pt-1: the viewport clips, and the selected card's ring draws outside the card; pr-3.5 clears the scrollbar (shown only when the column overflows) -->
           <div class="space-y-2 pt-1 pr-3.5 pb-2 pl-2">
-            <PrCard v-for="p in g.prs" :id="p.id" :key="p.id" :pr="p" class="cursor-pointer" @click="deck.selectedId = p.id" />
+            <!-- Hover preview: description start and changed files (loads on first open, shared cache) -->
+            <HoverCard v-for="p in g.prs" :key="p.id" :open-delay="600" :close-delay="100">
+              <HoverCardTrigger as-child>
+                <PrCard :id="p.id" :pr="p" class="cursor-pointer" @click="deck.selectedId = p.id" />
+              </HoverCardTrigger>
+              <HoverCardContent side="right" align="start" class="w-96">
+                <PrPreview :pr="p" />
+              </HoverCardContent>
+            </HoverCard>
             <p v-if="!g.prs.length" class="py-6 text-center text-xs text-muted-foreground">Nothing here</p>
           </div>
         </ScrollArea>

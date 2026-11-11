@@ -38,7 +38,7 @@ const v = layout.view('graph', {
 })
 
 const NODE_W = 264
-const NODE_H = 96
+const NODE_H = 114
 const SOURCE_LABEL: Record<DepEdge['source'], string> = { manual: 'Added manually', body: 'From PR description', jira: 'From Jira "is blocked by"' }
 const ORG_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--merged)', 'var(--info)']
 

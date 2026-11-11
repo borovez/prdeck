@@ -59,8 +59,12 @@ const jira = computed(() => {
       </div>
 
       <template v-if="pr">
-        <div class="line-clamp-2 text-[13px] leading-snug font-medium" :class="{ 'text-muted-foreground': pr.isDraft }" :title="pr.title">
+        <div class="line-clamp-2 text-[13px] leading-snug font-medium" :class="{ 'text-muted-foreground': pr.isDraft }">
           {{ pr.title }}
+        </div>
+        <div class="text-[11px] text-muted-foreground tabular-nums">
+          {{ pr.changedFiles }} {{ pr.changedFiles === 1 ? 'file' : 'files' }} ·
+          <span class="text-success">+{{ pr.additions }}</span> <span class="text-destructive">−{{ pr.deletions }}</span>
         </div>
         <div class="flex items-center gap-1.5">
           <Badge :variant="ACTION_TONE[pr.action.kind]" class="h-5 truncate text-[11px]">{{ pr.action.label }}</Badge>
