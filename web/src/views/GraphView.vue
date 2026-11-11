@@ -39,6 +39,12 @@ const v = layout.view('graph', { ...VIEW_DEFAULTS, newKind: 'merge' as Dependenc
 
 const NODE_W = 264
 const NODE_H = 114
+/** Card height: the Jira rows (issue, then its epic/parent) add to the base card */
+function nodeHeight(id: string): number {
+  const key = deck.byId.get(id)?.jiraKeys[0]
+  if (!key) return NODE_H
+  return NODE_H + 30 + (deck.jiraByKey.get(key)?.parent ? 20 : 0)
+}
 const SOURCE_LABEL: Record<DepEdge['source'], string> = { manual: 'Added manually', body: 'From PR description', jira: 'From Jira "is blocked by"' }
 const ORG_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--merged)', 'var(--info)']
 
@@ -102,12 +108,12 @@ const positions = computed(() => {
   const g = new dagre.graphlib.Graph()
   g.setGraph({ rankdir: 'LR', nodesep: 28, ranksep: 90, marginx: 20, marginy: 20 })
   g.setDefaultEdgeLabel(() => ({}))
-  for (const id of nodeIds.value) g.setNode(id, { width: NODE_W, height: NODE_H })
+  for (const id of nodeIds.value) g.setNode(id, { width: NODE_W, height: nodeHeight(id) })
   for (const e of visibleEdges.value) g.setEdge(e.to, e.from)
   dagre.layout(g)
   return new Map(nodeIds.value.map((id) => {
     const n = g.node(id)
-    return [id, { x: n.x - NODE_W / 2, y: n.y - NODE_H / 2 }]
+    return [id, { x: n.x - NODE_W / 2, y: n.y - n.height / 2 }]
   }))
 })
 

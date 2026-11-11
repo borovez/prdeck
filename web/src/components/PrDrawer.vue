@@ -21,7 +21,7 @@ import type { DepEdge, PrDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
-import { ACTION_TONE, CHECK_STYLE, jiraTone, timeAgo } from '@/utils/format'
+import { ACTION_TONE, CHECK_STYLE, jiraCardTone, timeAgo } from '@/utils/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,7 @@ import PrFiles from './PrFiles.vue'
 import JiraLinks from './JiraLinks.vue'
 import RepoName from './RepoName.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
+import SectionToggle from './SectionToggle.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
@@ -60,6 +61,9 @@ const dv = useLayout().view('drawer', {
   // Last dependency type used in the add form
   depDirection: 'dependsOn' as 'dependsOn' | 'blocks',
   depKind: 'merge' as 'merge' | 'release',
+  // Collapsible footer sections
+  depsOpen: true,
+  noteOpen: true,
 })
 useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
@@ -99,6 +103,8 @@ async function addDep() {
   const [from, to] = dv.depDirection === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
   if (await deck.mutate(() => api.addDep(from, to, dv.depKind), 'Dependency added')) depTarget.value = ''
 }
+/** Prerequisites not yet merged/released */
+const waiting = computed(() => pr.value?.dependsOn.filter((e) => !e.satisfied).length ?? 0)
 const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!), 'Dependency removed')
 
 </script>
@@ -230,12 +236,11 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
           <section>
             <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Jira</h3>
             <div v-if="!jira.length" class="text-sm text-muted-foreground">No issue key found in title or branch.</div>
-            <div v-for="{ key, issue } in jira" :key="key" class="mb-2 rounded-lg border p-3">
+            <div v-for="{ key, issue } in jira" :key="key" :class="['mb-2 rounded-lg border p-3', issue && jiraCardTone(issue.statusCategory)]">
               <template v-if="issue">
                 <div class="flex items-center gap-2">
                   <img v-if="issue.typeIconUrl" :src="issue.typeIconUrl" class="size-4" alt="" />
                   <a :href="issue.url" target="_blank" class="font-mono text-sm hover:underline">{{ issue.key }}</a>
-                  <Badge :variant="jiraTone(issue.statusCategory)">{{ issue.status }}</Badge>
                   <span class="flex-1" />
                   <JiraTransition :issue-key="issue.key" />
                 </div>
@@ -249,10 +254,21 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
             </div>
           </section>
 
-          <Separator />
 
-          <section>
-            <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Depends on — merge these first</h3>
+        </div>
+      </ScrollArea>
+      </TabsContent>
+      </Tabs>
+    <!-- Always visible at the bottom, whichever tab is open -->
+    <template v-if="pr" #footer>
+      <div class="w-full space-y-3">
+        <section>
+          <SectionToggle v-model:open="dv.depsOpen" label="Dependencies">
+            <Badge variant="count">{{ pr.dependsOn.length + pr.dependents.length }}</Badge>
+            <Badge v-if="waiting" variant="warning" class="h-4 px-1.5 text-[10px]">{{ waiting }} waiting</Badge>
+          </SectionToggle>
+          <div v-show="dv.depsOpen" class="mt-2 max-h-[35vh] overflow-y-auto pr-1">
+            <h4 class="mb-1 text-xs text-muted-foreground">Depends on: merge these first</h4>
             <ul class="space-y-1">
               <li v-for="e in pr.dependsOn" :key="e.to" class="flex items-center gap-2 text-sm">
                 <PhCheckCircle v-if="e.satisfied" :size="16" weight="fill" class="shrink-0 text-success" />
@@ -266,7 +282,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
               </li>
               <li v-if="!pr.dependsOn.length" class="text-sm text-muted-foreground">None</li>
             </ul>
-            <h3 class="mt-4 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Blocks — waiting on this</h3>
+            <h4 class="mt-3 mb-1 text-xs text-muted-foreground">Blocks: waiting on this</h4>
             <ul class="space-y-1">
               <li v-for="e in pr.dependents" :key="e.from" class="flex items-center gap-2 text-sm">
                 <button class="max-w-1/2 min-w-0 shrink-0 font-mono text-primary hover:underline" @click="deck.selectedId = e.from"><RepoName :id="e.from" /></button>
@@ -312,19 +328,17 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
               </div>
               <p class="text-xs text-muted-foreground">Or write “Depends on: org/repo#12” in the PR description.</p>
             </form>
-          </section>
-
-        </div>
-      </ScrollArea>
-      </TabsContent>
-      </Tabs>
-    <!-- Always visible at the bottom, whichever tab is open -->
-    <template v-if="pr" #footer>
-      <MarkdownEditor v-model="note" placeholder="Private note… (Markdown)" :height="96" state-key="pr-note" class="w-full" @blur="saveMeta()">
-        <template #label>
-          <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">My note</h3>
-        </template>
-      </MarkdownEditor>
+          </div>
+        </section>
+        <SectionToggle v-if="!dv.noteOpen" v-model:open="dv.noteOpen" label="My note">
+          <span v-if="note.trim()" class="truncate text-xs text-muted-foreground normal-case">{{ note.trim().split('\n')[0] }}</span>
+        </SectionToggle>
+        <MarkdownEditor v-else v-model="note" placeholder="Private note… (Markdown)" :height="96" state-key="pr-note" class="w-full" @blur="saveMeta()">
+          <template #label>
+            <SectionToggle v-model:open="dv.noteOpen" label="My note" />
+          </template>
+        </MarkdownEditor>
+      </div>
     </template>
   </SidePanel>
 </template>

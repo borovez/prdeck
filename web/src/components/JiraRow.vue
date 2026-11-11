@@ -2,12 +2,11 @@
 import { computed } from 'vue'
 import type { JiraIssueView, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
-import { jiraTone, timeAgo } from '@/utils/format'
+import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import JiraTransition from './JiraTransition.vue'
 import PrRow from './PrRow.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 
 const props = defineProps<{ issueKey: string; issue: JiraIssueView | null; prs: PrView[]; dense?: boolean }>()
 /** Opens the Jira panel, unless the click was on a linked PR, a link or a button (they do their own thing) */
@@ -48,7 +47,6 @@ const initials = (name: string) =>
           <span v-else class="truncate text-sm text-muted-foreground">{{ prs[0]?.title ?? 'Not loaded from Jira' }}</span>
         </div>
         <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)" class="h-4 px-1.5 text-[10px]">{{ issue.status }}</Badge>
           <span v-if="issue?.assignee" class="flex items-center gap-1">
             <Avatar class="size-4">
               <AvatarImage :src="issue.assignee.avatarUrl ?? ''" :alt="issue.assignee.displayName" />

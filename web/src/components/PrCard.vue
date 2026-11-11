@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, type HTMLAttributes } from 'vue'
-import { PhArrowRight, PhCheckCircle, PhCircleNotch, PhCloudSlash, PhGitMerge, PhRocketLaunch, PhXCircle } from '@phosphor-icons/vue'
+import { PhArrowRight, PhCheckCircle, PhCircleNotch, PhCloudSlash, PhGitMerge, PhLightning, PhRocketLaunch, PhXCircle } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { ACTION_TONE, CHECK_STYLE, jiraTone } from '@/utils/format'
@@ -19,7 +19,13 @@ const deck = useDeck()
 const check = computed(() => (props.pr ? CHECK_STYLE[props.pr.checks.state] : null))
 const jira = computed(() => {
   const key = props.pr?.jiraKeys[0]
-  return key ? { key, issue: deck.jiraByKey.get(key) } : null
+  if (!key) return null
+  const issue = deck.jiraByKey.get(key)
+  const p = issue?.parent
+  // The epic's status comes with the issue, or from the epic itself when it's synced
+  const synced = p ? deck.jiraByKey.get(p.key) : undefined
+  const parent = p && { ...p, status: p.status ?? synced?.status, statusCategory: p.statusCategory ?? synced?.statusCategory, type: p.type ?? synced?.type }
+  return { key, issue, parent }
 })
 </script>
 
@@ -66,13 +72,22 @@ const jira = computed(() => {
           {{ pr.changedFiles }} {{ pr.changedFiles === 1 ? 'file' : 'files' }} ·
           <span class="text-success">+{{ pr.additions }}</span> <span class="text-destructive">−{{ pr.deletions }}</span>
         </div>
-        <div class="flex items-center gap-1.5">
-          <Badge :variant="ACTION_TONE[pr.action.kind]" class="h-5 truncate text-[11px]">{{ pr.action.label }}</Badge>
-          <span class="flex-1" />
-          <span v-if="jira" class="flex min-w-0 items-center gap-1 text-[11px]" :title="jira.issue ? `${jira.key}: ${jira.issue.summary}` : jira.key">
-            <span class="font-mono">{{ jira.key }}</span>
-            <Badge v-if="jira.issue" :variant="jiraTone(jira.issue.statusCategory)" class="h-4 truncate px-1 text-[10px]">{{ jira.issue.status }}</Badge>
-          </span>
+        <Badge :variant="ACTION_TONE[pr.action.kind]" class="h-5 max-w-full truncate text-[11px]">{{ pr.action.label }}</Badge>
+        <!-- Jira issue and its epic/parent, with their statuses -->
+        <div v-if="jira" class="space-y-1 border-t pt-1.5 text-[11px]">
+          <div class="flex min-w-0 items-center gap-1" :title="jira.issue ? `${jira.key}: ${jira.issue.summary}` : jira.key">
+            <img v-if="jira.issue?.typeIconUrl" :src="jira.issue.typeIconUrl" class="size-3.5" alt="" />
+            <span class="shrink-0 font-mono">{{ jira.key }}</span>
+            <span v-if="jira.issue" class="min-w-0 flex-1 truncate text-muted-foreground">{{ jira.issue.summary }}</span>
+            <span v-else class="flex-1" />
+            <Badge v-if="jira.issue" :variant="jiraTone(jira.issue.statusCategory)" class="h-4 max-w-[45%] shrink-0 truncate px-1 text-[10px]">{{ jira.issue.status }}</Badge>
+          </div>
+          <div v-if="jira.parent" class="flex min-w-0 items-center gap-1" :title="`${jira.parent.type ?? 'Parent'} ${jira.parent.key}: ${jira.parent.summary}`">
+            <PhLightning :size="13" weight="fill" class="text-merged" />
+            <span class="shrink-0 font-mono">{{ jira.parent.key }}</span>
+            <span class="min-w-0 flex-1 truncate text-muted-foreground">{{ jira.parent.summary }}</span>
+            <Badge v-if="jira.parent.status" :variant="jiraTone(jira.parent.statusCategory ?? '')" class="h-4 max-w-[45%] shrink-0 truncate px-1 text-[10px]">{{ jira.parent.status }}</Badge>
+          </div>
         </div>
       </template>
       <div v-else class="flex items-center gap-1.5 text-xs"><PhCloudSlash :size="14" />Not synced yet</div>

@@ -164,7 +164,8 @@ export interface JiraIssue {
   priority: string | null
   priorityIconUrl: string | null
   assignee: { displayName: string; accountId: string; avatarUrl: string | null } | null
-  parent: { key: string; summary: string } | null
+  /** Epic or parent issue; status and type when Jira includes them */
+  parent: { key: string; summary: string; status?: string; statusCategory?: string; type?: string } | null
   fixVersions: string[]
   labels: string[]
   updated: string

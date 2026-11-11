@@ -61,6 +61,9 @@ export const CHECK_STYLE: Record<CheckState, { cls: string; label: string }> = {
 }
 
 export const jiraTone = (cat: string): Tone => (cat === 'done' ? 'success' : cat === 'indeterminate' ? 'info' : 'muted')
+/** Border and background tint for a Jira issue card, by status category */
+export const jiraCardTone = (cat: string): string =>
+  cat === 'done' ? 'border-success/40 bg-success/5' : cat === 'indeterminate' ? 'border-info/40 bg-info/5' : 'bg-muted/30'
 
 /** "a, b ,c" → ["a", "b", "c"] */
 export const splitList = (v: string) =>

@@ -79,7 +79,15 @@ function mapIssue(cfg: JiraConfig, raw: any, isMine: boolean): JiraIssue {
           avatarUrl: f.assignee.avatarUrls?.['24x24'] ?? null,
         }
       : null,
-    parent: f.parent ? { key: f.parent.key, summary: f.parent.fields?.summary ?? '' } : null,
+    parent: f.parent
+      ? {
+          key: f.parent.key,
+          summary: f.parent.fields?.summary ?? '',
+          status: f.parent.fields?.status?.name,
+          statusCategory: f.parent.fields?.status?.statusCategory?.key,
+          type: f.parent.fields?.issuetype?.name,
+        }
+      : null,
     fixVersions: (f.fixVersions ?? []).map((v: any) => v.name),
     labels: f.labels ?? [],
     updated: f.updated,
