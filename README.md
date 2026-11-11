@@ -84,6 +84,11 @@ Then install the app from that address:
   and share* → *Install page as app*.
 - **Safari**: *File* → *Add to Dock*.
 
+In Chrome and Edge the app draws its own title bar ("window controls overlay"): the browser's bar
+with its menu, extensions and uninstall buttons is replaced by PR Deck's header, and the header
+drags the window. A small toggle in the top corner brings the browser's bar back. Safari web apps
+always get a plain macOS title bar.
+
 Updating: pull, then run `npm run app:install` again (it rebuilds and restarts; the installed app
 picks up the new version on its next load).
 

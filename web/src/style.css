@@ -175,3 +175,27 @@ html, body, #app { height: 100%; }
   background: var(--accent);
   color: var(--foreground);
 }
+
+/*
+ * Installed app with "window controls overlay" (Chrome/Edge): the browser's title bar is gone and
+ * our headers take its place. Keep clear of the window buttons (left) and the browser's overlay
+ * controls (right), and let the headers drag the window while their buttons stay clickable.
+ */
+@media (display-mode: window-controls-overlay) {
+  .app-titlebar {
+    app-region: drag;
+    -webkit-app-region: drag;
+  }
+  .app-titlebar :is(button, a, input, select, [role='button'], [role='tab'], [role='menuitem']) {
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
+  }
+  /* The window buttons sit at the top left, over the sidebar header */
+  .app-titlebar-left {
+    padding-top: env(titlebar-area-height, 0px);
+  }
+  /* The browser's own controls sit at the top right, over the main header */
+  .app-titlebar-right {
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 1rem);
+  }
+}

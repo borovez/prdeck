@@ -89,7 +89,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
   <TooltipProvider :delay-duration="250">
     <SidebarProvider>
       <Sidebar collapsible="icon">
-        <SidebarHeader>
+        <SidebarHeader class="app-titlebar app-titlebar-left">
           <div class="flex items-center gap-2 px-2 py-1.5 text-base font-semibold group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <PhGitPullRequest :size="22" weight="duotone" class="shrink-0 text-primary" />
             <span class="group-data-[collapsible=icon]:hidden">PR Deck</span>
@@ -119,7 +119,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
       </Sidebar>
 
       <SidebarInset class="min-w-0">
-        <header class="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
+        <header class="app-titlebar app-titlebar-right sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-1 data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center" />
           <h1 class="text-sm font-semibold">{{ title }}</h1>

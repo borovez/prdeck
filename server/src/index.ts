@@ -19,8 +19,8 @@ app.route('/api', api)
 const dist = fileURLToPath(new URL('../../web/dist', import.meta.url))
 if (existsSync(dist)) {
   app.use('/*', serveStatic({ root: dist }))
-  const index = readFileSync(`${dist}/index.html`, 'utf8')
-  app.get('*', (c) => c.html(index)) // SPA fallback
+  // SPA fallback. Read on each request: a rebuild renames the hashed assets it points to
+  app.get('*', (c) => c.html(readFileSync(`${dist}/index.html`, 'utf8')))
 }
 
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
