@@ -73,6 +73,12 @@ const dv = useLayout().view('drawer', {
 })
 useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
+const refreshing = ref(false)
+async function refreshContents() {
+  refreshing.value = true
+  await deck.mutate(() => api.refreshRelease(pr.value!.id), 'Release contents updated')
+  refreshing.value = false
+}
 /** Contents only exists for release PRs; others show Details instead */
 const tab = computed(() => (dv.tab === 'contents' && pr.value?.flow !== 'release' ? 'details' : dv.tab))
 const contents = computed(() => (pr.value ? deck.releaseById.get(pr.value.id) : undefined))
@@ -199,7 +205,9 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                 <template v-if="contents">Ships {{ contents.items.length }} PR(s) and {{ contents.jiraKeys.length }} Jira issue(s) · checked {{ timeAgo(contents.fetchedAt) }}</template>
                 <template v-else>Not read yet</template>
               </span>
-              <Button variant="outline" size="sm" @click="deck.mutate(() => api.refreshRelease(pr!.id), 'Release contents updated')"><PhArrowsClockwise /> Refresh</Button>
+              <Button variant="outline" size="sm" :disabled="refreshing" @click="refreshContents">
+                <PhArrowsClockwise :class="{ 'animate-spin': refreshing }" /> {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+              </Button>
             </div>
             <ReleaseItems v-if="contents" :contents="contents" class="-mx-2.5" />
           </div>

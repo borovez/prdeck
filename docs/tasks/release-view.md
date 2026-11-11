@@ -1,6 +1,6 @@
 # Plan: see what a release contains (Releases view)
 
-Status: phase 1 done (Releases page, Contents tab, hotfixes); phase 2 (release graph) planned
+Status: phase 1 done (Releases page, Contents tab, hotfixes); phase 2 steps 1-3 done (Graph tab on the Releases page); step 4 (backmerge edges, tags) open
 
 ## Goal
 
@@ -110,9 +110,10 @@ setup and `PrCard` from the Dependencies page. No new API calls: everything is i
   hotfixes, show unreleased.
 
 **Steps**
-1. Columns and swimlanes with group nodes for open releases; cards inside; click-through to panels.
-2. Collapsing large releases; nested releases as separate groups with "rolls into" edges.
-3. Dependency edges between cards, derived release-order edges.
+1. (done) Columns and swimlanes with group nodes for releases; rows inside; click-through to panels.
+2. (done) Collapsing large and merged releases; nested releases as separate groups with "rolls into" edges;
+   merged releases limited to the last N days (View menu).
+3. (done) Dependency edges between rows/cards, derived release-order edges.
 4. Hotfix lane with backmerge edges; Released column from tags (with phase 3).
 
 **Open questions**

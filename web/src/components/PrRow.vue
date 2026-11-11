@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type HTMLAttributes } from 'vue'
 import {
   PhCheckCircle,
   PhCircleNotch,
@@ -23,7 +23,7 @@ import RepoName from './RepoName.vue'
 import ThreadCount from './ThreadCount.vue'
 
 /** preview: hover preview (off for rows inside side panels) */
-const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean }>(), { preview: true })
+const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean; class?: HTMLAttributes['class'] }>(), { preview: true })
 const deck = useDeck()
 const check = computed(() => CHECK_STYLE[props.pr.checks.state])
 const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).length)
@@ -34,9 +34,10 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
   <div
     :data-pr-id="pr.id"
     :class="cn(
-      'group flex cursor-pointer items-start gap-3 rounded-lg px-3 transition-colors hover:bg-accent',
+      'group flex min-w-0 cursor-pointer items-start gap-3 rounded-lg px-3 transition-colors hover:bg-accent',
       compact ? 'py-1.5' : 'py-2.5',
       deck.selectedId === pr.id && 'bg-accent ring-2 ring-primary ring-inset',
+      props.class,
     )"
     @click="deck.selectedId = pr.id"
   >
@@ -48,7 +49,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2">
         <PhPushPin v-if="pr.pinned" :size="14" weight="fill" class="shrink-0 text-primary" />
-        <span class="truncate text-sm font-medium" :class="{ 'text-muted-foreground': pr.isDraft }">{{ pr.title }}</span>
+        <span class="truncate text-sm font-medium" :class="{ 'text-muted-foreground': pr.isDraft }" :title="pr.title">{{ pr.title }}</span>
       </div>
       <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <a :href="pr.url" target="_blank" rel="noopener" class="min-w-0 font-mono text-foreground/80 hover:underline" @click.stop>

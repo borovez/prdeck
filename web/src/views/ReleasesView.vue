@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { PhArrowsClockwise, PhCheckCircle, PhGitBranch, PhMagnifyingGlass, PhWarning } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { api } from '@/api'
@@ -12,6 +12,7 @@ import GroupCard from '@/components/GroupCard.vue'
 import PrRow from '@/components/PrRow.vue'
 import RepoName from '@/components/RepoName.vue'
 import ReleaseItems from '@/components/ReleaseItems.vue'
+import ReleaseGraph from '@/components/ReleaseGraph.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
  * Hotfixes: PRs straight to the release branch, and whether they made it back into dev.
  */
 const deck = useDeck()
-const v = useLayout().view('releases', { tab: 'releases' as 'releases' | 'hotfixes', query: '', collapsed: {} as Record<string, boolean> })
+const v = useLayout().view('releases', { tab: 'releases' as 'releases' | 'hotfixes' | 'graph', query: '', collapsed: {} as Record<string, boolean> })
 
 const matches = (p: PrView) => {
   const q = v.query.trim().toLowerCase()
@@ -62,13 +63,19 @@ const toggleAll = () => {
   for (const k of groupKeys.value) v.collapsed[k] = c
 }
 
-const refresh = (id: string) => deck.mutate(() => api.refreshRelease(id), 'Release contents updated')
+/** Release being re-read from GitHub (spinner on its button) */
+const refreshing = ref<string | null>(null)
+async function refresh(id: string) {
+  refreshing.value = id
+  await deck.mutate(() => api.refreshRelease(id), 'Release contents updated')
+  refreshing.value = null
+}
 </script>
 
 <template>
-  <div class="h-page flex max-w-6xl flex-col gap-4">
+  <div class="h-page flex flex-col gap-4" :class="{ 'max-w-6xl': v.tab !== 'graph' }">
     <div class="flex flex-wrap items-center gap-2">
-      <div class="relative w-64 min-w-40 flex-1 sm:flex-none">
+      <div v-if="v.tab !== 'graph'" class="relative w-64 min-w-40 flex-1 sm:flex-none">
         <PhMagnifyingGlass class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" :size="14" />
         <Input v-model="v.query" type="search" placeholder="Search PRs, branches, Jira keys…" class="h-8 pl-8" />
       </div>
@@ -76,13 +83,15 @@ const refresh = (id: string) => deck.mutate(() => api.refreshRelease(id), 'Relea
         <TabsList>
           <TabsTrigger value="releases" :count="openReleases.length">Releases</TabsTrigger>
           <TabsTrigger value="hotfixes" :count="needsBackmerge.length + openHotfixes.length">Hotfixes</TabsTrigger>
+          <TabsTrigger value="graph">Graph</TabsTrigger>
         </TabsList>
       </Tabs>
       <span class="flex-1" />
-      <CollapseAllButton v-if="groupKeys.length > 1" :collapsed="allCollapsed" @toggle="toggleAll" />
+      <CollapseAllButton v-if="v.tab !== 'graph' && groupKeys.length > 1" :collapsed="allCollapsed" @toggle="toggleAll" />
     </div>
 
-    <ScrollArea type="auto" class="min-h-0 flex-1">
+    <ReleaseGraph v-if="v.tab === 'graph'" />
+    <ScrollArea v-else type="auto" class="min-h-0 flex-1">
       <div class="space-y-4 p-px pr-3">
         <template v-if="v.tab === 'releases'">
           <h3 v-if="openReleases.length" class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Open releases</h3>
@@ -104,7 +113,9 @@ const refresh = (id: string) => deck.mutate(() => api.refreshRelease(id), 'Relea
             <div class="space-y-2">
               <div class="flex items-center gap-2 rounded-md bg-muted/50">
                 <PrRow :pr="r" compact class="min-w-0 flex-1" />
-                <Button variant="ghost" size="icon-sm" class="mr-1.5" title="Re-read the release from GitHub" @click="refresh(r.id)"><PhArrowsClockwise /></Button>
+                <Button variant="ghost" size="icon-sm" class="mr-1.5" :disabled="refreshing === r.id" :title="refreshing === r.id ? 'Reading the release from GitHub…' : 'Re-read the release from GitHub'" @click="refresh(r.id)">
+                  <PhArrowsClockwise :class="{ 'animate-spin': refreshing === r.id }" />
+                </Button>
               </div>
               <ReleaseItems v-if="deck.releaseById.get(r.id)" :contents="deck.releaseById.get(r.id)!" />
               <p v-else class="px-2.5 py-2 text-sm text-muted-foreground">Contents load on the next sync, or refresh now.</p>

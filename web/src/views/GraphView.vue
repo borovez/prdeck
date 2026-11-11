@@ -8,13 +8,14 @@ import dagre from '@dagrejs/dagre'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
+import '@/components/flowTheme.css'
 import { PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from '@phosphor-icons/vue'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useDependencies } from '@/composables/dependencies'
 import { useLayout } from '@/stores/layout'
-import GraphNode, { type GraphNodeData } from '@/components/GraphNode.vue'
+import GraphNode, { CARD_W, cardHeight, type GraphNodeData } from '@/components/GraphNode.vue'
 import FilterChips from '@/components/FilterChips.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import RepoName from '@/components/RepoName.vue'
@@ -39,14 +40,8 @@ const VIEW_DEFAULTS = {
 }
 const v = layout.view('graph', { ...VIEW_DEFAULTS, newKind: 'merge' as DependencyKind })
 
-const NODE_W = 264
-const NODE_H = 114
-/** Card height: the Jira rows (issue, then its epic/parent) add to the base card */
-function nodeHeight(id: string): number {
-  const key = deck.byId.get(id)?.jiraKeys[0]
-  if (!key) return NODE_H
-  return NODE_H + 30 + (deck.jiraByKey.get(key)?.parent ? 20 : 0)
-}
+const NODE_W = CARD_W
+const nodeHeight = (id: string) => cardHeight(deck.byId.get(id), deck.jiraByKey)
 const SOURCE_LABEL: Record<DepEdge['source'], string> = { manual: 'Added manually', body: 'From PR description', jira: 'From Jira "is blocked by"' }
 const ORG_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--merged)', 'var(--info)']
 
@@ -341,79 +336,3 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
     </Card>
   </div>
 </template>
-
-<style>
-.dep-graph {
-  --vf-node-bg: transparent;
-  --vf-node-text: var(--card-foreground);
-  --vf-connection-path: var(--primary);
-  --vf-handle: var(--muted-foreground);
-  background: var(--background);
-}
-.dep-graph .vue-flow__node-pr {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-lg);
-}
-.dep-graph .vue-flow__background circle {
-  fill: var(--border);
-}
-.dep-graph .vue-flow__connection-path {
-  stroke: var(--primary);
-  stroke-width: 2;
-}
-.dep-graph .graph-handle {
-  width: 9px;
-  height: 9px;
-  background: var(--card);
-  border: 1.5px solid var(--muted-foreground);
-  opacity: 0;
-  transition: opacity 120ms;
-}
-.dep-graph .vue-flow__node:hover .graph-handle,
-.dep-graph .vue-flow__handle.connectingfrom,
-.dep-graph .vue-flow__handle.connectingto,
-.dep-graph.vue-flow__container .connecting .graph-handle {
-  opacity: 1;
-}
-.dep-graph .vue-flow__handle.connectingto {
-  border-color: var(--primary);
-  background: var(--primary);
-}
-.dep-graph .vue-flow__edge-textbg {
-  stroke-width: 1px;
-}
-.dep-graph .vue-flow__edge.selected .vue-flow__edge-path,
-.dep-graph .vue-flow__edge:focus .vue-flow__edge-path {
-  filter: drop-shadow(0 0 2px var(--ring));
-}
-.dep-graph .graph-panel {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--popover);
-  color: var(--popover-foreground);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
-}
-.dep-graph .vue-flow__controls {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  overflow: hidden;
-  box-shadow: none;
-}
-.dep-graph .vue-flow__controls-button {
-  background: var(--popover);
-  border-bottom: 1px solid var(--border);
-  color: var(--popover-foreground);
-  fill: var(--popover-foreground);
-}
-.dep-graph .vue-flow__controls-button:last-child {
-  border-bottom: 0;
-}
-.dep-graph .vue-flow__controls-button:hover {
-  background: var(--accent);
-}
-.dep-graph .vue-flow__controls-button svg {
-  fill: currentColor;
-}
-</style>

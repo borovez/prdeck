@@ -1,5 +1,14 @@
 <script lang="ts">
-import type { PrView } from '@shared/types'
+import type { JiraIssue, PrView } from '@shared/types'
+
+export const CARD_W = 264
+const CARD_H = 114
+/** PrCard height: the Jira rows (issue, then its epic/parent) add to the base card */
+export function cardHeight(pr: PrView | null | undefined, jiraByKey: Map<string, JiraIssue>): number {
+  const key = pr?.jiraKeys[0]
+  if (!key) return CARD_H
+  return CARD_H + 30 + (jiraByKey.get(key)?.parent ? 20 : 0)
+}
 
 export interface GraphNodeData {
   id: string
