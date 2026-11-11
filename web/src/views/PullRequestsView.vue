@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhCaretDown, PhCaretRight, PhMagnifyingGlass, PhSortAscending, PhSortDescending } from '@phosphor-icons/vue'
-import type { Bucket } from '@shared/types'
+import { PhCaretDown, PhCaretRight, PhMagnifyingGlass } from '@phosphor-icons/vue'
+import type { Bucket, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type SortDir } from '@/stores/layout'
 import { BUCKETS } from '@/utils/format'
 import PrRow from '@/components/PrRow.vue'
+import SortDirButton from '@/components/SortDirButton.vue'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,9 +17,17 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
 const layout = useLayout()
+type Scope = 'all' | 'mine' | 'review' | 'team'
+const SCOPES: { value: Scope; label: string; match: (p: PrView) => boolean }[] = [
+  { value: 'all', label: 'All', match: () => true },
+  { value: 'mine', label: 'Mine', match: (p) => p.isMine },
+  { value: 'review', label: 'Reviews', match: (p) => p.action.kind === 'review' || p.relations.includes('reviewed') },
+  { value: 'team', label: 'Team', match: (p) => p.relations.includes('tracked') },
+]
+
 const v = layout.view('prs', {
   query: '',
-  scope: 'all' as 'all' | 'mine' | 'review' | 'team',
+  scope: 'all' as Scope,
   bucket: '' as Bucket | '',
   repo: '',
   sort: 'urgency',
@@ -28,13 +36,16 @@ const v = layout.view('prs', {
   showDone: false,
 })
 
+/** Every filter except the scope tab, so each tab can show its count */
+const base = computed(() =>
+  filterPrs(deck.prs, { query: v.query, repo: v.repo || undefined, buckets: v.bucket ? [v.bucket] : undefined }).filter(
+    (p) => v.showDone || p.bucket !== 'done',
+  ),
+)
+const scopeCount = (s: (typeof SCOPES)[number]) => base.value.filter(s.match).length
 const filtered = computed(() => {
-  let prs = filterPrs(deck.prs, { query: v.query, repo: v.repo || undefined, buckets: v.bucket ? [v.bucket] : undefined })
-  if (v.scope === 'mine') prs = prs.filter((p) => p.isMine)
-  if (v.scope === 'review') prs = prs.filter((p) => p.action.kind === 'review' || p.relations.includes('reviewed'))
-  if (v.scope === 'team') prs = prs.filter((p) => p.relations.includes('tracked'))
-  if (!v.showDone) prs = prs.filter((p) => p.bucket !== 'done')
-  return sortPrs(prs, v.sort, v.dir)
+  const scope = SCOPES.find((s) => s.value === v.scope) ?? SCOPES[0]
+  return sortPrs(base.value.filter(scope.match), v.sort, v.dir)
 })
 
 const groups = computed(() => {
@@ -59,10 +70,7 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
       </div>
       <Tabs v-model="v.scope">
         <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="mine">Mine</TabsTrigger>
-          <TabsTrigger value="review">Reviews</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger v-for="s in SCOPES" :key="s.value" :value="s.value" :count="scopeCount(s)">{{ s.label }}</TabsTrigger>
         </TabsList>
       </Tabs>
       <NativeSelect v-model="v.repo" size="sm">
@@ -89,9 +97,7 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
           <NativeSelectOption value="size">Size</NativeSelectOption>
         </NativeSelect>
       </Label>
-      <Button variant="ghost" size="icon-sm" @click="v.dir = v.dir === 'desc' ? 'asc' : 'desc'">
-        <PhSortDescending v-if="v.dir === 'desc'" /><PhSortAscending v-else />
-      </Button>
+      <SortDirButton v-model="v.dir" />
       <Label class="gap-2 font-normal"><Switch v-model="v.showDone" /> Done</Label>
     </div>
 

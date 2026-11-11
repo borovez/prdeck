@@ -9,12 +9,11 @@ import {
   PhDotsThreeVertical,
   PhEyeSlash,
   PhPushPin,
-  PhSortAscending,
-  PhSortDescending,
   PhTrash,
 } from '@phosphor-icons/vue'
 import { useLayout, type PanelConfig } from '@/stores/layout'
 import { cn } from '@/lib/utils'
+import SortDirButton from './SortDirButton.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -93,14 +92,7 @@ const LIMITS = [5, 8, 12, 20, 50, 999]
         >
           <NativeSelectOption v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</NativeSelectOption>
         </NativeSelect>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-xs" @click="set({ dir: panel.dir === 'desc' ? 'asc' : 'desc' })">
-              <PhSortDescending v-if="panel.dir === 'desc'" /><PhSortAscending v-else />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{ panel.dir === 'desc' ? 'Descending' : 'Ascending' }}</TooltipContent>
-        </Tooltip>
+        <SortDirButton size="icon-xs" :model-value="panel.dir" @update:model-value="set({ dir: $event })" />
       </template>
 
       <Tooltip>

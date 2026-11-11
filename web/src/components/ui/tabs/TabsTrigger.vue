@@ -3,11 +3,13 @@ import type { TabsTriggerProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import { reactiveOmit } from '@vueuse/core'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { TabsTrigger, useForwardProps } from 'reka-ui'
 
-const props = defineProps<TabsTriggerProps & { class?: HTMLAttributes['class'] }>()
+/** count: optional number shown as a right-aligned badge */
+const props = defineProps<TabsTriggerProps & { class?: HTMLAttributes['class']; count?: number }>()
 
-const delegatedProps = reactiveOmit(props, 'class')
+const delegatedProps = reactiveOmit(props, 'class', 'count')
 
 const forwardedProps = useForwardProps(delegatedProps)
 </script>
@@ -25,5 +27,6 @@ const forwardedProps = useForwardProps(delegatedProps)
     v-bind="forwardedProps"
   >
     <slot />
+    <Badge v-if="count !== undefined" variant="muted" class="ml-auto h-5 min-w-5 px-1.5 tabular-nums">{{ count }}</Badge>
   </TabsTrigger>
 </template>
