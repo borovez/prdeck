@@ -54,6 +54,14 @@ api.post('/sync', async (c) => {
   return c.json(buildOverview())
 })
 
+/** Header toggle: switch background sync on/off without sending the whole settings object */
+api.put('/sync/auto', async (c) => {
+  const { enabled } = (await c.req.json()) as { enabled: boolean }
+  const s = getSettings()
+  saveSettings({ ...s, sync: { ...s.sync, auto: !!enabled } })
+  return c.json({ enabled: !!enabled })
+})
+
 // ---------- Settings ----------
 api.get('/settings', (c) => c.json(maskSettings(getSettings())))
 

@@ -14,6 +14,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   overview: () => call<Overview>('GET', '/overview'),
   sync: () => call<Overview>('POST', '/sync'),
+  setAutoSync: (enabled: boolean) => call<{ enabled: boolean }>('PUT', '/sync/auto', { enabled }),
   settings: () => call<Settings>('GET', '/settings'),
   saveSettings: (s: Settings) => call<Settings>('PUT', '/settings', s),
   testGithub: (token: string, accountId?: string) =>

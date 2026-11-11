@@ -12,8 +12,10 @@ import {
   PhMoon,
   PhSlackLogo,
   PhSun,
+  PhTimer,
   PhWarning,
 } from '@phosphor-icons/vue'
+import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { useTheme } from '@/composables/theme'
@@ -23,6 +25,8 @@ import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import { Toggle } from '@/components/ui/toggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +74,12 @@ const nav = computed(() => [
   { to: '/settings', label: 'Settings', icon: PhGear },
 ])
 const title = computed(() => nav.value.find((n) => n.to === route.path)?.label ?? '')
+const autoSync = computed(() => deck.overview?.autoSync)
+const setAutoSync = (enabled: boolean) =>
+  deck.mutate(
+    () => api.setAutoSync(enabled),
+    enabled ? `Auto-sync on, every ${autoSync.value?.intervalMinutes ?? 5} min` : 'Auto-sync off',
+  )
 const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.github)
 </script>
 
@@ -131,10 +141,22 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
             <TooltipContent class="max-w-md whitespace-pre-line">{{ deck.overview.sync.errors.join('\n') }}</TooltipContent>
           </Tooltip>
 
-          <Button size="sm" :disabled="deck.syncing || needsSetup" @click="deck.sync()">
-            <PhArrowsClockwise :class="{ 'animate-spin': deck.syncing }" />
-            {{ deck.syncing ? 'Syncing…' : 'Sync' }}
-          </Button>
+          <ButtonGroup>
+            <Button size="sm" variant="outline" :disabled="deck.syncing || needsSetup" @click="deck.sync()">
+              <PhArrowsClockwise :class="{ 'animate-spin': deck.syncing }" />
+              {{ deck.syncing ? 'Syncing…' : 'Sync' }}
+            </Button>
+            <Tooltip v-if="autoSync">
+              <TooltipTrigger as-child>
+                <Toggle size="sm" variant="outline" :model-value="autoSync.enabled" :disabled="needsSetup" aria-label="Auto-sync" @update:model-value="setAutoSync">
+                  <PhTimer /> Auto
+                </Toggle>
+              </TooltipTrigger>
+              <TooltipContent>
+                Auto-sync every {{ autoSync.intervalMinutes }} min is {{ autoSync.enabled ? 'on' : 'off' }}. Interval in Settings.
+              </TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
 
           <DropdownMenu>
             <DropdownMenuTrigger as-child>

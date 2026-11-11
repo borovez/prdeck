@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   PhCheck,
   PhCircleNotch,
@@ -9,6 +9,7 @@ import {
   PhPlus,
   PhSlackLogo,
   PhSparkle,
+  PhTimer,
   PhTrash,
 } from '@phosphor-icons/vue'
 import type { GithubAccount, Settings } from '@shared/types'
@@ -36,6 +37,17 @@ function setSettings(next: Settings) {
   saved.value = JSON.stringify(next)
 }
 const discard = () => setSettings(JSON.parse(saved.value))
+// The header Auto toggle writes sync.auto directly; mirror it here without marking the form dirty
+watch(
+  () => deck.overview?.autoSync.enabled,
+  (enabled) => {
+    if (!s.value || enabled === undefined) return
+    s.value.sync.auto = enabled
+    const snapshot = JSON.parse(saved.value) as Settings
+    snapshot.sync.auto = enabled
+    saved.value = JSON.stringify(snapshot)
+  },
+)
 const busy = ref('')
 const mcp = ref<Awaited<ReturnType<typeof api.mcpInfo>> | null>(null)
 
@@ -228,6 +240,27 @@ const SLACK_SCOPES =
             <Input v-model="newOverrideRef" class="h-8 w-40" placeholder="master" />
             <Button size="sm" variant="outline" type="submit">Add override</Button>
           </form>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- Sync -->
+    <Card>
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2"><PhTimer :size="20" /> Sync</CardTitle>
+        <CardDescription>Background sync runs on the server. The Auto toggle next to the Sync button switches it too.</CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <Label class="cursor-pointer gap-2 font-normal"><Switch v-model="s.sync.auto" /> Sync automatically</Label>
+        <div class="grid grid-cols-2 gap-3">
+          <Label class="flex-col items-start gap-1.5">
+            Every (minutes)
+            <Input v-model.number="s.sync.intervalMinutes" type="number" min="1" max="120" :disabled="!s.sync.auto" />
+          </Label>
+          <Label class="flex-col items-start gap-1.5">
+            Keep merged PRs for (days)
+            <Input v-model.number="s.sync.mergedLookbackDays" type="number" min="1" max="90" />
+          </Label>
         </div>
       </CardContent>
     </Card>

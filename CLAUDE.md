@@ -24,7 +24,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
   - `ai.ts`: Claude drafts a Jira issue from a Slack thread (`@anthropic-ai/sdk`, `beta.messages.parse` + zod, `claude-opus-5-5`, server-side fallbacks).
   - `sync.ts`: single-flight sync. GitHub searches per account, then dependency targets (2 levels), prune, release checks, Jira, Slack.
   - `model.ts`: `buildOverview()` derives everything: dependency edges (manual > PR body `Depends on:` / `Requires release of` > Jira "is blocked by"), satisfied/blocked, action and bucket per PR, dependency chains (topologically sorted connected components).
-  - `routes.ts` (Hono, `/api/*`), `index.ts` (server + 5-min sync loop), `mcp.ts` (11 tools).
+  - `routes.ts` (Hono, `/api/*`), `index.ts` (server + background sync loop; honours `settings.sync.auto` / `intervalMinutes`, toggled from the header via `PUT /api/sync/auto`), `mcp.ts` (11 tools).
 - `web/src/`: Vue 3 + TS, Pinia, vue-router, **shadcn-vue** (`components/ui/*`, generated, reka-ui based), Tailwind v4, Phosphor icons.
   - `stores/deck.ts`: overview data, selected PR (drawer), slackToJira (dialog).
   - `stores/layout.ts`: customizable dashboard panels (order, pin, collapse, width, sort, filter, limit), per-view state via `layout.view(name, defaults)`. Persisted to `/api/prefs`.
@@ -34,7 +34,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 ## UI conventions
 
 - Use shadcn-vue components wherever one fits. Add new ones with `npx shadcn-vue@latest add <name> --yes </dev/null`, then fix any `from 'cn'` imports to `from '@/lib/utils'` and `npm uninstall cn` if the CLI added it (a CLI bug).
-- Local tweaks to generated components: `TabsTrigger` takes `count` (right-aligned badge), `Alert` takes `closable` (emits `close`), `AlertAction` is vertically centred, Toggle/ToggleGroup on-state is primary, Switch off-track is visible in light mode.
+- Local tweaks to generated components: `TabsTrigger` takes `count` (right-aligned badge), `Alert` takes `closable` (emits `close`), `AlertAction` is vertically centred, Toggle/ToggleGroup on-state is primary, Switch off-track is visible in light mode, CardHeader has `gap-x-6` before a CardAction.
 - Writes go through `deck.mutate(fn, successMsg?)`: it toasts errors (and the success message), reloads, and returns whether it worked. Don't keep per-component error state for writes. Transient feedback is a toast (vue-sonner, `toast` from 'vue-sonner'); alerts are for persistent state.
 - Page-level save/actions live in `ActionBar` (sticky bottom), not floating buttons.
 - Colours only via theme tokens in `web/src/style.css` (zinc + indigo; light, `.dark`, and System via `useTheme()`). Status tokens: `success`, `warning`, `info`, `merged`, `destructive`. Badge has matching soft variants (`primary|success|warning|info|merged|muted`). Never hard-code colours. Check both themes.

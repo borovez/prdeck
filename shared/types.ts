@@ -171,6 +171,7 @@ export interface Overview {
   stats: Record<Bucket, number> & { reviewRequests: number; mine: number; slackNew: number }
   sync: SyncState
   configured: { github: boolean; jira: boolean; slack: boolean; ai: boolean }
+  autoSync: { enabled: boolean; intervalMinutes: number }
   jiraBaseUrl: string | null
 }
 
@@ -278,7 +279,8 @@ export interface Settings {
   jira: JiraConfig | null
   slack: SlackConfig | null
   ai: AiConfig
-  sync: { intervalMinutes: number; mergedLookbackDays: number }
+  /** auto: the server syncs in the background every intervalMinutes */
+  sync: { auto: boolean; intervalMinutes: number; mergedLookbackDays: number }
   /**
    * How "released" is decided per repo. Default: the latest GitHub release / tag
    * contains the merge commit. Override with a branch name (e.g. "master") when
@@ -294,7 +296,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jira: null,
   slack: null,
   ai: { apiKey: '', model: 'claude-opus-5-5' },
-  sync: { intervalMinutes: 5, mergedLookbackDays: 14 },
+  sync: { auto: true, intervalMinutes: 5, mergedLookbackDays: 14 },
   releaseRefs: {},
   defaultReleaseRef: 'latest-release',
 }

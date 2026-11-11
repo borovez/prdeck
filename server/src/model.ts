@@ -198,6 +198,7 @@ export function buildOverview(): Overview {
       ai: !!(settings.ai.apiKey || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
     },
     jiraBaseUrl: settings.jira?.baseUrl ?? null,
+    autoSync: { enabled: settings.sync.auto, intervalMinutes: settings.sync.intervalMinutes },
   }
 }
 

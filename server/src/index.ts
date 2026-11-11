@@ -31,8 +31,9 @@ serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
 let last = 0
 setInterval(() => {
   const s = getSettings()
-  if (!s.github.accounts.some((a) => a.token)) return
-  if (Date.now() - last < s.sync.intervalMinutes * 60_000) return
+  if (!s.sync.auto || !s.github.accounts.some((a) => a.token)) return
+  const minutes = Math.max(1, Number(s.sync.intervalMinutes) || 5)
+  if (Date.now() - last < minutes * 60_000) return
   last = Date.now()
   runSync().catch((e) => console.error('[sync]', e))
 }, 30_000)
