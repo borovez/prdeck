@@ -57,5 +57,6 @@ One row per Jira key: my JQL issues plus keys found in PRs, so it works before J
 
 ## Other open items
 
+- Embedded GitHub/Jira pages need a native shell (Electron); spec in `docs/tasks/electron-embedded-browser.md`. Until then "Open beside" uses a popup window.
 - Slack, Jira and Claude drafting are not yet tested against real credentials (Slack needs scopes incl. `stars:read`, `reactions:read`).
 - Graph, Jira, toasts and ActionBar not yet checked in a browser (Chrome extension wasn't connected). Jira page untested with real Jira data.
