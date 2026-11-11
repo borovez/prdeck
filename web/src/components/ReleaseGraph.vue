@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { MarkerType, Panel, Position, VueFlow, useVueFlow, type Edge, type EdgeMouseEvent, type Node, type NodeMouseEvent } from '@vue-flow/core'
+import { MarkerType, Panel, VueFlow, useVueFlow, type Edge, type EdgeMouseEvent, type Node } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import './flowTheme.css'
-import { PhGitBranch, PhRocketLaunch } from '@phosphor-icons/vue'
+import { PhRocketLaunch } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { isUnreleased } from '@/utils/releaseFlow'
-import GraphNode, { CARD_W, cardHeight, type GraphNodeData } from './GraphNode.vue'
 import ReleaseGroupNode, { GROUP_W, groupHeight, type GroupRow, type ReleaseGroupData } from './ReleaseGroupNode.vue'
 import RepoName from './RepoName.vue'
 import ViewMenu, { type ViewSection } from './ViewMenu.vue'
-import FilterChips from './FilterChips.vue'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 /**
  * Release graph: left to right is the path to production, one lane per repo.
@@ -25,8 +24,9 @@ import FilterChips from './FilterChips.vue'
  * PR dependencies, which release has to go first, and releases that roll into another release.
  */
 const deck = useDeck()
-const VIEW_DEFAULTS = { repo: '', showUnreleased: true, showHotfixes: true, showReleased: false, mergedDays: '7' }
-const v = useLayout().view('releaseGraph', { ...VIEW_DEFAULTS, expanded: {} as Record<string, boolean> })
+const VIEW_DEFAULTS = { showUnreleased: true, showHotfixes: true, showReleased: false, mergedDays: '7' }
+/** repo: '' = the busiest repo, 'all' = every repo, else a repo (lower case) */
+const v = useLayout().view('releaseGraph', { ...VIEW_DEFAULTS, repo: '', expanded: {} as Record<string, boolean> })
 
 const COLUMNS = [
   { title: 'Merged to dev', hint: 'Not in a release yet' },
@@ -36,40 +36,50 @@ const COLUMNS = [
 ] as const
 const COLLAPSE_OVER = 8
 const LANE_LABEL_W = 200
-const COL_W = Math.max(GROUP_W, CARD_W)
+const COL_W = GROUP_W
 const COL_GAP = 140
 const STACK_GAP = 24
 const LANE_GAP = 72
 const HEADER_H = 56
 const colX = (c: number) => LANE_LABEL_W + c * (COL_W + COL_GAP)
 
-const repoKey = (p: Pick<PrView, 'repo'>) => p.repo.toLowerCase()
-const inScope = (p: PrView) => !v.repo || repoKey(p) === v.repo.toLowerCase()
 const columnOf = (p: PrView) => (p.state === 'OPEN' ? 1 : p.release?.released ? 3 : 2)
 /** Merged releases and hotfixes older than the chosen window stay off the graph */
 const recent = (p: PrView) => p.state === 'OPEN' || (!!p.mergedAt && Date.now() - Date.parse(p.mergedAt) <= Number(v.mergedDays) * 86_400_000)
 
-type Item =
-  | { type: 'group'; id: string; col: number; data: ReleaseGroupData; h: number }
-  | { type: 'card'; id: string; col: number; pr: PrView; h: number }
+interface Item {
+  id: string
+  col: number
+  data: ReleaseGroupData
+  h: number
+}
+interface Lane {
+  key: string
+  repo: string
+  items: Item[]
+  /** Shown only for its links to the focused repo */
+  linked?: boolean
+}
+const idsOf = (i: Item) => [...(i.data.pr ? [i.data.pr.id] : []), ...i.data.rows.map((r) => r.id)]
 
-/** Everything placed on the graph, per repo lane */
-const lanes = computed(() => {
-  const byRepo = new Map<string, { repo: string; items: Item[] }>()
+/** Every repo's lane, before focusing on one */
+const allLanes = computed<Lane[]>(() => {
+  const byRepo = new Map<string, Lane>()
   const put = (repo: string, item: Item) => {
     if (item.col === 3 && !v.showReleased) return
-    const lane = byRepo.get(repo.toLowerCase()) ?? { repo, items: [] }
+    const key = repo.toLowerCase()
+    const lane = byRepo.get(key) ?? { key, repo, items: [] }
     lane.items.push(item)
-    byRepo.set(repo.toLowerCase(), lane)
+    byRepo.set(key, lane)
   }
-  const group = (data: Omit<ReleaseGroupData, 'expanded' | 'toggle'>, col: number) => {
+  const group = (data: Omit<ReleaseGroupData, 'expanded' | 'toggle'>, col: number): Item => {
     // Open releases with few PRs start expanded; merged ones and big ones start collapsed
-    const expanded = v.expanded[data.id] ?? (data.rows.length <= COLLAPSE_OVER && (data.kind === 'unreleased' || data.pr?.state === 'OPEN'))
+    const expanded = v.expanded[data.id] ?? (data.rows.length <= COLLAPSE_OVER && data.pr?.state !== 'MERGED')
     const full: ReleaseGroupData = { ...data, expanded, toggle: () => (v.expanded[data.id] = !expanded) }
-    return { type: 'group' as const, id: data.id, col, data: full, h: groupHeight(full) }
+    return { id: data.id, col, data: full, h: groupHeight(full) }
   }
 
-  for (const r of deck.prs.filter((p) => p.flow === 'release' && p.state !== 'CLOSED' && inScope(p) && recent(p))) {
+  for (const r of deck.prs.filter((p) => p.flow === 'release' && p.state !== 'CLOSED' && recent(p))) {
     const c = deck.releaseById.get(r.id)
     const rows: GroupRow[] = (c?.items ?? []).map((i) => ({
       id: i.id,
@@ -83,24 +93,71 @@ const lanes = computed(() => {
   }
   if (v.showUnreleased) {
     const unreleased = new Map<string, PrView[]>()
-    for (const p of deck.prs.filter((p) => isUnreleased(p) && inScope(p))) unreleased.set(p.repo, [...(unreleased.get(p.repo) ?? []), p])
+    for (const p of deck.prs.filter(isUnreleased)) unreleased.set(p.repo, [...(unreleased.get(p.repo) ?? []), p])
     for (const [repo, prs] of unreleased) {
       const rows = prs.map((p) => ({ id: p.id, title: p.title, url: p.url, pr: p }))
-      const keys = [...new Set(prs.flatMap((p) => p.jiraKeys))]
-      put(repo, group({ kind: 'unreleased', id: `unreleased:${repo.toLowerCase()}`, repo, branch: prs[0].baseRef, rows, jiraKeys: keys }, 0))
+      put(repo, group({ kind: 'unreleased', id: `unreleased:${repo.toLowerCase()}`, repo, branch: prs[0].baseRef, rows, jiraKeys: [...new Set(prs.flatMap((p) => p.jiraKeys))] }, 0))
     }
   }
-  if (v.showHotfixes)
-    for (const p of deck.prs.filter((p) => p.flow === 'hotfix' && p.state !== 'CLOSED' && inScope(p) && recent(p)))
-      put(p.repo, { type: 'card', id: p.id, col: columnOf(p), pr: p, h: cardHeight(p, deck.jiraByKey) })
-
+  if (v.showHotfixes) {
+    // One box per repo and column
+    const boxes = new Map<string, { repo: string; col: number; prs: PrView[] }>()
+    for (const p of deck.prs.filter((p) => p.flow === 'hotfix' && p.state !== 'CLOSED' && recent(p))) {
+      const k = `${p.repo.toLowerCase()}:${columnOf(p)}`
+      const box = boxes.get(k) ?? { repo: p.repo, col: columnOf(p), prs: [] }
+      box.prs.push(p)
+      boxes.set(k, box)
+    }
+    for (const [k, { repo, col, prs }] of boxes) {
+      const rows = prs.map((p) => ({
+        id: p.id,
+        title: p.title,
+        url: p.url,
+        pr: p,
+        warn: p.state === 'MERGED' && p.backmerge && !p.backmerge.backmerged ? `Not in ${p.backmerge.into} yet` : undefined,
+      }))
+      put(repo, group({ kind: 'hotfixes', id: `hotfixes:${k}`, repo, branch: prs[0].baseRef, rows, jiraKeys: [...new Set(prs.flatMap((p) => p.jiraKeys))] }, col))
+    }
+  }
   return [...byRepo.values()].sort((a, b) => a.repo.localeCompare(b.repo))
+})
+
+/** Repo tabs: open releases and open hotfixes per repo */
+const repoTabs = computed(() =>
+  allLanes.value.map((l) => ({
+    key: l.key,
+    repo: l.repo,
+    count: l.items.reduce((n, i) => n + (i.data.kind === 'release' ? Number(i.data.pr?.state === 'OPEN') : i.data.kind === 'hotfixes' && i.col === 1 ? i.data.rows.length : 0), 0),
+  })),
+)
+const activeRepo = computed(() => {
+  if (v.repo === 'all') return 'all'
+  if (v.repo && allLanes.value.some((l) => l.key === v.repo)) return v.repo
+  return [...repoTabs.value].sort((a, b) => b.count - a.count)[0]?.key ?? 'all'
+})
+
+/** The focused repo's lane, plus the parts of other lanes linked to it by dependencies */
+const lanes = computed<Lane[]>(() => {
+  if (activeRepo.value === 'all') return allLanes.value
+  const focus = allLanes.value.find((l) => l.key === activeRepo.value)
+  if (!focus) return []
+  const own = new Set(focus.items.flatMap(idsOf))
+  const linked = new Set<string>()
+  for (const e of deck.overview?.edges ?? []) {
+    if (own.has(e.from) && !own.has(e.to)) linked.add(e.to)
+    if (own.has(e.to) && !own.has(e.from)) linked.add(e.from)
+  }
+  const others = allLanes.value
+    .filter((l) => l !== focus)
+    .map((l) => ({ ...l, linked: true, items: l.items.filter((i) => idsOf(i).some((id) => linked.has(id))) }))
+    .filter((l) => l.items.length)
+  return [focus, ...others]
 })
 
 /** Positions: items stacked per column inside each lane; lanes stacked vertically */
 const placed = computed(() => {
   const out: { item: Item; x: number; y: number; lane: string }[] = []
-  const laneLabels: { repo: string; y: number; h: number }[] = []
+  const laneLabels: { repo: string; y: number; h: number; linked?: boolean }[] = []
   let y = HEADER_H
   for (const lane of lanes.value) {
     const colY = [0, 0, 0, 0]
@@ -110,7 +167,7 @@ const placed = computed(() => {
       colY[item.col] += item.h + STACK_GAP
     }
     const h = Math.max(...colY) - STACK_GAP
-    laneLabels.push({ repo: lane.repo, y, h })
+    laneLabels.push({ repo: lane.repo, y, h, linked: lane.linked })
     y += h + LANE_GAP
   }
   return { out, laneLabels }
@@ -121,12 +178,9 @@ const visibleCols = computed(() => (v.showReleased ? 4 : 3))
 const locate = computed(() => {
   const m = new Map<string, { node: string; handle: (dir: 'in' | 'out') => string | undefined }>()
   for (const { item } of placed.value.out) {
-    if (item.type === 'card') m.set(item.id, { node: item.id, handle: () => undefined })
-    else {
-      if (item.data.pr) m.set(item.id, { node: item.id, handle: (d) => `${d}:group` })
-      for (const r of item.data.rows)
-        if (!m.has(r.id)) m.set(r.id, { node: item.id, handle: (d) => (item.data.expanded ? `${d}:${r.id}` : `${d}:group`) })
-    }
+    if (item.data.pr) m.set(item.id, { node: item.id, handle: (d) => `${d}:group` })
+    for (const r of item.data.rows)
+      if (!m.has(r.id)) m.set(r.id, { node: item.id, handle: (d) => (item.data.expanded ? `${d}:${r.id}` : `${d}:group`) })
   }
   return m
 })
@@ -134,7 +188,7 @@ const locate = computed(() => {
 const groupsOf = computed(() => {
   const m = new Map<string, string[]>()
   for (const { item } of placed.value.out)
-    if (item.type === 'group' && item.data.kind === 'release') for (const r of item.data.rows) m.set(r.id, [...(m.get(r.id) ?? []), item.id])
+    if (item.data.kind === 'release') for (const r of item.data.rows) m.set(r.id, [...(m.get(r.id) ?? []), item.id])
   return m
 })
 
@@ -152,23 +206,11 @@ const nodes = computed<Node[]>(() => [
     id: `lane:${l.repo}`,
     type: 'lane',
     position: { x: 0, y: l.y },
-    data: { repo: l.repo, height: l.h },
+    data: { repo: l.repo, height: l.h, linked: l.linked },
     selectable: false,
     draggable: false,
   })),
-  ...placed.value.out.map(({ item, x, y }) =>
-    item.type === 'group'
-      ? { id: item.id, type: 'group-release', position: { x, y }, data: item.data, draggable: false }
-      : {
-          id: item.id,
-          type: 'pr',
-          position: { x, y },
-          sourcePosition: Position.Right,
-          targetPosition: Position.Left,
-          data: { id: item.id, pr: item.pr, color: 'var(--warning)', isNext: false } satisfies GraphNodeData,
-          draggable: false,
-        },
-  ),
+  ...placed.value.out.map(({ item, x, y }) => ({ id: item.id, type: 'group-release', position: { x, y }, data: item.data, draggable: false })),
 ])
 
 const edges = computed<Edge[]>(() => {
@@ -218,7 +260,7 @@ const edges = computed<Edge[]>(() => {
   }
   // Releases inside releases: inner rolls into outer
   for (const { item } of placed.value.out) {
-    if (item.type !== 'group' || item.data.kind !== 'release') continue
+    if (item.data.kind !== 'release') continue
     for (const r of item.data.rows) {
       if (!r.isRelease || !loc.has(r.id) || loc.get(r.id)!.node === item.id) continue
       const id = `rolls:${r.id}->${item.id}`
@@ -250,20 +292,13 @@ async function frame() {
 }
 watch(() => nodes.value.map((n) => n.id).join('|'), frame)
 
-function onNodeClick({ node }: NodeMouseEvent) {
-  if (node.type === 'pr') deck.selectedId = node.id
-}
 const tip = ref<{ x: number; y: number; text: string } | null>(null)
 function onEdgeHover({ edge, event }: EdgeMouseEvent) {
   const m = event as MouseEvent
   tip.value = { x: m.clientX, y: m.clientY, text: (edge.data as { text: string }).text }
 }
 
-const repoOptions = computed(() =>
-  [...new Set(deck.prs.filter((p) => p.flow || isUnreleased(p)).map((p) => p.repo))].sort().map((r) => ({ value: r, label: r })),
-)
 const viewSections = computed<ViewSection[]>(() => [
-  { type: 'filter', key: 'repo', label: 'Repo', icon: PhGitBranch, allLabel: 'All repos', options: repoOptions.value, mono: true },
   {
     type: 'radio',
     key: 'mergedDays',
@@ -279,16 +314,23 @@ const viewSections = computed<ViewSection[]>(() => [
   { type: 'check', key: 'showHotfixes', label: 'Show hotfixes' },
   { type: 'check', key: 'showReleased', label: 'Show released' },
 ])
-const chips = computed(() => (v.repo ? [{ key: 'repo', label: v.repo, clear: () => (v.repo = '') }] : []))
 </script>
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
     <!-- Filters live in the page toolbar, next to the tabs -->
     <Teleport defer to="#releases-toolbar">
-      <FilterChips :chips="chips" />
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </Teleport>
+    <!-- One repo at a time; other repos show only what links to it -->
+    <div v-if="repoTabs.length > 1" class="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
+      <Tabs :model-value="activeRepo" @update:model-value="(r) => (v.repo = String(r))">
+        <TabsList>
+          <TabsTrigger v-for="r in repoTabs" :key="r.key" :value="r.key" :count="r.count" :title="r.repo">{{ r.repo.split('/')[1] }}</TabsTrigger>
+          <TabsTrigger value="all">All repos</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </div>
     <div class="relative min-h-0 flex-1 overflow-hidden rounded-xl border">
       <VueFlow
         id="release-graph"
@@ -301,7 +343,6 @@ const chips = computed(() => (v.repo ? [{ key: 'repo', label: v.repo, clear: () 
         :min-zoom="0.15"
         :max-zoom="1.5"
         @pane-ready="frame"
-        @node-click="onNodeClick"
         @edge-mouse-enter="onEdgeHover"
         @edge-mouse-move="onEdgeHover"
         @edge-mouse-leave="tip = null"
@@ -313,15 +354,13 @@ const chips = computed(() => (v.repo ? [{ key: 'repo', label: v.repo, clear: () 
           </div>
         </template>
         <template #node-lane="p">
-          <div class="pointer-events-none w-[170px] border-l-2 border-primary/40 pl-2" :style="{ height: `${p.data.height}px` }">
+          <div class="pointer-events-none w-[170px] border-l-2 pl-2" :class="p.data.linked ? 'border-dashed border-muted-foreground/40' : 'border-primary/40'" :style="{ height: `${p.data.height}px` }">
             <RepoName :repo="p.data.repo" class="font-mono text-xs font-medium" />
+            <div v-if="p.data.linked" class="text-[11px] text-muted-foreground">Only what links to the selected repo</div>
           </div>
         </template>
         <template #node-group-release="p">
           <ReleaseGroupNode :data="p.data" />
-        </template>
-        <template #node-pr="p">
-          <GraphNode :data="p.data" />
         </template>
 
         <Background :gap="18" :size="1.2" />

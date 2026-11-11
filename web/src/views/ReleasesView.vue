@@ -97,9 +97,12 @@ async function refresh(id: string) {
     <ScrollArea v-else type="auto" class="min-h-0 flex-1 max-w-none!">
       <div class="max-w-6xl space-y-4 p-px">
         <template v-if="v.tab === 'releases'">
-          <h3 v-if="openReleases.length" class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Open releases</h3>
+          <template v-for="sec in [{ label: 'Open releases', prs: openReleases }, { label: 'Merged releases', prs: mergedReleases }]" :key="sec.label">
+          <h3 v-if="sec.prs.length" class="flex items-center gap-2 pt-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase first:pt-0">
+            {{ sec.label }} <Badge variant="count">{{ sec.prs.length }}</Badge>
+          </h3>
           <GroupCard
-            v-for="r in [...openReleases, ...mergedReleases]"
+            v-for="r in sec.prs"
             :key="r.id"
             label=""
             :count="deck.releaseById.get(r.id)?.items.length ?? 0"
@@ -124,6 +127,7 @@ async function refresh(id: string) {
               <p v-else class="px-2.5 py-2 text-sm text-muted-foreground">Contents load on the next sync, or refresh now.</p>
             </div>
           </GroupCard>
+          </template>
 
           <template v-if="unreleased.length">
             <h3 class="pt-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Merged, not in a release yet</h3>
