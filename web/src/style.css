@@ -6,6 +6,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * The generated shadcn-vue classes use state shorthands (data-checked:, data-open: …), but reka-ui
+ * marks state as data-state="checked" etc. Match both, or switches, checkboxes, tabs and
+ * open/close animations silently lose their state styles.
+ */
+@custom-variant data-open (&:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"], [data-open]));
+@custom-variant data-closed (&:is([data-state="closed"], [data-closed]));
+@custom-variant data-checked (&:is([data-state="checked"], [data-checked]));
+@custom-variant data-unchecked (&:is([data-state="unchecked"], [data-unchecked]));
+@custom-variant data-active (&:is([data-state="active"], [data-active]));
+
 @theme inline {
   --color-success: var(--success);
   --color-warning: var(--warning);
