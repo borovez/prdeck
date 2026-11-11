@@ -80,6 +80,7 @@ export function getSettings(): Settings {
     ...s,
     github: { accounts: s.github?.accounts ?? [] },
     sync: { ...DEFAULT_SETTINGS.sync, ...s.sync },
+    dependencies: { ...DEFAULT_SETTINGS.dependencies, ...s.dependencies },
     releaseRefs: s.releaseRefs ?? {},
     // Older settings have no provider: a stored key means the API was in use
     ai: { ...DEFAULT_SETTINGS.ai, ...s.ai, provider: s.ai?.provider ?? (s.ai?.apiKey ? 'api' : 'claude-code') },
@@ -140,6 +141,11 @@ export function upsertPr(pr: PrRecord, relations: Relation[], syncedAt: string) 
     `INSERT INTO prs (id, data, relations, synced_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET data = excluded.data, relations = excluded.relations, synced_at = excluded.synced_at`,
   ).run(pr.id, JSON.stringify(pr), JSON.stringify(relations), syncedAt)
+}
+
+/** Local copy of a PR description after PR Deck edited it on GitHub (the next sync confirms it) */
+export function setPrBody(id: PrId, body: string) {
+  db.prepare("UPDATE prs SET data = json_set(data, '$.body', ?) WHERE id = ?").run(body, id)
 }
 
 export function setRelease(id: PrId, release: ReleaseInfo) {

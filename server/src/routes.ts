@@ -1,4 +1,5 @@
 import { computeReleaseContents } from './releases.ts'
+import { editDescription, withDependency, withoutDependency } from './bodyDeps.ts'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -17,6 +18,7 @@ import {
   saveSettings,
   saveUiPrefs,
   setMeta,
+  setPrBody,
   setSlackStatus,
 } from './db.ts'
 import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
@@ -191,11 +193,42 @@ api.post('/deps', async (c) => {
   const to = normaliseRef(d.to)
   if (!from || !to) throw bad('Use owner/repo#123 or a GitHub PR URL')
   if (from === to) throw bad('A PR cannot depend on itself')
+  // Written into the dependent PR's description when possible, so everyone sees it on GitHub
+  const settings = getSettings()
+  const stored = listPrs().find((s) => s.pr.id === from)
+  if (settings.dependencies.writeToDescription && stored) {
+    const target = listPrs().find((s) => s.pr.id === to)?.pr
+    const toRef = target ? `${target.repo}#${target.number}` : to
+    const accounts = settings.github.accounts.filter((a) => a.token)
+    const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
+    try {
+      if (!acc) throw new Error('No GitHub account for this PR')
+      const body = await editDescription(acc, stored.pr.repo, stored.pr.number, (b) => withDependency(b, stored.pr.repo, from, to, toRef, d.kind))
+      if (body !== null) setPrBody(from, body)
+      return c.json({ from, to, written: true })
+    } catch (e) {
+      const id = addManualDep(from, to, d.kind, d.note ?? null)
+      return c.json({ id, from, to, written: false, error: (e as Error).message })
+    }
+  }
   const id = addManualDep(from, to, d.kind, d.note ?? null)
-  return c.json({ id, from, to })
+  return c.json({ id, from, to, written: false })
 })
 
 api.delete('/deps/:id', (c) => c.json({ removed: removeManualDep(Number(c.req.param('id'))) }))
+
+/** Remove a dependency that comes from the PR description, by editing the description on GitHub */
+api.post('/deps/remove-from-description', async (c) => {
+  const { from, to } = await c.req.json<{ from: string; to: string }>()
+  const stored = listPrs().find((s) => s.pr.id === from)
+  if (!stored) throw bad('Unknown PR')
+  const accounts = getSettings().github.accounts.filter((a) => a.token)
+  const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
+  if (!acc) throw bad('No GitHub account for this PR')
+  const body = await editDescription(acc, stored.pr.repo, stored.pr.number, (b) => withoutDependency(b, stored.pr.repo, to))
+  if (body !== null) setPrBody(from, body)
+  return c.json({ removed: body !== null })
+})
 
 // ---------- PR detail (panel: description, files) ----------
 api.get('/prs/detail', async (c) => {

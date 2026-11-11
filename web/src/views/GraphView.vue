@@ -12,8 +12,8 @@ import { PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
+import { useDependencies } from '@/composables/dependencies'
 import { useLayout } from '@/stores/layout'
-import { api } from '@/api'
 import GraphNode, { type GraphNodeData } from '@/components/GraphNode.vue'
 import FilterChips from '@/components/FilterChips.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
@@ -24,6 +24,7 @@ import { Card } from '@/components/ui/card'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const deck = useDeck()
+const deps = useDependencies()
 // Escape: the PR drawer closes first (its own handler), then the edge panel
 onEscape(() => !deck.selectedId && !!selectedEdge.value && ((selectedEdge.value = null), true))
 const layout = useLayout()
@@ -192,23 +193,21 @@ function onEdgeLeave() {
 }
 
 const busy = ref(false)
-async function run(fn: () => Promise<unknown>, success: string) {
-  busy.value = true
-  const ok = await deck.mutate(fn, success)
-  busy.value = false
-  return ok
-}
 
 /** Drag from prerequisite (right handle) to dependent (left handle). */
 function onConnect(c: Connection) {
   if (!c.source || !c.target || c.source === c.target) return
-  run(() => api.addDep(c.target, c.source, v.newKind), 'Dependency added')
+  busy.value = true
+  deps.add(c.target, c.source, v.newKind).finally(() => (busy.value = false))
 }
 
 async function deleteSelected() {
   const e = selectedEdge.value
-  if (e?.id == null) return
-  if (await run(() => api.removeDep(e.id!), 'Dependency removed')) selectedEdge.value = null
+  if (!e || !deps.canRemove(e)) return
+  busy.value = true
+  const ok = await deps.remove(e)
+  busy.value = false
+  if (ok) selectedEdge.value = null
 }
 
 // Drop the selection when the edge disappears after a reload
@@ -309,11 +308,11 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
             </div>
             <div class="text-muted-foreground">{{ SOURCE_LABEL[selectedEdge.source] }}<template v-if="selectedEdge.note"> · {{ selectedEdge.note }}</template></div>
           </div>
-          <Button v-if="selectedEdge.id != null" variant="destructive" size="sm" class="w-full" :disabled="busy" @click="deleteSelected">
-            <PhTrash />Remove dependency
+          <Button v-if="deps.canRemove(selectedEdge)" variant="destructive" size="sm" class="w-full" :disabled="busy" @click="deleteSelected">
+            <PhTrash />{{ selectedEdge.source === 'body' ? 'Remove from the PR description' : 'Remove dependency' }}
           </Button>
           <p v-else class="text-xs text-muted-foreground">
-            {{ selectedEdge.source === 'body' ? 'Edit the PR description to remove this link.' : 'Remove the link in Jira to drop this one.' }}
+            Remove the link in Jira to drop this one.
           </p>
         </Panel>
 

@@ -446,3 +446,14 @@ export async function releaseContents(
 
   return { items: [...found.values()], commitsScanned: scanned, truncated: total > scanned }
 }
+
+// ---------- PR description edits ----------
+
+export async function getPrBody(account: GithubAccount, repo: string, number: number): Promise<string> {
+  const pr = await request<{ body: string | null }>(account.token, `/repos/${repo}/pulls/${number}`)
+  return pr.body ?? ''
+}
+
+export async function updatePrBody(account: GithubAccount, repo: string, number: number, body: string): Promise<void> {
+  await request(account.token, `/repos/${repo}/pulls/${number}`, { method: 'PATCH', body: JSON.stringify({ body }) })
+}

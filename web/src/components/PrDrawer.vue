@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useArrowNav } from '@/composables/prNav'
+import { useDependencies } from '@/composables/dependencies'
 import { followBeside, openBeside } from '@/composables/besideWindow'
 import { loadPrDetail } from '@/composables/prDetail'
 import { releaseStatus } from '@shared/release'
@@ -126,11 +127,12 @@ const depTarget = ref('')
 const candidates = computed(() => deck.prs.filter((p) => p.id !== pr.value?.id).map((p) => p.id))
 async function addDep() {
   const [from, to] = dv.depDirection === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
-  if (await deck.mutate(() => api.addDep(from, to, dv.depKind), 'Dependency added')) depTarget.value = ''
+  if (await deps.add(from, to, dv.depKind)) depTarget.value = ''
 }
 /** Prerequisites not yet merged/released */
 const waiting = computed(() => pr.value?.dependsOn.filter((e) => !e.satisfied).length ?? 0)
-const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!), 'Dependency removed')
+const deps = useDependencies()
+const removeDep = (e: DepEdge) => deps.remove(e)
 
 </script>
 
@@ -336,7 +338,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                 <span class="flex-1" />
                 <Badge variant="outline">{{ e.kind }}</Badge>
                 <Badge variant="muted" :title="e.note ?? ''">{{ e.source }}</Badge>
-                <Button v-if="e.id" variant="ghost" size="icon-xs" title="Remove" @click="removeDep(e)"><PhTrash /></Button>
+                <Button v-if="deps.canRemove(e)" variant="ghost" size="icon-xs" :title="e.id != null ? 'Remove' : 'Remove from the PR description'" @click="removeDep(e)"><PhTrash /></Button>
               </li>
               <li v-if="!pr.dependsOn.length" class="text-sm text-muted-foreground">None</li>
             </ul>
@@ -347,7 +349,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                 <span class="truncate text-muted-foreground">{{ deck.byId.get(e.from)?.title }}</span>
                 <span class="flex-1" />
                 <Badge variant="outline">waits for {{ e.kind }}</Badge>
-                <Button v-if="e.id" variant="ghost" size="icon-xs" title="Remove" @click="removeDep(e)"><PhTrash /></Button>
+                <Button v-if="deps.canRemove(e)" variant="ghost" size="icon-xs" :title="e.id != null ? 'Remove' : 'Remove from the PR description'" @click="removeDep(e)"><PhTrash /></Button>
               </li>
               <li v-if="!pr.dependents.length" class="text-sm text-muted-foreground">None</li>
             </ul>
@@ -384,7 +386,9 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                   </DropdownMenu>
                 </ButtonGroup>
               </div>
-              <p class="text-xs text-muted-foreground">Or write “Depends on: org/repo#12” in the PR description.</p>
+              <p class="text-xs text-muted-foreground">
+                {{ dv.depDirection === 'dependsOn' ? 'Written into this PR’s description' : 'Written into that PR’s description' }} as “{{ dv.depKind === 'release' ? 'Requires release of' : 'Depends on' }}: org/repo#12”, so it shows on GitHub too.
+              </p>
             </form>
           </div>
         </section>

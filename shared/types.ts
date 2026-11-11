@@ -432,6 +432,8 @@ export interface Settings {
   ai: AiConfig
   /** auto: the server syncs in the background every intervalMinutes */
   sync: { auto: boolean; intervalMinutes: number; mergedLookbackDays: number }
+  /** writeToDescription: adding/removing a dependency edits the dependent PR's description on GitHub */
+  dependencies: { writeToDescription: boolean }
   /**
    * How "released" is decided per repo. Default: the latest GitHub release / tag
    * contains the merge commit. Override with a branch name (e.g. "master") when
@@ -448,6 +450,7 @@ export const DEFAULT_SETTINGS: Settings = {
   slack: null,
   ai: { provider: 'claude-code', apiKey: '', model: 'claude-opus-5-5' },
   sync: { auto: true, intervalMinutes: 5, mergedLookbackDays: 14 },
+  dependencies: { writeToDescription: true },
   releaseRefs: {},
   defaultReleaseRef: 'latest-release',
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { PhCheck, PhCircleNotch, PhPlug, PhTimer } from '@phosphor-icons/vue'
+import { PhCheck, PhCircleNotch, PhPlug, PhGraph, PhTimer } from '@phosphor-icons/vue'
 import { api } from '@/api'
 import { useSettings } from '@/stores/settings'
 import ActionBar from '@/components/ActionBar.vue'
@@ -44,6 +44,22 @@ onMounted(async () => {
             <Input v-model.number="st.s.sync.mergedLookbackDays" type="number" min="1" max="90" />
           </Field>
         </div>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2"><PhGraph :size="20" /> Dependencies</CardTitle>
+        <CardDescription>How dependencies you add or remove in PR Deck are stored.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Label class="cursor-pointer items-start gap-2 font-normal">
+          <Switch v-model="st.s.dependencies.writeToDescription" class="mt-0.5" />
+          <span>
+            Write them into the PR description on GitHub
+            <span class="block text-xs text-muted-foreground">Adds or removes a “Depends on: org/repo#12” line in the dependent PR, so reviewers see it too. Off: kept in PR Deck only.</span>
+          </span>
+        </Label>
       </CardContent>
     </Card>
 
