@@ -121,11 +121,13 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
       </Sidebar>
 
       <SidebarInset class="min-w-0">
-        <header class="app-titlebar app-titlebar-right sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
+        <!-- Three columns so the search stays centred: title and sync status | search | actions -->
+        <header class="app-titlebar app-titlebar-right sticky top-0 z-20 grid h-14 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
+          <div class="flex min-w-0 items-center gap-2">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-1 data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center" />
           <h1 class="text-sm font-semibold">{{ title }}</h1>
-          <span class="ml-2 hidden text-xs text-muted-foreground sm:inline">
+          <span class="ml-2 hidden truncate text-xs text-muted-foreground lg:inline">
             <template v-if="deck.overview?.sync.lastFinishedAt">
               Synced {{ timeAgo(deck.overview.sync.lastFinishedAt) }}
               <template v-if="deck.overview.sync.counts">
@@ -134,9 +136,10 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
             </template>
             <template v-else-if="deck.overview">Never synced</template>
           </span>
-          <span class="flex-1" />
+          </div>
           <GlobalSearch />
 
+          <div class="flex min-w-0 items-center justify-end gap-2">
           <SyncErrors />
 
           <ButtonGroup>
@@ -170,6 +173,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </header>
 
         <main class="flex-1 bg-muted/30 p-4 lg:p-6">

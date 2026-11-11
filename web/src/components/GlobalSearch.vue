@@ -208,7 +208,7 @@ const indexOf = (r: Result) => flat.value.indexOf(r)
 </script>
 
 <template>
-  <Button variant="outline" size="sm" class="w-56 justify-start gap-2 text-muted-foreground max-md:w-auto" @click="open = true">
+  <Button variant="outline" size="sm" class="w-72 justify-start gap-2 text-muted-foreground max-lg:w-48 max-md:w-auto" @click="open = true">
     <PhMagnifyingGlass /> <span class="max-md:hidden">Search…</span>
     <kbd class="ml-auto rounded border px-1.5 font-mono text-[10px] max-md:hidden">/</kbd>
   </Button>
