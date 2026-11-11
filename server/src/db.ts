@@ -1,0 +1,255 @@
+import './quiet.ts'
+import { DatabaseSync } from 'node:sqlite'
+import { chmodSync, existsSync, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import type {
+  DependencyKind,
+  JiraIssue,
+  PrId,
+  SlackItem,
+  SlackStatus,
+  PrRecord,
+  Relation,
+  ReleaseInfo,
+  Settings,
+  SyncState,
+} from '../../shared/types.ts'
+import { DEFAULT_SETTINGS } from '../../shared/types.ts'
+
+export const DATA_DIR = process.env.PRDECK_DATA_DIR ?? join(homedir(), '.prdeck')
+if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
+export const DB_PATH = join(DATA_DIR, 'prdeck.db')
+
+// Shared by the API server and the MCP server (separate processes) – WAL keeps that safe.
+export const db = new DatabaseSync(DB_PATH)
+try {
+  chmodSync(DB_PATH, 0o600) // tokens live in here
+} catch {}
+db.exec(`
+  PRAGMA journal_mode = WAL;
+  PRAGMA busy_timeout = 5000;
+  CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS prs (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    relations TEXT NOT NULL DEFAULT '[]',
+    release TEXT,
+    synced_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS jira_issues (key TEXT PRIMARY KEY, data TEXT NOT NULL, synced_at TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS dependencies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_pr TEXT NOT NULL,
+    to_pr TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE (from_pr, to_pr)
+  );
+  CREATE TABLE IF NOT EXISTS slack_items (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'new',
+    jira_key TEXT,
+    posted_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS pr_meta (pr_id TEXT PRIMARY KEY, note TEXT, pinned INTEGER NOT NULL DEFAULT 0);
+`)
+
+// ---------- kv ----------
+function kvGet<T>(key: string, fallback: T): T {
+  const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as { value: string } | undefined
+  return row ? (JSON.parse(row.value) as T) : fallback
+}
+function kvSet(key: string, value: unknown) {
+  db.prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
+    key,
+    JSON.stringify(value),
+  )
+}
+
+export function getSettings(): Settings {
+  const s = kvGet<Partial<Settings>>('settings', {})
+  return {
+    ...DEFAULT_SETTINGS,
+    ...s,
+    github: { accounts: s.github?.accounts ?? [] },
+    sync: { ...DEFAULT_SETTINGS.sync, ...s.sync },
+    releaseRefs: s.releaseRefs ?? {},
+    ai: { ...DEFAULT_SETTINGS.ai, ...s.ai },
+    jira: s.jira
+      ? {
+          ...s.jira,
+          create: {
+            projectKey: s.jira.projectKeys?.[0] ?? '',
+            issueType: 'Task',
+            extraFieldsJson: '',
+            assignToMe: true,
+            ...(s.jira.create as Partial<NonNullable<Settings['jira']>['create']> | undefined),
+          },
+        }
+      : null,
+    slack: s.slack ? { lookbackDays: 7, maxConversations: 40, includeSaved: true, todoReactions: ['todo', 'eyes', 'bookmark'], ...(s.slack as Partial<NonNullable<Settings['slack']>>), token: s.slack.token, userId: s.slack.userId ?? null, teamUrl: s.slack.teamUrl ?? null } : null,
+  }
+}
+export const saveSettings = (s: Settings) => kvSet('settings', s)
+
+const EMPTY_SYNC: SyncState = {
+  running: false,
+  lastStartedAt: null,
+  lastFinishedAt: null,
+  lastDurationMs: null,
+  errors: [],
+  counts: null,
+}
+export const getSyncState = (): SyncState => ({ ...EMPTY_SYNC, ...kvGet<Partial<SyncState>>('sync', {}) })
+export const saveSyncState = (s: SyncState) => kvSet('sync', s)
+export const getMyLogins = (): string[] => kvGet<string[]>('me', [])
+export const saveMyLogins = (l: string[]) => kvSet('me', l)
+export const getMyJiraKeys = (): string[] => kvGet<string[]>('myJiraKeys', [])
+export const saveMyJiraKeys = (k: string[]) => kvSet('myJiraKeys', k)
+
+// ---------- PRs ----------
+export interface StoredPr {
+  pr: PrRecord
+  relations: Relation[]
+  release: ReleaseInfo | null
+}
+
+export function listPrs(): StoredPr[] {
+  const rows = db.prepare('SELECT data, relations, release FROM prs').all() as {
+    data: string
+    relations: string
+    release: string | null
+  }[]
+  return rows.map((r) => ({
+    pr: JSON.parse(r.data),
+    relations: JSON.parse(r.relations),
+    release: r.release ? JSON.parse(r.release) : null,
+  }))
+}
+
+export function upsertPr(pr: PrRecord, relations: Relation[], syncedAt: string) {
+  db.prepare(
+    `INSERT INTO prs (id, data, relations, synced_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET data = excluded.data, relations = excluded.relations, synced_at = excluded.synced_at`,
+  ).run(pr.id, JSON.stringify(pr), JSON.stringify(relations), syncedAt)
+}
+
+export function setRelease(id: PrId, release: ReleaseInfo) {
+  db.prepare('UPDATE prs SET release = ? WHERE id = ?').run(JSON.stringify(release), id)
+}
+
+export function deletePrsNotSyncedAt(syncedAt: string, keep: Set<PrId>) {
+  const stale = db.prepare('SELECT id FROM prs WHERE synced_at <> ?').all(syncedAt) as { id: string }[]
+  const del = db.prepare('DELETE FROM prs WHERE id = ?')
+  for (const { id } of stale) if (!keep.has(id)) del.run(id)
+}
+
+// ---------- Jira ----------
+export function listJira(): JiraIssue[] {
+  return (db.prepare('SELECT data FROM jira_issues').all() as { data: string }[]).map((r) => JSON.parse(r.data))
+}
+export function replaceJira(issues: JiraIssue[], syncedAt: string) {
+  db.exec('BEGIN')
+  try {
+    db.exec('DELETE FROM jira_issues')
+    const ins = db.prepare('INSERT INTO jira_issues (key, data, synced_at) VALUES (?, ?, ?)')
+    for (const i of issues) ins.run(i.key, JSON.stringify(i), syncedAt)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+}
+
+// ---------- Manual dependencies ----------
+export interface ManualDep {
+  id: number
+  from: PrId
+  to: PrId
+  kind: DependencyKind
+  note: string | null
+}
+export function listManualDeps(): ManualDep[] {
+  return db.prepare('SELECT id, from_pr AS "from", to_pr AS "to", kind, note FROM dependencies').all() as unknown as ManualDep[]
+}
+export function addManualDep(from: PrId, to: PrId, kind: DependencyKind, note: string | null): number {
+  const r = db
+    .prepare(
+      `INSERT INTO dependencies (from_pr, to_pr, kind, note, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(from_pr, to_pr) DO UPDATE SET kind = excluded.kind, note = excluded.note
+       RETURNING id`,
+    )
+    .get(from, to, kind, note, new Date().toISOString()) as { id: number }
+  return r.id
+}
+export function removeManualDep(id: number): boolean {
+  return db.prepare('DELETE FROM dependencies WHERE id = ?').run(id).changes > 0
+}
+
+// ---------- Per-PR meta ----------
+export function listMeta(): Map<PrId, { note: string | null; pinned: boolean }> {
+  const rows = db.prepare('SELECT pr_id, note, pinned FROM pr_meta').all() as {
+    pr_id: string
+    note: string | null
+    pinned: number
+  }[]
+  return new Map(rows.map((r) => [r.pr_id, { note: r.note, pinned: !!r.pinned }]))
+}
+export function setMeta(id: PrId, note: string | null, pinned: boolean) {
+  db.prepare(
+    `INSERT INTO pr_meta (pr_id, note, pinned) VALUES (?, ?, ?)
+     ON CONFLICT(pr_id) DO UPDATE SET note = excluded.note, pinned = excluded.pinned`,
+  ).run(id, note, pinned ? 1 : 0)
+}
+
+// ---------- Slack ----------
+export function listSlack(): SlackItem[] {
+  const rows = db.prepare('SELECT data, status, jira_key FROM slack_items ORDER BY posted_at DESC').all() as {
+    data: string
+    status: SlackStatus
+    jira_key: string | null
+  }[]
+  return rows.map((r) => ({ ...JSON.parse(r.data), status: r.status, jiraKey: r.jira_key }))
+}
+
+export function getSlackItem(id: string): SlackItem | null {
+  const r = db.prepare('SELECT data, status, jira_key FROM slack_items WHERE id = ?').get(id) as
+    | { data: string; status: SlackStatus; jira_key: string | null }
+    | undefined
+  return r ? { ...JSON.parse(r.data), status: r.status, jiraKey: r.jira_key } : null
+}
+
+/** Upsert content; status/jira link are user state and survive re-syncs (unless autoDone). */
+export function upsertSlackItem(item: SlackItem, autoDone: boolean) {
+  const { status: _s, jiraKey: _j, ...data } = item
+  db.prepare(
+    `INSERT INTO slack_items (id, data, status, posted_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET data = excluded.data,
+       status = CASE WHEN ? AND slack_items.status = 'new' THEN 'done' ELSE slack_items.status END`,
+  ).run(item.id, JSON.stringify(data), autoDone ? 'done' : 'new', item.postedAt, autoDone ? 1 : 0)
+}
+
+export function setSlackStatus(id: string, status: SlackStatus, jiraKey?: string | null) {
+  if (jiraKey !== undefined) db.prepare('UPDATE slack_items SET status = ?, jira_key = ? WHERE id = ?').run(status, jiraKey, id)
+  else db.prepare('UPDATE slack_items SET status = ? WHERE id = ?').run(status, id)
+}
+
+export function pruneSlack(olderThanIso: string) {
+  db.prepare("DELETE FROM slack_items WHERE posted_at < ? AND status <> 'new'").run(olderThanIso)
+}
+
+export const getSlackUsers = () => kvGet<Record<string, { name: string; avatar: string | null }>>('slackUsers', {})
+export const saveSlackUsers = (u: Record<string, { name: string; avatar: string | null }>) => kvSet('slackUsers', u)
+
+// ---------- UI preferences (layout, panels, sorting) ----------
+export const getUiPrefs = () => kvGet<Record<string, unknown>>('uiPrefs', {})
+export const saveUiPrefs = (p: Record<string, unknown>) => kvSet('uiPrefs', p)
+
+/** Close open saved/todo items that are no longer saved / reacted in Slack. */
+export function closeStaleSlack(kinds: string[], seen: Set<string>) {
+  for (const it of listSlack())
+    if (it.status === 'new' && kinds.includes(it.kind) && !seen.has(it.id)) setSlackStatus(it.id, 'done')
+}

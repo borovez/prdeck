@@ -1,0 +1,38 @@
+import './quiet.ts'
+import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
+import { Hono } from 'hono'
+import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { DB_PATH, getSettings } from './db.ts'
+import { api } from './routes.ts'
+import { runSync } from './sync.ts'
+
+const PORT = Number(process.env.PRDECK_PORT ?? 4317)
+// Bound to loopback only: this process holds your GitHub and Jira tokens.
+const HOST = '127.0.0.1'
+
+const app = new Hono()
+app.route('/api', api)
+
+// In production, serve the built Vue app.
+const dist = fileURLToPath(new URL('../../web/dist', import.meta.url))
+if (existsSync(dist)) {
+  app.use('/*', serveStatic({ root: dist }))
+  const index = readFileSync(`${dist}/index.html`, 'utf8')
+  app.get('*', (c) => c.html(index)) // SPA fallback
+}
+
+serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
+  console.log(`prdeck API on http://${HOST}:${PORT}  (db: ${DB_PATH})`)
+})
+
+// Background sync loop – re-reads the interval every tick so settings changes apply.
+let last = 0
+setInterval(() => {
+  const s = getSettings()
+  if (!s.github.accounts.some((a) => a.token)) return
+  if (Date.now() - last < s.sync.intervalMinutes * 60_000) return
+  last = Date.now()
+  runSync().catch((e) => console.error('[sync]', e))
+}, 30_000)

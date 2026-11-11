@@ -1,0 +1,59 @@
+import Anthropic from '@anthropic-ai/sdk'
+import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
+import { z } from 'zod'
+import type { AiConfig, JiraDraft, SlackItem } from '../../shared/types.ts'
+
+const DraftSchema = z.object({
+  summary: z.string().describe('Imperative Jira summary, max ~90 chars, no ticket prefix'),
+  description: z
+    .string()
+    .describe('Markdown body: ## Context, ## Problem / Request, ## Acceptance criteria (bullets), ## Notes. Facts only from the conversation.'),
+  issueType: z.enum(['Task', 'Bug', 'Story', 'Improvement']),
+  labels: z.array(z.string()).describe('0-3 short lowercase labels, only when clearly useful'),
+  rationale: z.string().describe('One sentence: why this issue type, and anything ambiguous the user should check'),
+})
+
+const SYSTEM = `You turn Slack conversations into well-formed Jira issues for a software team.
+Write for an engineer who has not seen the Slack thread: state the problem or request, the relevant context
+(systems, customers, error messages, links quoted verbatim), and concrete acceptance criteria.
+Use only facts present in the conversation or the user's extra context. Where something needed is unknown,
+list it under "## Open questions" instead of guessing. Keep it tight - no filler, no restating the summary.`
+
+export function aiClient(cfg: AiConfig) {
+  // Blank key → SDK resolves ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login` profile.
+  return cfg.apiKey ? new Anthropic({ apiKey: cfg.apiKey }) : new Anthropic()
+}
+
+export async function draftJiraFromSlack(
+  cfg: AiConfig,
+  item: SlackItem,
+  thread: string,
+  extraContext: string,
+  projectKey: string,
+): Promise<JiraDraft> {
+  const client = aiClient(cfg)
+  const prompt = [
+    `Jira project: ${projectKey || '(unspecified)'}`,
+    `Slack source: ${item.channelName}${item.permalink ? ` - ${item.permalink}` : ''}`,
+    `<slack_conversation>\n${thread}\n</slack_conversation>`,
+    extraContext.trim() ? `<extra_context_from_me>\n${extraContext.trim()}\n</extra_context_from_me>` : '',
+    'Draft the Jira issue for the starred message (use the rest of the conversation as context).',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const response = await client.beta.messages.parse({
+    model: cfg.model || 'claude-opus-5-5',
+    max_tokens: 16000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: 'medium', format: betaZodOutputFormat(DraftSchema) },
+    system: SYSTEM,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  if (response.stop_reason === 'refusal') throw new Error('Claude declined to draft this issue')
+  if (!response.parsed_output) throw new Error(`Claude returned no draft (stop_reason: ${response.stop_reason})`)
+  const d = response.parsed_output
+  const source = item.permalink ? `\n\n---\nSource: [Slack message from ${item.userName}](${item.permalink})` : ''
+  return { ...d, description: d.description + source }
+}
