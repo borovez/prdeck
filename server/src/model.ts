@@ -176,11 +176,17 @@ export function buildOverview(): Overview {
     reviewRequests: 0,
     mine: 0,
     slackNew: slack.filter((i) => i.status === 'new').length,
+    myThreads: 0,
+    myThreadPrs: 0,
   }
   for (const p of prs) {
     stats[p.bucket]++
     if (p.action.kind === 'review') stats.reviewRequests++
-    if (p.isMine && p.state === 'OPEN') stats.mine++
+    if (p.isMine && p.state === 'OPEN') {
+      stats.mine++
+      stats.myThreads += p.unresolvedThreads
+      if (p.unresolvedThreads) stats.myThreadPrs++
+    }
   }
 
   return {

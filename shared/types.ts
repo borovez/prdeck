@@ -187,7 +187,14 @@ export interface Overview {
   chains: DependencyChain[]
   jira: JiraIssueView[]
   slack: SlackItem[]
-  stats: Record<Bucket, number> & { reviewRequests: number; mine: number; slackNew: number }
+  stats: Record<Bucket, number> & {
+    reviewRequests: number
+    mine: number
+    slackNew: number
+    /** Unresolved review conversations on my open PRs, and how many PRs have any */
+    myThreads: number
+    myThreadPrs: number
+  }
   sync: SyncState
   configured: { github: boolean; jira: boolean; slack: boolean; ai: boolean }
   autoSync: { enabled: boolean; intervalMinutes: number }

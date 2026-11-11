@@ -57,13 +57,22 @@ const visible = computed(() => layout.orderedPanels.filter((p) => p.visible))
 const hidden = computed(() => layout.prefs.panels.filter((p) => !p.visible))
 
 const stats = computed(() => deck.overview?.stats)
-const tiles = computed(() => [
-  { label: 'Needs action', value: stats.value?.action ?? 0, cls: 'text-primary' },
-  { label: 'Review requests', value: stats.value?.reviewRequests ?? 0, cls: '' },
-  { label: 'Blocked', value: stats.value?.blocked ?? 0, cls: 'text-warning' },
-  { label: 'My open PRs', value: stats.value?.mine ?? 0, cls: '' },
-  { label: 'Slack to handle', value: stats.value?.slackNew ?? 0, cls: '' },
-])
+const tiles = computed<{ label: string; value: number; cls: string; hint?: string }[]>(() => {
+  const s = stats.value
+  return [
+    { label: 'Needs action', value: s?.action ?? 0, cls: 'text-primary' },
+    { label: 'Review requests', value: s?.reviewRequests ?? 0, cls: '' },
+    { label: 'Blocked', value: s?.blocked ?? 0, cls: 'text-warning' },
+    { label: 'My open PRs', value: s?.mine ?? 0, cls: '' },
+    {
+      label: 'Unresolved conversations',
+      value: s?.myThreads ?? 0,
+      cls: s?.myThreads ? 'text-warning' : '',
+      hint: s?.myThreads ? `on ${s.myThreadPrs} of my PRs` : undefined,
+    },
+    { label: 'Slack to handle', value: s?.slackNew ?? 0, cls: '' },
+  ]
+})
 
 function addPanel(type: PanelType) {
   const titles: Record<PanelType, string> = { prs: 'Custom PR list', slack: 'Slack', jira: 'Jira', chains: 'Chains' }
@@ -114,11 +123,14 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
       </DropdownMenu>
     </div>
 
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
       <Card v-for="t in tiles" :key="t.label" class="gap-0 py-3">
         <CardContent class="px-4">
-          <div class="text-xs text-muted-foreground">{{ t.label }}</div>
-          <div class="text-2xl font-semibold tabular-nums" :class="t.cls">{{ t.value }}</div>
+          <div class="truncate text-xs text-muted-foreground" :title="t.label">{{ t.label }}</div>
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl font-semibold tabular-nums" :class="t.cls">{{ t.value }}</span>
+            <span v-if="t.hint" class="truncate text-xs text-muted-foreground">{{ t.hint }}</span>
+          </div>
         </CardContent>
       </Card>
     </div>

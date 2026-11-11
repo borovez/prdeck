@@ -4,6 +4,7 @@ import { PhCheck, PhCircleNotch, PhPlug, PhTimer } from '@phosphor-icons/vue'
 import { api } from '@/api'
 import { useSettings } from '@/stores/settings'
 import ActionBar from '@/components/ActionBar.vue'
+import CodeBlock from '@/components/CodeBlock.vue'
 import Field from '@/components/Field.vue'
 import AiSettings from '@/components/settings/AiSettings.vue'
 import GithubSettings from '@/components/settings/GithubSettings.vue'
@@ -58,7 +59,7 @@ onMounted(async () => {
         </CardDescription>
       </CardHeader>
       <CardContent v-if="mcp" class="space-y-1">
-        <pre class="overflow-x-auto rounded-md bg-muted p-3 text-xs">claude mcp add prdeck --scope user -- {{ mcp.node }} {{ mcp.tsxCandidates[1] }} {{ mcp.entry }}</pre>
+        <CodeBlock :code="`claude mcp add prdeck --scope user -- ${mcp.node} ${mcp.tsxCandidates[1]} ${mcp.entry}`" />
         <p class="text-xs text-muted-foreground">Database: {{ mcp.dbPath }}</p>
       </CardContent>
     </Card>

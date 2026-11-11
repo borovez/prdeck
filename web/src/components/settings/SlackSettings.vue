@@ -6,6 +6,7 @@ import { api } from '@/api'
 import { useSettings } from '@/stores/settings'
 import { clone, splitList } from '@/utils/format'
 import ConnectionCard from '@/components/ConnectionCard.vue'
+import CodeBlock from '@/components/CodeBlock.vue'
 import Field from '@/components/Field.vue'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -64,7 +65,7 @@ const submit = () => st.saveSection({ slack: draft.value }, slack.value ? 'Slack
       add these <b>User Token Scopes</b>, install it to your workspace, and paste the <code>xoxp-…</code> User OAuth Token.
     </template>
     <template v-if="draft" #form>
-      <code class="block rounded-md bg-muted p-2 text-xs">{{ SCOPES }}</code>
+      <CodeBlock :code="SCOPES" />
       <Field label="User OAuth Token">
         <Input v-model="draft.token" type="password" class="font-mono" :required="!draft.hasToken" :placeholder="draft.hasToken ? '•••••••• stored (leave blank to keep)' : 'xoxp-…'" />
       </Field>
