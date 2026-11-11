@@ -16,6 +16,8 @@ export class GithubError extends Error {
 
 /** Set when GitHub rate-limits us; no requests go out until then (per process). */
 let coolDownUntil = 0
+/** Last x-ratelimit-reset seen (epoch seconds), for limits reported in a GraphQL body */
+let lastReset = 0
 export const githubCoolDown = () => (coolDownUntil > Date.now() ? new Date(coolDownUntil) : null)
 
 async function request<T>(token: string, path: string, init: RequestInit = {}, attempt = 0): Promise<T> {
@@ -52,6 +54,10 @@ async function request<T>(token: string, path: string, init: RequestInit = {}, a
     }
     throw new GithubError(`GitHub ${res.status} ${path}: ${text.slice(0, 300)}`, res.status)
   }
+  // Out of quota after this call: stop until the reset instead of failing the next calls one by one
+  const reset = Number(res.headers.get('x-ratelimit-reset'))
+  if (reset) lastReset = reset
+  if (res.headers.get('x-ratelimit-remaining') === '0' && reset) coolDownUntil = Math.max(coolDownUntil, reset * 1000)
   // Large GraphQL pages are occasionally cut off mid-body; treat that like a 5xx and retry
   const text = await res.text()
   try {
@@ -70,6 +76,11 @@ export async function graphql<T>(token: string, query: string, variables: Record
     method: 'POST',
     body: JSON.stringify({ query, variables }),
   })
+  // GraphQL reports its rate limit in the body (HTTP 200): pause until the reset like REST limits
+  if (json.errors?.some((e) => e.type === 'RATE_LIMITED' || /rate limit/i.test(e.message))) {
+    coolDownUntil = Math.max(coolDownUntil, lastReset ? lastReset * 1000 : Date.now() + 5 * 60_000)
+    throw new GithubError(`GitHub rate limit: paused until ${new Date(coolDownUntil).toLocaleTimeString()}`, 429)
+  }
   // Partial results (e.g. a deleted PR in an aliased batch) still come back in data.
   if (json.errors?.length && !json.data) throw new GithubError(json.errors.map((e) => e.message).join('; '))
   if (json.errors?.length) console.warn('[github] partial errors:', json.errors.map((e) => e.message).join('; '))
@@ -301,16 +312,24 @@ const MAX_PATCH_LINES = 400
 /** Rendered description and changed files with diffs, for the PR panel */
 export async function prDetail(account: GithubAccount, repo: string, number: number): Promise<PrDetail> {
   const [owner, name] = repo.split('/')
-  const [body, ...pages] = await Promise.all([
+  // Files: 100 per page, next page only when this one was full (usually a single request); 300 max
+  const files = async () => {
+    const all: any[] = []
+    for (let page = 1; page <= 3; page++) {
+      const batch = await request<any[]>(account.token, `/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`)
+      all.push(...batch)
+      if (batch.length < 100) break
+    }
+    return all
+  }
+  const [body, raw] = await Promise.all([
     graphql<{ repository: { pullRequest: { bodyHTML: string } | null } | null }>(
       account.token,
       `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { bodyHTML } } }`,
       { owner, name, number },
     ),
-    // GitHub returns up to 3000 files, 100 per page; the first 300 are plenty to read here
-    ...[1, 2, 3].map((page) => request<any[]>(account.token, `/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`)),
+    files(),
   ])
-  const raw = pages.flat()
   return {
     bodyHTML: body.repository?.pullRequest?.bodyHTML ?? '',
     filesTruncated: raw.length >= MAX_FILES,

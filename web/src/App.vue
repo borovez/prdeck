@@ -21,13 +21,13 @@ import { useLayout } from '@/stores/layout'
 import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
 import GlobalSearch from '@/components/GlobalSearch.vue'
+import SyncErrors from '@/components/SyncErrors.vue'
 import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
 import JiraDrawer from '@/components/JiraDrawer.vue'
 import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Toggle } from '@/components/ui/toggle'
@@ -137,12 +137,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
           <span class="flex-1" />
           <GlobalSearch />
 
-          <Tooltip v-if="deck.overview?.sync.errors.length">
-            <TooltipTrigger as-child>
-              <Badge variant="warning" class="cursor-help"><PhWarning />{{ deck.overview.sync.errors.length }} sync errors</Badge>
-            </TooltipTrigger>
-            <TooltipContent class="max-w-md whitespace-pre-line">{{ deck.overview.sync.errors.join('\n') }}</TooltipContent>
-          </Tooltip>
+          <SyncErrors />
 
           <ButtonGroup>
             <Button size="sm" variant="outline" :disabled="deck.syncing || needsSetup" @click="deck.sync()">
