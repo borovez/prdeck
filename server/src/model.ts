@@ -340,8 +340,8 @@ function buildTrains(prs: PrView[], edges: DepEdge[], releases: ReleaseContents[
   for (const e of edges)
     for (const a of holders(e.to))
       for (const b of holders(e.from)) {
-        // Same release, or one release inside the other: no order between them
-        if (a === b || contains.get(a)!.has(b) || contains.get(b)!.has(a)) continue
+        // Same release, or one release inside the other: no order between them. Only open releases can wait.
+        if (a === b || contains.get(a)!.has(b) || contains.get(b)!.has(a) || byId.get(b)!.state !== 'OPEN') continue
         link(a, b, 'order', `${e.from} needs ${e.to} ${e.kind === 'release' ? 'released' : 'merged'}`)
       }
   const open = live.filter((r) => byId.get(r.prId)!.state === 'OPEN')
