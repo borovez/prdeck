@@ -15,7 +15,9 @@ const parts = computed(() => {
 <template>
   <span class="flex min-w-0 items-baseline" :title="repo">
     <!-- rtl moves the ellipsis to the left; bdi keeps "owner/" in its normal order -->
-    <span v-if="parts.owner" class="min-w-0 shrink-[999] truncate text-muted-foreground [direction:rtl]"><bdi>{{ parts.owner }}</bdi></span>
-    <span class="min-w-0 truncate">{{ parts.name }}</span>
+    <span v-if="parts.owner" class="min-w-0 truncate text-muted-foreground [direction:rtl]"><bdi>{{ parts.owner }}</bdi></span>
+    <!-- Never shrinks (flex shrinks proportionally, so a shrinkable name lost a few pixels to an ellipsis);
+         only truncates when the name alone is wider than the space -->
+    <span class="max-w-full shrink-0 truncate">{{ parts.name }}</span>
   </span>
 </template>
