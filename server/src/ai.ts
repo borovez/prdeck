@@ -24,6 +24,21 @@ export function aiClient(cfg: AiConfig) {
   return cfg.apiKey ? new Anthropic({ apiKey: cfg.apiKey }) : new Anthropic()
 }
 
+/** Credentials the server process has of its own (used when no key is stored) */
+export const envCredentials = () => !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN)
+
+/** Checks the credentials and model without spending tokens (model lookup). */
+export async function testAi(cfg: AiConfig) {
+  try {
+    const m = await aiClient(cfg).models.retrieve(cfg.model)
+    return { model: m.display_name, source: cfg.apiKey ? 'key' : 'environment' }
+  } catch (e) {
+    if (!cfg.apiKey && !envCredentials())
+      throw new Error('No API key. Paste one from console.anthropic.com, or start the server with ANTHROPIC_API_KEY set.')
+    throw e
+  }
+}
+
 export async function draftJiraFromSlack(
   cfg: AiConfig,
   item: SlackItem,

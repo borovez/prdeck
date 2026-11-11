@@ -17,7 +17,7 @@ import {
   setMeta,
   setSlackStatus,
 } from './db.ts'
-import { draftJiraFromSlack } from './ai.ts'
+import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
 import { replyInThread, slackAuthTest, threadContext } from './slack.ts'
 import { ghCliToken, listRepos, whoAmI } from './github.ts'
 import { createIssue, getTransitions, jiraMyself, transition } from './jira.ts'
@@ -155,6 +155,13 @@ api.post('/setup/jira/test', async (c) => {
 })
 
 /** Command for wiring the MCP server into Claude Code. */
+api.get('/setup/ai', (c) => c.json({ env: envCredentials() }))
+api.post('/setup/ai/test', async (c) => {
+  const { apiKey, model } = await c.req.json<{ apiKey?: string; model?: string }>()
+  const stored = getSettings().ai
+  return c.json(await testAi({ apiKey: apiKey || stored.apiKey, model: model || stored.model }))
+})
+
 api.get('/setup/mcp', (c) => {
   const mcpEntry = fileURLToPath(new URL('./mcp.ts', import.meta.url))
   const tsx = fileURLToPath(new URL('../node_modules/tsx/dist/cli.mjs', import.meta.url))
