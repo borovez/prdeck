@@ -31,6 +31,7 @@ export type ActionKind =
   | 'wait_review'
   | 'wait_deps'
   | 'awaiting_release' // my PR merged, not shipped yet
+  | 'backmerge' // my hotfix is merged but not back in the integration branch
   | 'none'
   | 'done'
 
@@ -130,6 +131,48 @@ export interface ReleaseInfo {
   error?: string
 }
 
+/**
+ * Where a PR sits in a repo's release flow (repos with an integration branch such as dev):
+ * release = promotes to the release branch (dev → master, release/* → master),
+ * hotfix = goes straight to the release branch, backmerge = brings the release branch back into dev.
+ */
+export type PrFlow = 'release' | 'hotfix' | 'backmerge'
+
+/** A PR shipped by a release PR */
+export interface ReleaseItem {
+  id: PrId
+  title: string
+  url: string
+  author: string
+  state: 'OPEN' | 'MERGED' | 'CLOSED'
+  mergedAt: string | null
+  /** How it was found: a commit of the release, a cherry-pick trailer, or a reference in its description */
+  via: 'commit' | 'cherry-pick' | 'description'
+}
+
+/** What a release PR contains. Cached per release PR and recomputed when the PR changes. */
+export interface ReleaseContents {
+  prId: PrId
+  /** The release PR's updatedAt it was computed for */
+  forUpdatedAt: string
+  items: ReleaseItem[]
+  jiraKeys: string[]
+  commitsScanned: number
+  /** More commits than were scanned */
+  truncated: boolean
+  fetchedAt: string
+  error?: string
+}
+
+/** Has a merged hotfix made it back into the integration branch? */
+export interface BackmergeInfo {
+  backmerged: boolean
+  /** Integration branch checked, e.g. dev */
+  into: string
+  checkedAt: string
+  error?: string
+}
+
 export interface DepEdge {
   /** Only manual edges have an id (and can be deleted) */
   id: number | null
@@ -188,6 +231,12 @@ export interface PrView extends Omit<PrRecord, 'body'> {
   pinned: boolean
   approvals: string[]
   changesRequestedBy: string[]
+  flow: PrFlow | null
+  /** Release PRs that contain this PR (open ones first) */
+  shipsIn: { id: PrId; state: 'OPEN' | 'MERGED' | 'CLOSED' }[]
+  /** Hotfixes: whether the merge reached the integration branch, and an open backmerge PR if there is one */
+  backmerge: BackmergeInfo | null
+  backmergePr: PrId | null
 }
 
 /** Loaded on demand for the Jira side panel. Rich text stays in Jira's document format (ADF). */
@@ -218,6 +267,8 @@ export interface Overview {
   prs: PrView[]
   edges: DepEdge[]
   chains: DependencyChain[]
+  /** Contents of release PRs (see PrView.flow) */
+  releases: ReleaseContents[]
   jira: JiraIssueView[]
   slack: SlackItem[]
   stats: Record<Bucket, number> & {
@@ -412,6 +463,7 @@ export const ACTION_LABELS: Record<ActionKind, string> = {
   wait_review: 'Waiting for review',
   wait_deps: 'Blocked by dependency',
   awaiting_release: 'Merged, awaiting release',
+  backmerge: 'Needs backmerge',
   none: 'Watching',
   done: 'Done',
 }

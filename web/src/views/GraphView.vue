@@ -8,7 +8,8 @@ import dagre from '@dagrejs/dagre'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
-import { PhBuildings, PhGitBranch, PhGraph, PhTrash, PhX } from '@phosphor-icons/vue'
+import { PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from '@phosphor-icons/vue'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
@@ -226,10 +227,19 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
     <div class="flex flex-wrap items-center gap-2">
       <FilterChips :chips="chips" />
       <span class="flex-1" />
-      <span class="text-xs text-muted-foreground">New links</span>
-      <ToggleGroup :model-value="v.newKind" type="single" @update:model-value="(k) => k && (v.newKind = k as DependencyKind)" variant="outline" size="sm">
-        <ToggleGroupItem value="merge">Merge</ToggleGroupItem>
-        <ToggleGroupItem value="release">Release</ToggleGroupItem>
+      <!-- Kind of dependency created by dragging from one card's right dot to another card's left dot -->
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <span class="flex cursor-help items-center gap-1 text-xs text-muted-foreground"><PhHandGrabbing :size="14" />Drag a link: next PR waits for its</span>
+        </TooltipTrigger>
+        <TooltipContent class="max-w-72">
+          Drag from a card's right dot to another card's left dot to add a dependency. The card on the right then waits for the one
+          on the left to be merged, or to be released.
+        </TooltipContent>
+      </Tooltip>
+      <ToggleGroup :model-value="v.newKind" type="single" @update:model-value="(k) => k && (v.newKind = k as DependencyKind)" variant="outline" size="sm" aria-label="Kind of dependency for new links">
+        <ToggleGroupItem value="merge">merge</ToggleGroupItem>
+        <ToggleGroupItem value="release">release</ToggleGroupItem>
       </ToggleGroup>
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>

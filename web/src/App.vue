@@ -8,6 +8,7 @@ import {
   PhGear,
   PhGitPullRequest,
   PhGraph,
+  PhRocketLaunch,
   PhKanban,
   PhMoon,
   PhSlackLogo,
@@ -74,6 +75,12 @@ const nav = computed(() => [
   { to: '/prs', label: 'Pull requests', icon: PhGitPullRequest, count: deck.prs.length },
   { to: '/slack', label: 'Slack inbox', icon: PhSlackLogo, count: stats.value?.slackNew },
   { to: '/graph', label: 'Dependencies', icon: PhGraph, count: deck.overview?.chains.filter((c) => !c.done).length },
+  {
+    to: '/releases',
+    label: 'Releases',
+    icon: PhRocketLaunch,
+    count: deck.prs.filter((p) => (p.flow === 'release' && p.state === 'OPEN') || (p.flow === 'hotfix' && p.state === 'MERGED' && p.backmerge && !p.backmerge.backmerged)).length,
+  },
   { to: '/jira', label: 'Jira tasks', icon: PhKanban, count: deck.overview?.jira.length },
   { to: '/settings', label: 'Settings', icon: PhGear },
 ])

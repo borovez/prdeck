@@ -12,6 +12,8 @@ import type {
   PrRecord,
   Relation,
   ReleaseInfo,
+  ReleaseContents,
+  BackmergeInfo,
   Settings,
   SyncState,
 } from '../../shared/types.ts'
@@ -55,6 +57,8 @@ db.exec(`
     posted_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS pr_meta (pr_id TEXT PRIMARY KEY, note TEXT, pinned INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS release_contents (pr_id TEXT PRIMARY KEY, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS backmerges (pr_id TEXT PRIMARY KEY, data TEXT NOT NULL);
 `)
 
 // ---------- kv ----------
@@ -142,10 +146,27 @@ export function setRelease(id: PrId, release: ReleaseInfo) {
   db.prepare('UPDATE prs SET release = ? WHERE id = ?').run(JSON.stringify(release), id)
 }
 
+// ---------- release contents / hotfix backmerges ----------
+export function listReleaseContents(): ReleaseContents[] {
+  return (db.prepare('SELECT data FROM release_contents').all() as { data: string }[]).map((r) => JSON.parse(r.data))
+}
+export function setReleaseContents(c: ReleaseContents) {
+  db.prepare('INSERT INTO release_contents (pr_id, data) VALUES (?, ?) ON CONFLICT(pr_id) DO UPDATE SET data = excluded.data').run(c.prId, JSON.stringify(c))
+}
+export function listBackmerges(): Map<PrId, BackmergeInfo> {
+  const rows = db.prepare('SELECT pr_id, data FROM backmerges').all() as { pr_id: string; data: string }[]
+  return new Map(rows.map((r) => [r.pr_id, JSON.parse(r.data)]))
+}
+export function setBackmerge(id: PrId, info: BackmergeInfo) {
+  db.prepare('INSERT INTO backmerges (pr_id, data) VALUES (?, ?) ON CONFLICT(pr_id) DO UPDATE SET data = excluded.data').run(id, JSON.stringify(info))
+}
+
 export function deletePrsNotSyncedAt(syncedAt: string, keep: Set<PrId>) {
   const stale = db.prepare('SELECT id FROM prs WHERE synced_at <> ?').all(syncedAt) as { id: string }[]
   const del = db.prepare('DELETE FROM prs WHERE id = ?')
-  for (const { id } of stale) if (!keep.has(id)) del.run(id)
+  const delContents = db.prepare('DELETE FROM release_contents WHERE pr_id = ?')
+  const delBackmerge = db.prepare('DELETE FROM backmerges WHERE pr_id = ?')
+  for (const { id } of stale) if (!keep.has(id)) (del.run(id), delContents.run(id), delBackmerge.run(id))
 }
 
 // ---------- Jira ----------

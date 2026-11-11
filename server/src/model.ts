@@ -23,8 +23,11 @@ import {
   listMeta,
   listPrs,
   listSlack,
+  listBackmerges,
+  listReleaseContents,
   type StoredPr,
 } from './db.ts'
+import { integrationBranches, prFlow } from './flow.ts'
 import { extractJiraKeys, parseBodyDependencies } from './refs.ts'
 import { isSyncing } from './sync.ts'
 
@@ -91,6 +94,23 @@ export function buildOverview(): Overview {
     inc.set(e.to, [...(inc.get(e.to) ?? []), e])
   }
 
+  // --- Release flow: release / hotfix / backmerge, what each release ships, hotfix backmerges
+  const integration = integrationBranches(stored.map((s) => s.pr))
+  const flows = new Map(stored.map(({ pr }) => [pr.id, prFlow(pr, integration)]))
+  const releases = listReleaseContents().filter((c) => flows.get(c.prId) === 'release')
+  const shipsIn = new Map<PrId, { id: PrId; state: 'OPEN' | 'MERGED' | 'CLOSED' }[]>()
+  for (const c of releases) {
+    const state = byId.get(c.prId)?.pr.state ?? 'OPEN'
+    if (state === 'CLOSED') continue
+    for (const i of c.items) shipsIn.set(i.id, [...(shipsIn.get(i.id) ?? []), { id: c.prId, state }])
+  }
+  for (const list of shipsIn.values()) list.sort((a, b) => Number(b.state === 'OPEN') - Number(a.state === 'OPEN'))
+  const backmerges = listBackmerges()
+  // Open backmerge PRs per repo (release branch → integration branch)
+  const openBackmerge = new Map<string, PrId>()
+  for (const { pr } of stored)
+    if (pr.state === 'OPEN' && flows.get(pr.id) === 'backmerge') openBackmerge.set(pr.repo.toLowerCase(), pr.id)
+
   // --- PR views
   const prs: PrView[] = stored.map(({ pr, relations, release }) => {
     const configuredRef = settings.releaseRefs[pr.repo.toLowerCase()] ?? settings.releaseRefs[pr.repo] ?? settings.defaultReleaseRef
@@ -115,7 +135,12 @@ export function buildOverview(): Overview {
     if (pr.state === 'CLOSED') {
       ;[kind, bucket] = ['done', 'done']
     } else if (pr.state === 'MERGED') {
-      if (waitingOnRelease.length && !release?.released) {
+      const bm = flows.get(pr.id) === 'hotfix' ? backmerges.get(pr.id) : undefined
+      if (bm && !bm.backmerged && !bm.error && isMine) {
+        ;[kind, bucket] = ['backmerge', 'action']
+        const open = openBackmerge.get(pr.repo.toLowerCase())
+        detail = open ? `Not in ${bm.into} yet; backmerge ${open} is open` : `Not in ${bm.into} yet; merge ${pr.baseRef} back into ${bm.into}`
+      } else if (waitingOnRelease.length && !release?.released) {
         kind = 'release'
         bucket = isMine || relations.includes('tracked') ? 'action' : 'waiting'
         detail = `${waitingOnRelease.length} PR(s) wait on this release`
@@ -166,6 +191,10 @@ export function buildOverview(): Overview {
       pinned: m?.pinned ?? false,
       approvals,
       changesRequestedBy,
+      flow: flows.get(pr.id) ?? null,
+      shipsIn: shipsIn.get(pr.id) ?? [],
+      backmerge: flows.get(pr.id) === 'hotfix' ? (backmerges.get(pr.id) ?? null) : null,
+      backmergePr: flows.get(pr.id) === 'hotfix' && pr.state === 'MERGED' ? (openBackmerge.get(pr.repo.toLowerCase()) ?? null) : null,
     }
   })
 
@@ -199,6 +228,7 @@ export function buildOverview(): Overview {
     prs,
     edges,
     chains: buildChains(prs, edges),
+    releases,
     jira: jiraViews,
     slack,
     stats,

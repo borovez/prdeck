@@ -40,6 +40,7 @@ export const ACTION_TONE: Record<ActionKind, Tone> = {
   wait_review: 'outline',
   wait_deps: 'warning',
   awaiting_release: 'info',
+  backmerge: 'warning',
   none: 'outline',
   done: 'muted',
 }

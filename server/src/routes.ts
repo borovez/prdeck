@@ -1,3 +1,4 @@
+import { computeReleaseContents } from './releases.ts'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -205,6 +206,19 @@ api.get('/prs/detail', async (c) => {
   const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
   if (!acc) throw bad('No GitHub account for this PR')
   return c.json(await prDetail(acc, stored.pr.repo, stored.pr.number))
+})
+
+// ---------- Release contents ----------
+api.post('/releases/refresh', async (c) => {
+  const { id } = await c.req.json<{ id: string }>()
+  const stored = listPrs().find((s) => s.pr.id === id)
+  if (!stored) throw bad('Unknown PR')
+  const accounts = getSettings().github.accounts.filter((a) => a.token)
+  const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
+  if (!acc) throw bad('No GitHub account for this PR')
+  const r = await computeReleaseContents(acc, stored.pr)
+  if (r.error) throw bad(r.error)
+  return c.json(r)
 })
 
 // ---------- Per-PR notes / pins ----------

@@ -33,6 +33,7 @@ export const api = {
     call<{ id: number }>('POST', '/deps', { from, to, kind, note }),
   removeDep: (id: number) => call('DELETE', `/deps/${id}`),
   prDetail: (id: string) => call<PrDetail>('GET', `/prs/detail?id=${encodeURIComponent(id)}`),
+  refreshRelease: (id: string) => call('POST', '/releases/refresh', { id }),
   setMeta: (id: string, note: string | null, pinned: boolean) => call('PUT', '/prs/meta', { id, note, pinned }),
   jiraRequiredFields: (project: string, type: string) =>
     call<JiraRequiredField[]>('GET', `/jira/required-fields?project=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}`),

@@ -23,6 +23,8 @@ export const useDeck = defineStore('deck', () => {
 
   const prs = computed(() => overview.value?.prs ?? [])
   const byId = computed(() => new Map(prs.value.map((p) => [p.id, p])))
+  /** What each release PR ships, by release PR id */
+  const releaseById = computed(() => new Map((overview.value?.releases ?? []).map((r) => [r.prId, r])))
   const selectedSlack = computed(() => (overview.value?.slack ?? []).find((i) => i.id === selectedSlackId.value) ?? null)
   const selected = computed<PrView | null>(() => (selectedId.value ? byId.value.get(selectedId.value) ?? null : null))
   const jiraByKey = computed(() => new Map((overview.value?.jira ?? []).map((j) => [j.key, j])))
@@ -76,5 +78,6 @@ export const useDeck = defineStore('deck', () => {
     timer = window.setInterval(() => !syncing.value && load(), 60_000)
   }
 
-  return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, prs, byId, selected, jiraByKey, repos, load, sync, mutate, startPolling }
+  return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, prs, byId,
+    releaseById, selected, jiraByKey, repos, load, sync, mutate, startPolling }
 })

@@ -348,3 +348,101 @@ export async function prDetail(account: GithubAccount, repo: string, number: num
     }),
   }
 }
+
+// ---------- Release contents ----------
+
+const RELEASE_PR_FIELDS = 'number title url state mergedAt headRefName baseRefName author { login } repository { nameWithOwner }'
+const MAX_RELEASE_COMMITS = 250
+
+export interface FoundPr {
+  number: number
+  title: string
+  url: string
+  state: 'OPEN' | 'MERGED' | 'CLOSED'
+  mergedAt: string | null
+  headRefName: string
+  baseRefName: string
+  author: { login: string } | null
+  repository: { nameWithOwner: string }
+}
+
+/**
+ * PRs shipped by a release PR: each commit's associated PRs; for cherry-picked commits, the PR of the
+ * original commit (from the "(cherry picked from commit …)" trailer); and PRs referenced in its description.
+ * `keep(pr)` decides which associated PRs count (e.g. not the release itself, not backmerges).
+ */
+export async function releaseContents(
+  account: GithubAccount,
+  repo: string,
+  number: number,
+  body: string,
+  keep: (pr: FoundPr) => boolean,
+): Promise<{ items: (FoundPr & { via: 'commit' | 'cherry-pick' | 'description' })[]; commitsScanned: number; truncated: boolean }> {
+  const [owner, name] = repo.split('/')
+  const found = new Map<string, FoundPr & { via: 'commit' | 'cherry-pick' | 'description' }>()
+  const add = (p: FoundPr | null | undefined, via: 'commit' | 'cherry-pick' | 'description') => {
+    if (!p || !p.repository) return
+    const key = `${p.repository.nameWithOwner.toLowerCase()}#${p.number}`
+    if (!found.has(key) && (via === 'description' || keep(p))) found.set(key, { ...p, via })
+  }
+
+  // 1. Commits of the release PR, 100 per page
+  const picked = new Set<string>()
+  let after: string | null = null
+  let scanned = 0
+  let total = 0
+  do {
+    const data: any = await graphql(
+      account.token,
+      `query($owner: String!, $name: String!, $number: Int!, $after: String) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+         commits(first: 100, after: $after) { totalCount pageInfo { hasNextPage endCursor }
+           nodes { commit { message associatedPullRequests(first: 5) { nodes { ${RELEASE_PR_FIELDS} } } } } }
+       } } }`,
+      { owner, name, number, after },
+    )
+    const commits = data.repository?.pullRequest?.commits
+    if (!commits) break
+    total = commits.totalCount
+    for (const n of commits.nodes) {
+      scanned++
+      for (const p of n.commit.associatedPullRequests.nodes) if (p.number !== number) add(p, 'commit')
+      for (const m of String(n.commit.message).matchAll(/\(cherry picked from commit ([0-9a-f]{7,40})\)/g)) picked.add(m[1])
+    }
+    after = commits.pageInfo.hasNextPage && scanned < MAX_RELEASE_COMMITS ? commits.pageInfo.endCursor : null
+  } while (after)
+
+  // 2. Original commits of cherry-picks, 50 per query
+  const shas = [...picked]
+  for (let i = 0; i < shas.length; i += 50) {
+    const part = shas.slice(i, i + 50)
+    const data: any = await graphql(
+      account.token,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
+         ${part.map((sha, j) => `c${j}: object(expression: "${sha}") { ... on Commit { associatedPullRequests(first: 5) { nodes { ${RELEASE_PR_FIELDS} } } } }`).join('\n')}
+       } }`,
+      { owner, name },
+    )
+    for (let j = 0; j < part.length; j++)
+      for (const p of data.repository?.[`c${j}`]?.associatedPullRequests?.nodes ?? []) if (p.number !== number) add(p, 'cherry-pick')
+  }
+
+  // 3. PRs referenced in the description: #12 (this repo) and PR URLs (any repo)
+  const refs = new Map<string, { owner: string; name: string; number: number }>()
+  for (const m of body.matchAll(/(?<![\w/&])#(\d{1,6})\b/g)) refs.set(`${repo.toLowerCase()}#${m[1]}`, { owner, name, number: Number(m[1]) })
+  for (const m of body.matchAll(/https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/g))
+    refs.set(`${m[1]}/${m[2]}`.toLowerCase() + `#${m[3]}`, { owner: m[1], name: m[2], number: Number(m[3]) })
+  const missing = [...refs].filter(([k]) => !found.has(k) && !(k === `${repo.toLowerCase()}#${number}`)).slice(0, 60)
+  for (let i = 0; i < missing.length; i += 30) {
+    const part = missing.slice(i, i + 30)
+    const data: any = await graphql(
+      account.token,
+      `query { ${part.map(([, r], j) => `r${j}: repository(owner: ${JSON.stringify(r.owner)}, name: ${JSON.stringify(r.name)}) { pullRequest(number: ${r.number}) { ${RELEASE_PR_FIELDS} } }`).join('\n')} }`,
+    ).catch(() => null) // a #number that is an issue, or a repo we can't read
+    for (let j = 0; j < part.length; j++) {
+      const p = (data as any)?.[`r${j}`]?.pullRequest
+      if (p && p.state !== 'CLOSED') add(p, 'description')
+    }
+  }
+
+  return { items: [...found.values()], commitsScanned: scanned, truncated: total > scanned }
+}

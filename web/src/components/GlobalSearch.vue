@@ -13,6 +13,7 @@ import {
   PhMagnifyingGlass,
   PhMoon,
   PhSlackLogo,
+  PhRocketLaunch,
   PhSun,
   PhTimer,
 } from '@phosphor-icons/vue'
@@ -100,6 +101,7 @@ const PAGES = [
   { to: '/prs', label: 'Pull requests', icon: PhGitPullRequest },
   { to: '/slack', label: 'Slack inbox', icon: PhSlackLogo },
   { to: '/graph', label: 'Dependencies', icon: PhGraph },
+  { to: '/releases', label: 'Releases and hotfixes', icon: PhRocketLaunch },
   { to: '/jira', label: 'Jira tasks', icon: PhKanban },
   { to: '/settings', label: 'Settings', icon: PhGear },
 ]

@@ -7,6 +7,9 @@ import SidePanel from './SidePanel.vue'
 import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
+  PhArrowsClockwise,
+  PhInfo,
+  PhWarning,
   PhCheckCircle,
   PhGitBranch,
   PhCaretDown,
@@ -22,7 +25,7 @@ import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { ACTION_TONE, CHECK_STYLE, jiraCardTone, timeAgo } from '@/utils/format'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
@@ -48,6 +51,8 @@ import JiraLinks from './JiraLinks.vue'
 import RepoName from './RepoName.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import SectionToggle from './SectionToggle.vue'
+import ReleaseItems from './ReleaseItems.vue'
+import { FLOW_LABEL } from '@/utils/releaseFlow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
@@ -57,7 +62,7 @@ const alertTone = computed(() => {
   return t === 'destructive' || t === 'warning' || t === 'success' || t === 'info' ? t : 'default'
 })
 const dv = useLayout().view('drawer', {
-  tab: 'details' as 'details' | 'description' | 'files' | 'conversations',
+  tab: 'details' as 'details' | 'contents' | 'description' | 'files' | 'conversations',
   // Last dependency type used in the add form
   depDirection: 'dependsOn' as 'dependsOn' | 'blocks',
   depKind: 'merge' as 'merge' | 'release',
@@ -67,6 +72,26 @@ const dv = useLayout().view('drawer', {
 })
 useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
+/** Contents only exists for release PRs; others show Details instead */
+const tab = computed(() => (dv.tab === 'contents' && pr.value?.flow !== 'release' ? 'details' : dv.tab))
+const contents = computed(() => (pr.value ? deck.releaseById.get(pr.value.id) : undefined))
+const ALERT_ICON = { default: PhInfo, info: PhInfo, success: PhCheckCircle, warning: PhWarning, destructive: PhXCircle } as const
+/** Banner: the next step, why, and where the release stands (merged PRs) */
+const banner = computed(() => {
+  const p = pr.value
+  if (!p) return null
+  const lines = p.action.detail ? [p.action.detail] : []
+  if (p.state === 'MERGED' && p.release) {
+    const r = releaseStatus(p.release).long
+    if (!lines.includes(r)) lines.push(r)
+  }
+  const c = contents.value
+  if (p.flow === 'release')
+    lines.push(c ? `${p.state === 'MERGED' ? 'Shipped' : 'Ships'} ${c.items.length} PR(s) and ${c.jiraKeys.length} Jira issue(s) from ${p.headRef} to ${p.baseRef}.` : `Release from ${p.headRef} to ${p.baseRef}; contents load on the next sync.`)
+  const hasContext = lines.length || p.shipsIn.length || (p.backmerge && p.state === 'MERGED')
+  if (!hasContext && (p.action.kind === 'none' || p.action.kind === 'done')) return null
+  return { title: p.action.label, lines }
+})
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
 
 // ---- Description / Files: loaded when one of those tabs is shown (cache shared with card previews)
@@ -115,6 +140,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
           <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
             <Badge :variant="ACTION_TONE[pr.action.kind]">{{ pr.action.label }}</Badge>
             <Badge variant="outline">{{ pr.state }}{{ pr.isDraft ? ' · draft' : '' }}</Badge>
+            <Badge v-if="pr.flow" :variant="pr.flow === 'hotfix' ? 'warning' : pr.flow === 'release' ? 'merged' : 'muted'">{{ FLOW_LABEL[pr.flow] }}</Badge>
             <Badge v-for="r in pr.relations" :key="r" variant="muted">{{ r.replace('_', ' ') }}</Badge>
           </div>
           <h2 class="leading-snug font-semibold">{{ pr.title }}</h2>
@@ -139,10 +165,11 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
         </Tooltip>
     </template>
 
-      <Tabs v-if="pr" v-model="dv.tab" class="min-h-0 flex-1 gap-0">
+      <Tabs v-if="pr" :model-value="tab" class="min-h-0 flex-1 gap-0" @update:model-value="(t) => (dv.tab = t as typeof dv.tab)">
         <div class="border-b px-4 py-2">
           <TabsList>
             <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger v-if="pr.flow === 'release'" value="contents" :count="contents?.items.length ?? 0">Contents</TabsTrigger>
             <TabsTrigger value="description">Description</TabsTrigger>
             <TabsTrigger value="files" :count="pr.changedFiles">Files</TabsTrigger>
             <TabsTrigger value="conversations" :count="pr.threads.length">Conversations</TabsTrigger>
@@ -162,6 +189,21 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
         </ScrollArea>
       </TabsContent>
 
+      <TabsContent value="contents" class="min-h-0 flex-1">
+        <ScrollArea class="h-full">
+          <div class="space-y-3 p-4">
+            <div class="flex items-center gap-2 text-sm text-muted-foreground">
+              <span class="flex-1">
+                <template v-if="contents">Ships {{ contents.items.length }} PR(s) and {{ contents.jiraKeys.length }} Jira issue(s) · checked {{ timeAgo(contents.fetchedAt) }}</template>
+                <template v-else>Not read yet</template>
+              </span>
+              <Button variant="outline" size="sm" @click="deck.mutate(() => api.refreshRelease(pr!.id), 'Release contents updated')"><PhArrowsClockwise /> Refresh</Button>
+            </div>
+            <ReleaseItems v-if="contents" :contents="contents" class="-mx-2.5" />
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
       <TabsContent value="conversations" class="min-h-0 flex-1">
         <ScrollArea class="h-full">
           <div class="p-4">
@@ -177,7 +219,31 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
       <TabsContent value="details" class="min-h-0 flex-1">
       <ScrollArea class="h-full">
         <div class="space-y-5 p-4">
-          <Alert v-if="pr.action.detail" :variant="alertTone"><AlertDescription>{{ pr.action.detail }}</AlertDescription></Alert>
+          <!-- Status: what this PR needs next, with release flow context -->
+          <Alert v-if="banner" :variant="alertTone">
+            <component :is="ALERT_ICON[alertTone]" />
+            <AlertTitle>{{ banner.title }}</AlertTitle>
+            <AlertDescription>
+              <p v-for="l in banner.lines" :key="l">{{ l }}</p>
+              <p v-if="pr.shipsIn.length" class="flex flex-wrap items-center gap-x-1.5">
+                <PhRocketLaunch :size="14" class="self-center" />
+                <template v-for="(s, i) in pr.shipsIn" :key="s.id">
+                  <span>{{ i ? 'and' : s.state === 'OPEN' ? 'Ships in' : 'Shipped via' }}</span>
+                  <button class="font-mono text-primary hover:underline" @click="deck.selectedId = s.id"><RepoName :id="s.id" /></button>
+                  <span v-if="i === 0 && s.state === 'OPEN'" class="text-muted-foreground">(open release)</span>
+                </template>
+              </p>
+              <p v-if="pr.backmerge && pr.state === 'MERGED'">
+                <template v-if="pr.backmerge.backmerged">Back in {{ pr.backmerge.into }}.</template>
+                <template v-else-if="pr.backmergePr">
+                  Backmerge <button class="font-mono text-primary hover:underline" @click="deck.selectedId = pr.backmergePr"><RepoName :id="pr.backmergePr" /></button> is open.
+                </template>
+              </p>
+            </AlertDescription>
+            <AlertAction v-if="pr.flow === 'release' && dv.tab !== 'contents'">
+              <Button size="sm" variant="outline" @click="dv.tab = 'contents'">View contents ({{ contents?.items.length ?? 0 }})</Button>
+            </AlertAction>
+          </Alert>
 
           <div class="grid grid-cols-2 gap-3 text-sm">
             <div>
@@ -197,14 +263,6 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
               <div :class="CHECK_STYLE[pr.checks.state].cls">{{ CHECK_STYLE[pr.checks.state].label }} ({{ pr.checks.total }})</div>
             </div>
             <div v-if="pr.mergeable === 'CONFLICTING'" class="col-span-2 text-destructive">Merge conflicts with {{ pr.baseRef }}</div>
-            <div v-if="pr.release" class="col-span-2">
-              <div class="text-xs text-muted-foreground">Release</div>
-              <div class="flex items-start gap-1">
-                <PhRocketLaunch :size="14" class="mt-0.5 shrink-0" :class="pr.release.released ? 'text-success' : 'text-muted-foreground'" />
-                {{ releaseStatus(pr.release).long }}
-                <span v-if="pr.release.error" class="text-xs text-destructive">{{ pr.release.error }}</span>
-              </div>
-            </div>
           </div>
 
           <section v-if="pr.checks.failing.length">

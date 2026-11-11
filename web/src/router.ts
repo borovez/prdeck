@@ -7,6 +7,7 @@ export const router = createRouter({
     { path: '/prs', name: 'prs', component: () => import('./views/PullRequestsView.vue') },
     { path: '/slack', name: 'slack', component: () => import('./views/SlackView.vue') },
     { path: '/graph', name: 'graph', component: () => import('./views/GraphView.vue') },
+    { path: '/releases', name: 'releases', component: () => import('./views/ReleasesView.vue') },
     { path: '/jira', name: 'jira', component: () => import('./views/JiraView.vue') },
     { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
   ],

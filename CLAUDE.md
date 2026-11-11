@@ -52,6 +52,10 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 
 `views/GraphView.vue` + `components/GraphNode.vue` (Vue Flow + dagre LR). Edges drawn prerequisite → dependent (solid merge, dashed release; green/muted satisfied, amber waiting). Filters persist via `layout.view('graph', …)`. Drag right handle → left handle creates a manual dep (kind from the "New links" toggle); click an edge to see it and delete manual ones. "Unlinked PRs" shows open PRs without deps so links can be drawn to them. Vue Flow is themed in the view's unscoped `<style>` (`.dep-graph`).
 
+### Releases (`/releases`)
+
+`views/ReleasesView.vue`. `server/src/flow.ts` classifies PRs (`PrView.flow`): release (dev/release/* → master/main), hotfix (other branches → master/main in repos that use dev), backmerge (master → dev). Sync step 4b (`releases.ts`) caches what each release PR ships (`release_contents`: commit → associated PRs, cherry-pick trailers, PR refs in the description; backmerges excluded), recomputed when the PR's updatedAt changes, and checks merged hotfixes against dev (`backmerges`). Overview carries `releases`; PRs get `shipsIn`, `backmerge`, `backmergePr`, action `backmerge`. Releases tab: release PRs with contents (`ReleaseItems`, nested releases expand with level arrows) and merged work not in a release yet; Hotfixes tab: needs backmerge, open, done. The PR panel has a Contents tab for release PRs and a status banner with ships-in / backmerge.
+
 ### Jira (`/jira`)
 
 One row per Jira key: my JQL issues plus keys found in PRs, so it works before Jira is connected (details fill in once it is). Linked PRs render as compact `PrRow`s. Scope tabs (Mine, With PRs, No PRs) with counts, project/status filters, group by status/project/parent.

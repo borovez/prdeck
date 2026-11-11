@@ -16,6 +16,7 @@ import {
   setRelease,
   upsertPr,
 } from './db.ts'
+import { syncReleaseFlow } from './releases.ts'
 import { fetchPrsByRef, isCommitIn, resolveReleaseRef, searchPrs, whoAmI } from './github.ts'
 import { fetchIssuesByKey, searchJql } from './jira.ts'
 import { fetchSlackInbox } from './slack.ts'
@@ -157,6 +158,15 @@ async function doSync(): Promise<SyncState> {
         }
       }),
   )
+
+  // 4b. Release PR contents and hotfix backmerges
+  if (accounts.length) {
+    try {
+      await syncReleaseFlow(accounts, errors)
+    } catch (e) {
+      errors.push(`release contents: ${(e as Error).message}`)
+    }
+  }
 
   // 5. Jira
   let jiraCount = 0
