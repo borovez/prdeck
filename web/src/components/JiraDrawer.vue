@@ -13,6 +13,7 @@ import PrRow from './PrRow.vue'
 import SidePanel from './SidePanel.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -76,12 +77,6 @@ const details = computed(() => {
         <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)">{{ issue.status }}</Badge>
       </div>
       <h2 class="mt-1.5 leading-snug font-semibold">{{ issue?.summary ?? 'Not loaded from Jira' }}</h2>
-      <a v-if="url" :href="url" target="_blank" rel="noopener" class="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-        Open in Jira <PhArrowSquareOut :size="14" />
-      </a>
-    </template>
-    <template v-if="key && issue" #actions>
-      <JiraTransition :issue-key="key" />
     </template>
 
     <ScrollArea v-if="key" class="min-h-0 flex-1">
@@ -155,5 +150,11 @@ const details = computed(() => {
         </section>
       </div>
     </ScrollArea>
+    <!-- Pinned actions, like the Slack panel -->
+    <template v-if="key && (issue || url)" #footer>
+      <Button v-if="url" variant="outline" size="sm" as="a" :href="url" target="_blank" rel="noopener"><PhArrowSquareOut /> Open in Jira</Button>
+      <span class="flex-1" />
+      <JiraTransition v-if="issue" :issue-key="key" prominent />
+    </template>
   </SidePanel>
 </template>

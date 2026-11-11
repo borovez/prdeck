@@ -7,7 +7,8 @@ import { useDeck } from '@/stores/deck'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
-const props = defineProps<{ issueKey: string }>()
+/** Status menu (Jira transitions). `prominent` renders a regular button, e.g. in the panel's bottom bar. */
+const props = defineProps<{ issueKey: string; prominent?: boolean }>()
 const deck = useDeck()
 const transitions = ref<{ id: string; name: string; to: string }[] | null>(null)
 const busy = ref(false)
@@ -33,7 +34,7 @@ async function run(t: { id: string; to: string }) {
 <template>
   <DropdownMenu @update:open="load">
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="xs" :disabled="busy" @click.stop>Move <PhCaretDown /></Button>
+      <Button :variant="prominent ? 'default' : 'ghost'" :size="prominent ? 'sm' : 'xs'" :disabled="busy" @click.stop>Change status <PhCaretDown /></Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-max min-w-48 max-w-sm">
       <DropdownMenuLabel v-if="error" class="text-xs text-destructive">{{ error }}</DropdownMenuLabel>
