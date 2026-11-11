@@ -35,7 +35,8 @@ export function parseBodyDependencies(
   selfId: PrId,
 ): { to: PrId; kind: DependencyKind }[] {
   const out = new Map<PrId, DependencyKind>()
-  const lineRe = /^[\s>*-]*(?:\*\*)?\s*(depends\s+on|blocked\s+by|requires|needs|(?:requires|needs|after|waits?\s+(?:on|for))\s+release(?:\s+of)?)\s*(?:\*\*)?\s*:?\s*(.+)$/gim
+  // Release phrasings come first: alternation takes the first match, and plain "requires" would otherwise win
+  const lineRe = /^[\s>*-]*(?:\*\*)?\s*((?:requires|needs|after|waits?\s+(?:on|for))\s+release(?:\s+of)?|depends\s+on|blocked\s+by|requires|needs)\s*(?:\*\*)?\s*:?\s*(.+)$/gim
   for (const m of body.matchAll(lineRe)) {
     const kind: DependencyKind = /release/i.test(m[1]) ? 'release' : 'merge'
     for (const r of m[2].matchAll(new RegExp(REF, 'g'))) {
