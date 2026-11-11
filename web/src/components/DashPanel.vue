@@ -76,7 +76,7 @@ const LIMITS = [5, 8, 12, 20, 50, 999]
         <PhCaretRight v-if="panel.collapsed" /><PhCaretDown v-else />
         <span class="font-semibold">{{ panel.title }}</span>
       </Button>
-      <Badge :variant="count ? 'primary' : 'muted'">{{ count }}</Badge>
+      <Badge :variant="count ? 'primary' : 'count'">{{ count }}</Badge>
       <PhPushPin v-if="panel.pinned" :size="13" weight="fill" class="text-primary" />
       <span class="flex-1" />
 

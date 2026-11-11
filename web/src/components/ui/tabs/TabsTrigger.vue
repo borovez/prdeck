@@ -27,6 +27,6 @@ const forwardedProps = useForwardProps(delegatedProps)
     v-bind="forwardedProps"
   >
     <slot />
-    <Badge v-if="count !== undefined" variant="muted" class="ml-auto h-5 min-w-5 px-1.5 tabular-nums">{{ count }}</Badge>
+    <Badge v-if="count !== undefined" variant="count" class="ml-auto">{{ count }}</Badge>
   </TabsTrigger>
 </template>

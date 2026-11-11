@@ -13,8 +13,8 @@ import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { api } from '@/api'
-import { shortId } from '@/utils/format'
 import GraphNode, { type GraphNodeData } from '@/components/GraphNode.vue'
+import RepoName from '@/components/RepoName.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -275,14 +275,16 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
           <div class="space-y-1 text-xs">
             <div>
               <span class="text-muted-foreground">Prerequisite</span>
-              <button class="block max-w-full truncate font-mono text-primary hover:underline" @click="prOf(selectedEdge.to) && (deck.selectedId = selectedEdge.to)">
-                {{ shortId(selectedEdge.to) }} <span class="font-sans text-muted-foreground">{{ titleOf(selectedEdge.to) ?? (selectedEdge.missing ? '(not synced yet)' : '') }}</span>
+              <button class="block w-full text-left hover:underline" @click="prOf(selectedEdge.to) && (deck.selectedId = selectedEdge.to)">
+                <RepoName :id="selectedEdge.to" class="font-mono text-primary" />
+                <span class="block truncate text-muted-foreground">{{ titleOf(selectedEdge.to) ?? (selectedEdge.missing ? '(not synced yet)' : '') }}</span>
               </button>
             </div>
             <div>
               <span class="text-muted-foreground">Dependent</span>
-              <button class="block max-w-full truncate font-mono text-primary hover:underline" @click="deck.selectedId = selectedEdge.from">
-                {{ shortId(selectedEdge.from) }} <span class="font-sans text-muted-foreground">{{ titleOf(selectedEdge.from) }}</span>
+              <button class="block w-full text-left hover:underline" @click="deck.selectedId = selectedEdge.from">
+                <RepoName :id="selectedEdge.from" class="font-mono text-primary" />
+                <span class="block truncate text-muted-foreground">{{ titleOf(selectedEdge.from) }}</span>
               </button>
             </div>
             <div class="text-muted-foreground">{{ SOURCE_LABEL[selectedEdge.source] }}<template v-if="selectedEdge.note"> · {{ selectedEdge.note }}</template></div>

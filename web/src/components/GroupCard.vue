@@ -13,7 +13,7 @@ const collapsed = defineModel<boolean>('collapsed', { default: false })
     <button class="flex items-center gap-2 px-4 py-2.5 text-left" :class="{ 'border-b': !collapsed }" @click="collapsed = !collapsed">
       <PhCaretRight v-if="collapsed" :size="14" /><PhCaretDown v-else :size="14" />
       <span class="min-w-0 text-sm font-semibold"><slot name="label">{{ label }}</slot></span>
-      <Badge variant="muted">{{ count }}</Badge>
+      <Badge variant="count">{{ count }}</Badge>
     </button>
     <div v-show="!collapsed" class="p-1.5">
       <slot />

@@ -21,7 +21,7 @@ function open() {
     <TooltipTrigger as-child>
       <button
         type="button"
-        class="flex items-center gap-0.5 rounded-md px-1 text-xs font-medium text-warning tabular-nums hover:bg-warning/10"
+        class="flex shrink-0 items-center gap-0.5 rounded-md px-1 text-xs font-medium text-warning tabular-nums hover:bg-warning/10"
         :aria-label="`${pr.unresolvedThreads} unresolved conversations`"
         @click.stop="open"
       >

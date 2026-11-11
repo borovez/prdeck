@@ -39,16 +39,16 @@ const jira = computed(() => {
 
     <div class="space-y-1.5 py-2 pr-3" :class="accent ? 'pl-4' : 'pl-3'">
       <div class="flex items-center gap-1.5 text-xs">
-        <Avatar v-if="pr" class="size-4">
+        <Avatar v-if="pr" class="size-4 shrink-0">
           <AvatarImage :src="pr.author.avatarUrl ?? ''" :alt="pr.author.login" />
           <AvatarFallback class="text-[8px]">{{ pr.author.login.slice(0, 2).toUpperCase() }}</AvatarFallback>
         </Avatar>
-        <RepoName :repo="id.split('#')[0]" :suffix="`#${id.split('#')[1]}`" class="font-mono font-medium" />
+        <RepoName :id="id" class="font-mono font-medium" />
         <span class="flex-1" />
         <Badge v-if="isNext" variant="primary" class="h-4 gap-0.5 px-1.5 text-[10px]"><PhArrowRight />Next</Badge>
         <template v-if="pr">
           <ThreadCount :pr="pr" />
-          <span v-if="pr.state === 'OPEN' && check" :title="check.label" class="flex">
+          <span v-if="pr.state === 'OPEN' && check" :title="check.label" class="flex shrink-0">
             <PhCheckCircle v-if="pr.checks.state === 'SUCCESS'" :size="15" weight="fill" :class="check.cls" />
             <PhXCircle v-else-if="pr.checks.state === 'FAILURE' || pr.checks.state === 'ERROR'" :size="15" weight="fill" :class="check.cls" />
             <PhCircleNotch v-else :size="15" :class="check.cls" />

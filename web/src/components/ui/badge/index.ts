@@ -21,6 +21,8 @@ export const badgeVariants = cva(
         info: 'bg-info/12 text-info dark:bg-info/18',
         merged: 'bg-merged/12 text-merged dark:bg-merged/18',
         muted: 'bg-muted text-muted-foreground',
+        // Counts: a tint of the foreground, visible on muted surfaces (tab lists, board columns)
+        count: 'min-w-5 bg-foreground/15 px-1.5 text-foreground/85 tabular-nums',
       },
     },
     defaultVariants: {

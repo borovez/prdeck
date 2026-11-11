@@ -5,9 +5,10 @@ import { PhCheckCircle, PhCircle, PhCircleDashed, PhEye, PhPlus, PhSlidersHorizo
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type PanelConfig, type PanelType } from '@/stores/layout'
-import { jiraTone, shortId, timeAgo } from '@/utils/format'
+import { jiraTone, timeAgo } from '@/utils/format'
 import { type PrFocus } from '@/utils/prFocus'
 import DashPanel from '@/components/DashPanel.vue'
+import RepoName from '@/components/RepoName.vue'
 import PrRow from '@/components/PrRow.vue'
 import SlackList from '@/components/SlackList.vue'
 import { Badge } from '@/components/ui/badge'
@@ -241,7 +242,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
                     <PhCheckCircle v-if="stepDone(id)" weight="fill" class="text-success" />
                     <PhCircle v-else-if="id === c.nextStep" weight="fill" class="text-primary" />
                     <PhCircleDashed v-else class="text-muted-foreground" />
-                    <span class="font-mono">{{ shortId(id) }}</span>
+                    <RepoName :id="id" class="max-w-56 font-mono" />
                     <span class="max-w-36 truncate text-muted-foreground">{{ stateOf(id)?.action.label ?? 'not synced' }}</span>
                   </button>
                 </li>

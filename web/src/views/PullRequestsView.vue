@@ -12,6 +12,7 @@ import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import PrCard from '@/components/PrCard.vue'
 import PrRow from '@/components/PrRow.vue'
 import RepoName from '@/components/RepoName.vue'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -127,7 +128,7 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
         <header class="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
           <RepoName v-if="groupBy === 'repo'" :repo="g.label" class="text-sm font-semibold" />
           <span v-else class="truncate text-sm font-semibold" :title="g.label">{{ g.label }}</span>
-          <Badge variant="muted">{{ g.prs.length }}</Badge>
+          <Badge variant="count">{{ g.prs.length }}</Badge>
         </header>
         <ScrollArea type="auto" class="min-h-0 flex-1">
           <!-- pt-1: the viewport clips, and the selected card's ring draws outside the card; pr-3.5 clears the scrollbar (shown only when the column overflows) -->

@@ -144,6 +144,10 @@
 }
 
 @layer base {
+  /* Icons keep their size in tight flex rows (a shrinking row shouldn't squash them) */
+  svg {
+    flex-shrink: 0;
+  }
   * {
     @apply border-border outline-ring/50;
   }

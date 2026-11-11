@@ -18,7 +18,7 @@ import type { DepEdge, JiraLink } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
-import { ACTION_TONE, CHECK_STYLE, jiraTone, shortId, timeAgo } from '@/utils/format'
+import { ACTION_TONE, CHECK_STYLE, jiraTone, timeAgo } from '@/utils/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraTransition from './JiraTransition.vue'
 import ThreadList from './ThreadList.vue'
+import RepoName from './RepoName.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -92,9 +93,8 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
             <Badge v-for="r in pr.relations" :key="r" variant="muted">{{ r.replace('_', ' ') }}</Badge>
           </div>
           <h2 class="leading-snug font-semibold">{{ pr.title }}</h2>
-          <!-- Inline (not flex) so a long repo name wraps and the icon keeps its size after the last word -->
-          <a :href="pr.url" target="_blank" rel="noopener" class="mt-1 block font-mono text-sm break-all text-primary hover:underline">
-            {{ pr.repo }}#{{ pr.number }}<PhArrowSquareOut :size="14" class="ml-1 inline-block shrink-0 align-[-2px]" />
+          <a :href="pr.url" target="_blank" rel="noopener" class="mt-1 flex min-w-0 items-center gap-1 font-mono text-sm text-primary hover:underline">
+            <RepoName :id="pr.id" /><PhArrowSquareOut :size="14" class="shrink-0" />
           </a>
     </template>
     <template v-if="pr" #actions>
@@ -227,7 +227,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
               <li v-for="e in pr.dependsOn" :key="e.to" class="flex items-center gap-2 text-sm">
                 <PhCheckCircle v-if="e.satisfied" :size="16" weight="fill" class="shrink-0 text-success" />
                 <PhXCircle v-else :size="16" class="shrink-0 text-warning" />
-                <button class="font-mono text-primary hover:underline" @click="deck.selectedId = e.to">{{ shortId(e.to) }}</button>
+                <button class="max-w-1/2 min-w-0 shrink-0 font-mono text-primary hover:underline" @click="deck.selectedId = e.to"><RepoName :id="e.to" /></button>
                 <span class="truncate text-muted-foreground">{{ deck.byId.get(e.to)?.title ?? (e.missing ? '(not synced yet)' : '') }}</span>
                 <span class="flex-1" />
                 <Badge variant="outline">{{ e.kind }}</Badge>
@@ -239,7 +239,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
             <h3 class="mt-4 mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Blocks — waiting on this</h3>
             <ul class="space-y-1">
               <li v-for="e in pr.dependents" :key="e.from" class="flex items-center gap-2 text-sm">
-                <button class="font-mono text-primary hover:underline" @click="deck.selectedId = e.from">{{ shortId(e.from) }}</button>
+                <button class="max-w-1/2 min-w-0 shrink-0 font-mono text-primary hover:underline" @click="deck.selectedId = e.from"><RepoName :id="e.from" /></button>
                 <span class="truncate text-muted-foreground">{{ deck.byId.get(e.from)?.title }}</span>
                 <span class="flex-1" />
                 <Badge variant="outline">waits for {{ e.kind }}</Badge>
