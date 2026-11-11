@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useArrowNav } from '@/composables/prNav'
+import { releaseStatus } from '@shared/release'
 import SidePanel from './SidePanel.vue'
 import { computed, ref, watch } from 'vue'
 import {
@@ -154,7 +155,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
               <div class="text-xs text-muted-foreground">Release</div>
               <div class="flex items-center gap-1">
                 <PhRocketLaunch :size="14" :class="pr.release.released ? 'text-success' : 'text-muted-foreground'" />
-                {{ pr.release.released ? `Released (in ${pr.release.ref})` : `Not released yet${pr.release.ref ? ` – latest is ${pr.release.ref}` : ''}` }}
+                {{ releaseStatus(pr.release).long }}
                 <span v-if="pr.release.error" class="text-xs text-destructive">{{ pr.release.error }}</span>
               </div>
             </div>

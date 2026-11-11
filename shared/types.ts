@@ -101,6 +101,8 @@ export interface ReviewThread {
 
 export interface ReleaseInfo {
   released: boolean
+  /** How the repo releases: a GitHub release/tag, or a branch it gets merged into (set on the overview) */
+  via?: 'release' | 'branch'
   /** Ref the merge commit was checked against (tag name or branch) */
   ref: string | null
   checkedAt: string

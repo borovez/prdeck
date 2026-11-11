@@ -1,4 +1,5 @@
 import { aiAvailable } from './ai.ts'
+import { releaseStatus } from '../../shared/release.ts'
 import type {
   ActionKind,
   Bucket,
@@ -9,6 +10,7 @@ import type {
   Overview,
   PrId,
   PrView,
+  ReleaseInfo,
 } from '../../shared/types.ts'
 import { ACTION_LABELS } from '../../shared/types.ts'
 import {
@@ -91,6 +93,8 @@ export function buildOverview(): Overview {
 
   // --- PR views
   const prs: PrView[] = stored.map(({ pr, relations, release }) => {
+    const configuredRef = settings.releaseRefs[pr.repo.toLowerCase()] ?? settings.releaseRefs[pr.repo] ?? settings.defaultReleaseRef
+    const releaseView: ReleaseInfo | null = release ? { ...release, via: configuredRef === 'latest-release' ? 'release' : 'branch' } : null
     const { body: _body, ...rest } = pr
     const isMine = meSet.has(pr.author.login.toLowerCase())
     const dependsOn = out.get(pr.id) ?? []
@@ -117,7 +121,7 @@ export function buildOverview(): Overview {
         detail = `${waitingOnRelease.length} PR(s) wait on this release`
       } else if (isMine && release && !release.released) {
         ;[kind, bucket] = ['awaiting_release', 'waiting']
-        detail = release.ref ? `not in ${release.ref} yet` : undefined
+        detail = releaseStatus(releaseView!).long
       } else {
         ;[kind, bucket] = ['done', 'done']
       }
@@ -152,7 +156,7 @@ export function buildOverview(): Overview {
       relations,
       isMine,
       jiraKeys: keysByPr.get(pr.id) ?? [],
-      release,
+      release: releaseView,
       dependsOn,
       dependents,
       blocked,
