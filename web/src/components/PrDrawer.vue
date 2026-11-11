@@ -208,8 +208,8 @@ function startResize(ev: MouseEvent) {
                 >
                   <li v-for="l in sortedLinks(issue.links)" :key="l.key + l.label" class="contents">
                     <span class="whitespace-nowrap text-muted-foreground">{{ l.label }}</span>
-                    <a :href="jiraUrl(l.key)" target="_blank" rel="noopener" class="font-mono whitespace-nowrap hover:underline">{{ l.key }}</a>
-                    <span class="truncate" :title="l.summary">{{ l.summary }}</span>
+                    <a :href="jiraUrl(l.key)" target="_blank" rel="noopener" class="font-mono whitespace-nowrap underline underline-offset-2 hover:text-primary">{{ l.key }}</a>
+                    <a :href="jiraUrl(l.key)" target="_blank" rel="noopener" class="truncate underline underline-offset-2 hover:text-primary" :title="l.summary">{{ l.summary }}</a>
                     <Badge :variant="jiraTone(l.statusCategory)" class="h-4 justify-self-end text-[10px]">{{ l.status }}</Badge>
                   </li>
                 </ul>
