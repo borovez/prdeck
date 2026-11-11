@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onEscape } from '@/composables/escape'
 import { computed, nextTick, ref, watch } from 'vue'
 import { MarkerType, Panel, Position, VueFlow, useVueFlow, type Connection, type Edge, type EdgeMouseEvent, type Node, type NodeMouseEvent } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -23,6 +24,8 @@ import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const deck = useDeck()
+// Escape: the PR drawer closes first (its own handler), then the edge panel
+onEscape(() => !deck.selectedId && !!selectedEdge.value && ((selectedEdge.value = null), true))
 const layout = useLayout()
 const v = layout.view('graph', {
   org: '',

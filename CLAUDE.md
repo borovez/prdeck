@@ -37,6 +37,9 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 - Local tweaks to generated components: `TabsTrigger` takes `count` (right-aligned badge), `Alert` takes `closable` (emits `close`), `AlertAction` is vertically centred, Toggle/ToggleGroup on-state is primary, Switch off-track is visible in light mode, CardHeader has `gap-x-6` before a CardAction.
 - Writes go through `deck.mutate(fn, successMsg?)`: it toasts errors (and the success message), reloads, and returns whether it worked. Don't keep per-component error state for writes. Transient feedback is a toast (vue-sonner, `toast` from 'vue-sonner'); alerts are for persistent state.
 - Page-level save/actions live in `ActionBar` (sticky bottom), not floating buttons.
+- Settings: state in `stores/settings.ts` (page form + `saveSection(patch)` for one section on top of the last saved copy). Integrations are `components/settings/*` built on `ConnectionCard` (read-only details; Connect, or Edit + Disconnect) with `FormDialog` (draft, Test, Save). Destructive confirms use `ConfirmDialog`. Form fields use `Field`.
+- Escape closes custom panels via `onEscape(fn)` (`composables/escape.ts`); reka dialogs/menus handle their own.
+- reka-ui sets `data-state`, the generated classes use `data-checked:` etc.; `style.css` maps them with `@custom-variant`. Keep that block when regenerating components.
 - Colours only via theme tokens in `web/src/style.css` (zinc + indigo; light, `.dark`, and System via `useTheme()`). Status tokens: `success`, `warning`, `info`, `merged`, `destructive`. Badge has matching soft variants (`primary|success|warning|info|merged|muted`). Never hard-code colours. Check both themes.
 - Persist user view choices through `useLayout().view(...)`, not localStorage.
 - No DaisyUI (removed on purpose).

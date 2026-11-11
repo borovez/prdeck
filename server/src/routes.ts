@@ -90,8 +90,10 @@ api.put('/settings', async (c) => {
     incoming.slack = { ...rest, token, userId, teamUrl }
   }
   {
-    const { hasKey: _h, ...rest } = incoming.ai ?? { apiKey: '', model: '' }
-    incoming.ai = { ...rest, apiKey: rest.apiKey || current.ai.apiKey || '', model: rest.model || 'claude-opus-5-5' }
+    const { hasKey, ...rest } = incoming.ai ?? { apiKey: '', model: '' }
+    // Blank key = keep the stored one, unless the client says there is no key any more (removed)
+    const apiKey = rest.apiKey || (hasKey === false ? '' : current.ai.apiKey || '')
+    incoming.ai = { ...rest, apiKey, model: rest.model || 'claude-opus-5-5' }
   }
   incoming.trackedRepos = [...new Set(incoming.trackedRepos.map((r) => r.trim().toLowerCase()).filter(Boolean))]
   incoming.releaseRefs = Object.fromEntries(

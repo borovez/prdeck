@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onEscape } from '@/composables/escape'
 import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
@@ -28,6 +29,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import JiraTransition from './JiraTransition.vue'
 
 const deck = useDeck()
+onEscape(() => !!deck.selectedId && ((deck.selectedId = null), true))
 const layout = useLayout()
 const pr = computed(() => deck.selected)
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))

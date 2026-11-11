@@ -61,3 +61,13 @@ export const CHECK_STYLE: Record<CheckState, { cls: string; label: string }> = {
 }
 
 export const jiraTone = (cat: string): Tone => (cat === 'done' ? 'success' : cat === 'indeterminate' ? 'info' : 'muted')
+
+/** "a, b ,c" → ["a", "b", "c"] */
+export const splitList = (v: string) =>
+  v
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+
+/** Plain deep copy of reactive data (structuredClone rejects Vue proxies) */
+export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
