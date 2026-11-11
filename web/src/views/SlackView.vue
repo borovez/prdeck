@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
@@ -37,9 +38,9 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
     <div class="flex flex-wrap items-center gap-2">
       <Tabs v-model="v.status">
         <TabsList>
-          <TabsTrigger value="new">Inbox ({{ count('new') }})</TabsTrigger>
-          <TabsTrigger value="done">Done ({{ count('done') }})</TabsTrigger>
-          <TabsTrigger value="dismissed">Dismissed ({{ count('dismissed') }})</TabsTrigger>
+          <TabsTrigger value="new">Inbox<Badge variant="muted" class="ml-auto h-5 min-w-5 px-1.5 tabular-nums">{{ count('new') }}</Badge></TabsTrigger>
+          <TabsTrigger value="done">Done<Badge variant="muted" class="ml-auto h-5 min-w-5 px-1.5 tabular-nums">{{ count('done') }}</Badge></TabsTrigger>
+          <TabsTrigger value="dismissed">Dismissed<Badge variant="muted" class="ml-auto h-5 min-w-5 px-1.5 tabular-nums">{{ count('dismissed') }}</Badge></TabsTrigger>
         </TabsList>
       </Tabs>
       <NativeSelect v-model="v.kind" size="sm">
