@@ -28,7 +28,7 @@ const initials = (name: string) =>
 </script>
 
 <template>
-  <div class="rounded-lg px-3 py-2">
+  <div class="px-4 py-3">
     <div class="flex items-start gap-2">
       <img v-if="issue?.typeIconUrl" :src="issue.typeIconUrl" :title="issue.type" class="mt-0.5 size-4 shrink-0" alt="" />
       <div class="min-w-0 flex-1">

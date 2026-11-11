@@ -173,7 +173,7 @@ const groups = computed(() => {
     </div>
 
     <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.items.length">
-      <div class="divide-y">
+      <div class="-m-1.5 divide-y">
         <JiraRow v-for="i in g.items" :key="i.key" :issue-key="i.key" :issue="i.issue" :prs="i.prs" :dense="layout.prefs.dense" />
       </div>
     </GroupCard>
