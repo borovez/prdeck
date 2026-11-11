@@ -48,7 +48,12 @@ function startResize(ev: MouseEvent) {
       class="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l bg-background shadow-2xl"
       :style="{ width: layout.prefs.drawerWidth + 'px' }"
     >
-      <div class="absolute inset-y-0 left-0 w-1.5 cursor-col-resize hover:bg-primary/30" title="Drag to resize" @mousedown="startResize" />
+      <!-- z-30: the body's scroll area is positioned and would otherwise cover the handle below the header -->
+      <div
+        class="absolute inset-y-0 -left-1 z-30 w-2.5 cursor-col-resize transition-colors hover:bg-primary/30"
+        title="Drag to resize"
+        @mousedown="startResize"
+      />
       <header class="flex items-start gap-2 border-b p-4">
         <div class="min-w-0 flex-1"><slot name="header" /></div>
         <slot name="actions" />
