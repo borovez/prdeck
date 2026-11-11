@@ -56,9 +56,6 @@ watch(
         Open in Slack <PhArrowSquareOut :size="14" />
       </a>
     </template>
-    <template v-if="item" #actions>
-      <SlackActions :item="item" :show-open="false" />
-    </template>
 
     <ScrollArea v-if="item" class="min-h-0 flex-1">
       <div class="space-y-2 p-4">
@@ -92,5 +89,8 @@ watch(
         </template>
       </div>
     </ScrollArea>
+    <template v-if="item" #footer>
+      <SlackActions :item="item" labelled />
+    </template>
   </SidePanel>
 </template>

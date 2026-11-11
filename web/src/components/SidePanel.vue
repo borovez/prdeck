@@ -36,6 +36,9 @@ function startResize(ev: MouseEvent) {
         <Button variant="ghost" size="icon-sm" aria-label="Close" @click="emit('close')"><PhX /></Button>
       </header>
       <slot />
+      <footer v-if="$slots.footer" class="flex flex-wrap items-center gap-2 border-t bg-background p-3">
+        <slot name="footer" />
+      </footer>
     </aside>
   </Transition>
 </template>
