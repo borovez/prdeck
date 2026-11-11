@@ -1,14 +1,33 @@
 <script setup lang="ts">
-import { PhX } from '@phosphor-icons/vue'
+import { useEventListener } from '@vueuse/core'
+import { PhLockSimple, PhLockSimpleOpen, PhX } from '@phosphor-icons/vue'
 import { useLayout } from '@/stores/layout'
-import { onEscape } from '@/composables/escape'
+import { LAYER_OPEN, onEscape } from '@/composables/escape'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-/** Right-hand detail panel (PR, Slack message): resizable, closes on Escape. Header and body are slots. */
+/**
+ * Right-hand detail panel (PR, Slack message): resizable, closes on Escape and on a click outside
+ * it unless "keep open" is on. Header, actions, body and footer are slots.
+ */
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const layout = useLayout()
 onEscape(() => props.open && (emit('close'), true))
+
+/** Clicks that shouldn't close it: other items (they switch the panel), and layers on top of it */
+const KEEP_OPEN_TARGETS =
+  '[data-side-panel], [data-pr-id], [data-slack-id], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-sonner-toaster], [data-reka-popper-content-wrapper]'
+useEventListener(
+  document,
+  'pointerdown',
+  (e: PointerEvent) => {
+    if (!props.open || layout.prefs.panelPinned || e.button !== 0) return
+    if ((e.target as HTMLElement).closest?.(KEEP_OPEN_TARGETS) || document.querySelector(LAYER_OPEN)) return
+    emit('close')
+  },
+  { capture: true },
+)
 
 function startResize(ev: MouseEvent) {
   const startX = ev.clientX
@@ -33,6 +52,20 @@ function startResize(ev: MouseEvent) {
       <header class="flex items-start gap-2 border-b p-4">
         <div class="min-w-0 flex-1"><slot name="header" /></div>
         <slot name="actions" />
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :aria-pressed="!!layout.prefs.panelPinned"
+              :aria-label="layout.prefs.panelPinned ? 'Close when clicking outside' : 'Keep open when clicking outside'"
+              @click="layout.prefs.panelPinned = !layout.prefs.panelPinned"
+            >
+              <PhLockSimple v-if="layout.prefs.panelPinned" weight="fill" class="text-primary" /><PhLockSimpleOpen v-else />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{ layout.prefs.panelPinned ? 'Kept open: click to close on outside clicks again' : 'Keep open when clicking outside' }}</TooltipContent>
+        </Tooltip>
         <Button variant="ghost" size="icon-sm" aria-label="Close" @click="emit('close')"><PhX /></Button>
       </header>
       <slot />

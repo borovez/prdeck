@@ -37,6 +37,8 @@ export interface UiPrefs {
   views: Record<string, Record<string, unknown>>
   /** Side drawer width in px */
   drawerWidth: number
+  /** Side panel stays open when clicking outside it */
+  panelPinned?: boolean
   /** Compact rows */
   dense: boolean
 }
