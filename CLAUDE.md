@@ -28,7 +28,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 - `web/src/`: Vue 3 + TS, Pinia, vue-router, **shadcn-vue** (`components/ui/*`, generated, reka-ui based), Tailwind v4, Phosphor icons.
   - `stores/deck.ts`: overview data, selected PR (drawer), slackToJira (dialog).
   - `stores/layout.ts`: customizable dashboard panels (order, pin, collapse, width, sort, filter, limit), per-view state via `layout.view(name, defaults)`. Persisted to `/api/prefs`.
-  - `components/`: PrRow, PrDrawer (resizable detail panel, add/remove dependencies), DashPanel (panel chrome), GroupCard (collapsible list section), SortDirButton, ActionBar (sticky bottom toolbar), SlackRow, SlackToJiraModal, JiraRow, JiraPill, JiraTransition, GraphNode.
+  - `components/`: PrRow, PrCard (compact card for graph nodes and the PR board), PrDrawer (resizable detail panel, add/remove dependencies), DashPanel (panel chrome), GroupCard (collapsible list section), SortDirButton, ActionBar (sticky bottom toolbar), SlackRow, SlackToJiraModal, JiraRow, JiraPill, JiraTransition, GraphNode.
   - `views/`: Dashboard, PullRequests, Slack, Graph, Jira, Settings.
 
 ## UI conventions

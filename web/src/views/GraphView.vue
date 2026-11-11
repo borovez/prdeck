@@ -209,7 +209,7 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
       </Label>
       <span class="flex-1" />
       <span class="text-xs text-muted-foreground">New links</span>
-      <ToggleGroup v-model="v.newKind" type="single" variant="outline" size="sm">
+      <ToggleGroup :model-value="v.newKind" type="single" @update:model-value="(k) => k && (v.newKind = k as DependencyKind)" variant="outline" size="sm">
         <ToggleGroupItem value="merge">Merge</ToggleGroupItem>
         <ToggleGroupItem value="release">Release</ToggleGroupItem>
       </ToggleGroup>

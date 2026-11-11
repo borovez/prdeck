@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhMagnifyingGlass } from '@phosphor-icons/vue'
+import { PhKanban, PhMagnifyingGlass, PhRows } from '@phosphor-icons/vue'
 import type { Bucket, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type SortDir } from '@/stores/layout'
 import { BUCKETS } from '@/utils/format'
 import GroupCard from '@/components/GroupCard.vue'
+import PrCard from '@/components/PrCard.vue'
 import PrRow from '@/components/PrRow.vue'
 import SortDirButton from '@/components/SortDirButton.vue'
 import { Input } from '@/components/ui/input'
@@ -13,10 +14,13 @@ import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Badge } from '@/components/ui/badge'
 
 const deck = useDeck()
 const layout = useLayout()
 type Scope = 'all' | 'mine' | 'review' | 'team'
+type Grouping = 'none' | 'bucket' | 'repo' | 'org'
 const SCOPES: { value: Scope; label: string; match: (p: PrView) => boolean }[] = [
   { value: 'all', label: 'All', match: () => true },
   { value: 'mine', label: 'Mine', match: (p) => p.isMine },
@@ -31,8 +35,9 @@ const v = layout.view('prs', {
   repo: '',
   sort: 'urgency',
   dir: 'desc' as SortDir,
-  group: 'bucket' as 'none' | 'bucket' | 'repo' | 'org',
+  group: 'bucket' as Grouping,
   showDone: false,
+  display: 'list' as 'list' | 'board',
 })
 
 /** Every filter except the scope tab, so each tab can show its count */
@@ -47,21 +52,24 @@ const filtered = computed(() => {
   return sortPrs(base.value.filter(scope.match), v.sort, v.dir)
 })
 
+/** List sections or board columns. A board always has columns, so "None" falls back to status there. */
 const groups = computed(() => {
-  if (v.group === 'none') return [{ key: 'all', label: 'Pull requests', prs: filtered.value }]
-  const keyOf = (p: (typeof filtered.value)[number]) => (v.group === 'bucket' ? p.bucket : v.group === 'org' ? p.owner : p.repo)
-  const map = new Map<string, typeof filtered.value>()
+  const group: Grouping = v.display === 'board' && v.group === 'none' ? 'bucket' : v.group
+  if (group === 'none') return [{ key: 'all', label: 'Pull requests', prs: filtered.value }]
+  const keyOf = (p: PrView) => (group === 'bucket' ? p.bucket : group === 'org' ? p.owner : p.repo)
+  const map = new Map<string, PrView[]>()
   for (const p of filtered.value) map.set(keyOf(p), [...(map.get(keyOf(p)) ?? []), p])
-  const order = v.group === 'bucket' ? [...BUCKETS.map((b) => b.key as string), 'done'] : [...map.keys()].sort()
+  // Status columns keep their order and show even when empty on the board
+  const order = group === 'bucket' ? [...BUCKETS.map((b) => b.key as string), ...(v.showDone ? ['done'] : [])] : [...map.keys()].sort()
   return order
-    .filter((k) => map.has(k))
-    .map((k) => ({ key: k, label: v.group === 'bucket' ? (BUCKETS.find((b) => b.key === k)?.label ?? 'Done') : k, prs: map.get(k)! }))
+    .filter((k) => map.has(k) || (v.display === 'board' && group === 'bucket'))
+    .map((k) => ({ key: k, label: group === 'bucket' ? (BUCKETS.find((b) => b.key === k)?.label ?? 'Done') : k, prs: map.get(k) ?? [] }))
 })
 const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl space-y-4">
+  <div :class="v.display === 'board' ? 'flex h-[calc(100svh-5.5rem)] flex-col gap-4 lg:h-[calc(100svh-6.5rem)]' : 'mx-auto max-w-6xl space-y-4'">
     <div class="flex flex-wrap items-center gap-2">
       <div class="relative w-72">
         <PhMagnifyingGlass class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" :size="14" />
@@ -77,13 +85,17 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
         <NativeSelectOption v-for="r in deck.repos" :key="r" :value="r">{{ r }}</NativeSelectOption>
       </NativeSelect>
       <span class="flex-1" />
+      <ToggleGroup :model-value="v.display" type="single" @update:model-value="(d) => d && (v.display = d as typeof v.display)" variant="outline" size="sm" aria-label="Display">
+        <ToggleGroupItem value="list" aria-label="List"><PhRows /></ToggleGroupItem>
+        <ToggleGroupItem value="board" aria-label="Board"><PhKanban /></ToggleGroupItem>
+      </ToggleGroup>
       <Label class="gap-1.5 font-normal text-muted-foreground">
-        Group
+        {{ v.display === 'board' ? 'Columns' : 'Group' }}
         <NativeSelect v-model="v.group" size="sm">
           <NativeSelectOption value="bucket">Status</NativeSelectOption>
           <NativeSelectOption value="repo">Repo</NativeSelectOption>
           <NativeSelectOption value="org">Org</NativeSelectOption>
-          <NativeSelectOption value="none">None</NativeSelectOption>
+          <NativeSelectOption v-if="v.display === 'list'" value="none">None</NativeSelectOption>
         </NativeSelect>
       </Label>
       <Label class="gap-1.5 font-normal text-muted-foreground">
@@ -100,9 +112,23 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
       <Label class="gap-2 font-normal"><Switch v-model="v.showDone" /> Done</Label>
     </div>
 
-    <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.prs.length">
-      <PrRow v-for="p in g.prs" :key="p.id" :pr="p" :compact="layout.prefs.dense" />
-    </GroupCard>
-    <div v-if="!filtered.length" class="py-16 text-center text-muted-foreground">No pull requests match.</div>
+    <div v-if="v.display === 'board'" class="-mx-4 flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-2 lg:-mx-6 lg:px-6">
+      <section v-for="g in groups" :key="g.key" class="flex w-80 shrink-0 flex-col rounded-xl border bg-muted/50">
+        <header class="flex items-center gap-2 px-3 py-2.5">
+          <span class="truncate text-sm font-semibold" :title="g.label">{{ g.label }}</span>
+          <Badge variant="muted">{{ g.prs.length }}</Badge>
+        </header>
+        <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-2">
+          <PrCard v-for="p in g.prs" :id="p.id" :key="p.id" :pr="p" class="cursor-pointer" @click="deck.selectedId = p.id" />
+          <p v-if="!g.prs.length" class="py-6 text-center text-xs text-muted-foreground">Nothing here</p>
+        </div>
+      </section>
+    </div>
+    <template v-else>
+      <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.prs.length">
+        <PrRow v-for="p in g.prs" :key="p.id" :pr="p" :compact="layout.prefs.dense" />
+      </GroupCard>
+      <div v-if="!filtered.length" class="py-16 text-center text-muted-foreground">No pull requests match.</div>
+    </template>
   </div>
 </template>
