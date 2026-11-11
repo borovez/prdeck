@@ -38,7 +38,7 @@ const delegatedProps = reactiveOmit(props, 'class', 'size')
       v-bind="{ ...$attrs, ...delegatedProps }"
       v-model="modelValue"
       data-slot="native-select"
-      class="border-transparent placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground bg-muted/70 hover:bg-muted dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 w-full min-w-0 appearance-none rounded-md border py-1 pr-8 pl-2.5 text-sm transition-[color,box-shadow,background-color] select-none focus-visible:ring-3 aria-invalid:ring-3 data-[size=sm]:h-8 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
+      class="border-transparent placeholder:text-muted-foreground bg-muted/70 hover:bg-muted dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 w-full min-w-0 appearance-none rounded-md border py-1 pr-8 pl-2.5 text-sm transition-[color,box-shadow,background-color] select-none focus-visible:ring-3 aria-invalid:ring-3 data-[size=sm]:h-8 outline-none disabled:pointer-events-none disabled:cursor-not-allowed"
       :data-size="props.size ?? 'default'"
     >
       <slot />
