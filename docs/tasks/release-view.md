@@ -1,6 +1,6 @@
 # Plan: see what a release contains (Releases view)
 
-Status: planned, not started
+Status: phase 1 done (Releases page, Contents tab, hotfixes); phase 2 (release graph) planned
 
 ## Goal
 
@@ -73,9 +73,56 @@ interface ReleaseContents {
    - Any PR shows **"Ships in #724"** (open release PR containing it) or **"Released in v3.2.0"**.
 3. **Jira panel**: "Ships in" for issues whose PRs are in an open release.
 
+## Release graph (phase 2, detailed)
+
+Phase 1 showed two things the graph has to handle: releases nest (a `release/*` PR can ship another
+release PR, which ships features), and a release can hold 40+ PRs.
+
+**Where:** a **Graph** tab on the Releases page (next to Releases and Hotfixes), reusing the Vue Flow
+setup and `PrCard` from the Dependencies page. No new API calls: everything is in the overview already
+(`releases`, `shipsIn`, `backmerge`, dependency edges).
+
+**Layout: left to right is the path to production**, one swimlane per repo:
+
+| Column | Holds |
+| --- | --- |
+| Merged to dev | PRs merged into the integration branch, in no release yet |
+| In a release | Open release PRs as **group nodes** with their PR cards inside |
+| Merged to master | Merged release PRs (and hotfixes) not in the latest tag yet |
+| Released | The latest tag per repo, as a summary node (later: the last N tags) |
+
+- **Group node** (Vue Flow parent node, dagre compound layout): header with repo, `head → base`,
+  state, PR count, checks, and a Jira roll-up bar (done / in progress / to do). Click the header to
+  open the release PR's Contents tab.
+- **Large releases** collapse to a summary node (count, Jira roll-up, top 3 PRs) above a threshold
+  (e.g. 8 PRs); click to expand.
+- **Nested releases**: a release inside a release is drawn as its own group with a "rolls into" edge
+  to the outer release, so the levels stay readable instead of nesting boxes.
+- **Edges**
+  - Existing dependency edges between cards (solid merge, dashed release), so cross-repo order is
+    visible (e.g. a frontend release waits on a backend release).
+  - Derived **release order** edges: release A → release B when any PR in B depends on a PR in A.
+    Amber while A isn't merged/released, green once it is. Same derivation could suggest an order on
+    the Releases tab.
+  - Hotfixes: a card in "Merged to master" with a dashed **backmerge** edge to the repo's dev lane;
+    red when the backmerge is missing, with the open backmerge PR on the edge if there is one.
+- **Filters** (View menu, persisted): repo/org, open releases only, merged in the last N days, show
+  hotfixes, show unreleased.
+
+**Steps**
+1. Columns and swimlanes with group nodes for open releases; cards inside; click-through to panels.
+2. Collapsing large releases; nested releases as separate groups with "rolls into" edges.
+3. Dependency edges between cards, derived release-order edges.
+4. Hotfix lane with backmerge edges; Released column from tags (with phase 3).
+
+**Open questions**
+- Graph as a tab on the Releases page (recommended) or a mode on the Dependencies page?
+- Collapse threshold for large releases.
+- One swimlane per repo, or group repos that release together (release trains, phase 4)?
+
 ## Phases
 
-1. **Data**: release-PR detection, contents resolution for promotion and cherry-pick PRs, cache,
+1. **Data** (done): release-PR detection, contents resolution for promotion and cherry-pick PRs, cache,
    `GET /api/releases/:prId`; Contents tab in the PR panel; "Ships in" badge. *Smallest useful step.*
 2. **Releases graph mode**: group nodes, dagre layout per group, Unreleased bucket, filters.
 3. **Tags**: contents per tag (previous → current), "Released in" from contents instead of
