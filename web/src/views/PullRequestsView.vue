@@ -11,6 +11,7 @@ import GroupCard from '@/components/GroupCard.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import PrCard from '@/components/PrCard.vue'
 import PrRow from '@/components/PrRow.vue'
+import RepoName from '@/components/RepoName.vue'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -76,8 +77,10 @@ const filtered = computed(() => {
 })
 
 /** List sections or board columns. A board always has columns, so "None" falls back to status there. */
+/** A board always has columns, so "None" falls back to status there */
+const groupBy = computed<Grouping>(() => (v.display === 'board' && v.group === 'none' ? 'bucket' : v.group))
 const groups = computed(() => {
-  const group: Grouping = v.display === 'board' && v.group === 'none' ? 'bucket' : v.group
+  const group = groupBy.value
   if (group === 'none') return [{ key: 'all', label: 'Pull requests', prs: filtered.value }]
   const keyOf = (p: PrView) => (group === 'bucket' ? p.bucket : group === 'org' ? p.owner : p.repo)
   const map = new Map<string, PrView[]>()
@@ -122,7 +125,8 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
       <div class="flex h-full gap-3 px-4 pb-4 lg:px-6">
       <section v-for="g in groups" :key="g.key" class="flex w-80 shrink-0 flex-col rounded-xl border bg-muted/50">
         <header class="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
-          <span class="truncate text-sm font-semibold" :title="g.label">{{ g.label }}</span>
+          <RepoName v-if="groupBy === 'repo'" :repo="g.label" class="text-sm font-semibold" />
+          <span v-else class="truncate text-sm font-semibold" :title="g.label">{{ g.label }}</span>
           <Badge variant="muted">{{ g.prs.length }}</Badge>
         </header>
         <ScrollArea type="auto" class="min-h-0 flex-1">
@@ -137,6 +141,7 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
     </ScrollArea>
     <template v-else>
       <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.prs.length">
+        <template v-if="groupBy === 'repo'" #label><RepoName :repo="g.label" /></template>
         <PrRow v-for="p in g.prs" :key="p.id" :pr="p" :compact="layout.prefs.dense" />
       </GroupCard>
       <div v-if="!filtered.length" class="py-16 text-center text-muted-foreground">No pull requests match.</div>
