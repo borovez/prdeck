@@ -10,7 +10,11 @@ export const alertVariants = cva('grid gap-0.5 rounded-lg border px-4 py-3 text-
   variants: {
     variant: {
       default: 'bg-card text-card-foreground',
-      destructive: 'text-destructive bg-card *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current',
+      // Soft status tones, matching the Badge variants: tinted background and border, coloured text
+      destructive: 'border-destructive/30 bg-destructive/8 text-destructive dark:bg-destructive/15 *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current',
+      warning: 'border-warning/30 bg-warning/10 text-warning dark:bg-warning/15 *:data-[slot=alert-description]:text-foreground/80 *:[svg]:text-current',
+      success: 'border-success/30 bg-success/8 text-success dark:bg-success/15 *:data-[slot=alert-description]:text-foreground/80 *:[svg]:text-current',
+      info: 'border-info/30 bg-info/8 text-info dark:bg-info/15 *:data-[slot=alert-description]:text-foreground/80 *:[svg]:text-current',
     },
   },
   defaultVariants: {

@@ -42,6 +42,11 @@ function sortedLinks(links: JiraLink[]) {
       return rank(a) - rank(b) || a.label.localeCompare(b.label)
     })
 }
+/** The action's badge tone, where alerts have a matching one */
+const alertTone = computed(() => {
+  const t = pr.value ? ACTION_TONE[pr.value.action.kind] : 'default'
+  return t === 'destructive' || t === 'warning' || t === 'success' || t === 'info' ? t : 'default'
+})
 const jiraUrl = (key: string) => (deck.overview?.jiraBaseUrl ? `${deck.overview.jiraBaseUrl}/browse/${key}` : undefined)
 const dv = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
 useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
@@ -111,7 +116,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
       <TabsContent value="details" class="min-h-0 flex-1">
       <ScrollArea class="h-full">
         <div class="space-y-5 p-4">
-          <Alert v-if="pr.action.detail"><AlertDescription>{{ pr.action.detail }}</AlertDescription></Alert>
+          <Alert v-if="pr.action.detail" :variant="alertTone"><AlertDescription>{{ pr.action.detail }}</AlertDescription></Alert>
 
           <div class="grid grid-cols-2 gap-3 text-sm">
             <div>
@@ -242,9 +247,10 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
                   <NativeSelectOption value="merge">needs merge</NativeSelectOption>
                   <NativeSelectOption value="release">needs release</NativeSelectOption>
                 </NativeSelect>
-                <span class="flex-1 text-xs text-muted-foreground">Or write “Depends on: org/repo#12” in the PR body.</span>
+                <span class="flex-1" />
                 <Button size="sm" type="submit"><PhPlus /> Add</Button>
               </div>
+              <p class="text-xs text-muted-foreground">Or write “Depends on: org/repo#12” in the PR description.</p>
             </form>
           </section>
 

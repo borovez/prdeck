@@ -144,8 +144,8 @@ async function create() {
       <blockquote class="rounded-lg border-l-4 border-primary/50 bg-muted/60 p-3 text-sm whitespace-pre-line">{{ item.text }}</blockquote>
 
       <template v-if="created">
-        <Alert>
-          <PhCheckCircle class="text-success" />
+        <Alert variant="success">
+          <PhCheckCircle />
           <AlertDescription>
             <span>Created <a :href="created.url" target="_blank" class="font-mono text-primary hover:underline">{{ created.key }}</a><template v-if="created.replied"> and replied in the Slack thread</template>.</span>
           </AlertDescription>
