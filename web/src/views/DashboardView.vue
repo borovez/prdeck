@@ -75,19 +75,17 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
 
 <template>
   <div class="mx-auto max-w-7xl space-y-4">
-    <div class="flex flex-wrap items-stretch gap-3">
-      <div class="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Card v-for="t in tiles" :key="t.label" class="gap-0 py-3">
-          <CardContent class="px-4">
-            <div class="text-xs text-muted-foreground">{{ t.label }}</div>
-            <div class="text-2xl font-semibold tabular-nums" :class="t.cls">{{ t.value }}</div>
-          </CardContent>
-        </Card>
-      </div>
-
+    <div class="flex min-h-8 flex-wrap items-center gap-1 text-xs text-muted-foreground">
+      <template v-if="hidden.length">
+        Hidden:
+        <Button v-for="p in hidden" :key="p.id" variant="ghost" size="xs" @click="layout.update(p.id, { visible: true })">
+          <PhEye /> {{ p.title }}
+        </Button>
+      </template>
+      <span class="flex-1" />
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="outline" class="self-center"><PhSlidersHorizontal /> Customize</Button>
+          <Button variant="outline" size="sm"><PhSlidersHorizontal /> Customize</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-64">
           <DropdownMenuLabel>Panels</DropdownMenuLabel>
@@ -116,11 +114,13 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
       </DropdownMenu>
     </div>
 
-    <div v-if="hidden.length" class="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-      Hidden:
-      <Button v-for="p in hidden" :key="p.id" variant="ghost" size="xs" @click="layout.update(p.id, { visible: true })">
-        <PhEye /> {{ p.title }}
-      </Button>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <Card v-for="t in tiles" :key="t.label" class="gap-0 py-3">
+        <CardContent class="px-4">
+          <div class="text-xs text-muted-foreground">{{ t.label }}</div>
+          <div class="text-2xl font-semibold tabular-nums" :class="t.cls">{{ t.value }}</div>
+        </CardContent>
+      </Card>
     </div>
 
     <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">

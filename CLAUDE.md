@@ -29,7 +29,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
   - `stores/deck.ts`: overview data, selected PR (drawer), slackToJira (dialog).
   - `stores/layout.ts`: customizable dashboard panels (order, pin, collapse, width, sort, filter, limit), per-view state via `layout.view(name, defaults)`. Persisted to `/api/prefs`.
   - `components/`: PrRow, PrDrawer (resizable detail panel, add/remove dependencies), DashPanel (panel chrome), SlackRow, SlackToJiraModal, JiraPill, JiraTransition.
-  - `views/`: Dashboard, PullRequests, Slack, Settings; `ComingSoonView` is a placeholder for /graph and /jira.
+  - `views/`: Dashboard, PullRequests, Slack, Graph, Settings; `ComingSoonView` is a placeholder for /jira.
 
 ## UI conventions
 
@@ -38,20 +38,12 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 - Persist user view choices through `useLayout().view(...)`, not localStorage.
 - No DaisyUI (removed on purpose).
 
-## Next task: dependency graph page (`/graph`)
+## Dependency graph (`/graph`)
 
-Replace the placeholder route in `web/src/router.ts` with `views/GraphView.vue`. The packages are already installed: `@vue-flow/core`, `@vue-flow/background`, `@vue-flow/controls`, `@dagrejs/dagre` (CSS: `@vue-flow/core/dist/style.css`, `theme-default.css`, `@vue-flow/controls/dist/style.css`; theme them to the tokens).
-
-- Data is already there: `deck.overview.edges` (`DepEdge`: from = dependent, to = prerequisite, kind merge|release, source manual|body|jira, satisfied, missing) and `deck.overview.chains`. Draw arrows prerequisite → dependent.
-- Nodes are compact PR cards: repo#number, title, action badge (`ACTION_TONE`), CI icon, Jira key/status. Group or colour by repo/org. Mark the chain's `nextStep`, and mark missing (not-synced) nodes.
-- Edges: solid for merge, dashed for release; satisfied edges muted/green, unsatisfied amber; label the source on hover.
-- Dagre auto-layout (LR), fit view, mini controls. Clicking a node opens the existing PrDrawer (`deck.selectedId = id`).
-- Filters (persisted via `layout.view('graph', …)`): repo/org, hide finished chains, only chains involving my PRs.
-- Optionally drag from one node's handle to another to create a manual dependency (`api.addDep(from, to, kind)` then `deck.load()`), and select an edge to delete a manual one (`api.removeDep(id)`).
-- There are currently no edges in the user's data. To test, add a couple with `POST /api/deps` (or the drawer form) and remove them afterwards.
+`views/GraphView.vue` + `components/GraphNode.vue` (Vue Flow + dagre LR). Edges drawn prerequisite → dependent (solid merge, dashed release; green/muted satisfied, amber waiting). Filters persist via `layout.view('graph', …)`. Drag right handle → left handle creates a manual dep (kind from the "New links" toggle); click an edge to see it and delete manual ones. "Unlinked PRs" shows open PRs without deps so links can be drawn to them. Vue Flow is themed in the view's unscoped `<style>` (`.dep-graph`).
 
 ## Other open items
 
 - `/jira` page (Jira tasks with their linked PRs) is still a placeholder.
 - Slack, Jira and Claude drafting are not yet tested against real credentials (Slack needs scopes incl. `stars:read`, `reactions:read`).
-- Not committed to git yet (repo initialised, no commits).
+- Graph page not yet checked in a browser (Chrome extension wasn't connected).

@@ -76,7 +76,9 @@ export function buildOverview(): Overview {
   const edges: DepEdge[] = [...edgeMap.values()].map((e) => {
     const target = byId.get(e.to)
     const merged = target?.pr.state === 'MERGED'
-    const satisfied = e.kind === 'merge' ? merged : merged && !!target?.release?.released
+    // A closed (unmerged) prerequisite is abandoned and no longer blocks; matches isDone() in buildChains
+    const closed = target?.pr.state === 'CLOSED'
+    const satisfied = closed || (e.kind === 'merge' ? merged : merged && !!target?.release?.released)
     return { ...e, satisfied, missing: !target }
   })
   const out = new Map<PrId, DepEdge[]>()

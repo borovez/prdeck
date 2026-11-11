@@ -7,12 +7,7 @@ export const router = createRouter({
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/prs', name: 'prs', component: () => import('./views/PullRequestsView.vue') },
     { path: '/slack', name: 'slack', component: () => import('./views/SlackView.vue') },
-    {
-      path: '/graph',
-      name: 'graph',
-      component: ComingSoon,
-      props: { title: 'Dependency graph', text: 'Interactive cross-repo graph is next. For now, chains show on the Overview and in each PR panel.' },
-    },
+    { path: '/graph', name: 'graph', component: () => import('./views/GraphView.vue') },
     {
       path: '/jira',
       name: 'jira',
