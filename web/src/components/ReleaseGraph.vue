@@ -41,7 +41,8 @@ const COL_GAP = 140
 const STACK_GAP = 24
 const LANE_GAP = 72
 const HEADER_H = 56
-const colX = (c: number) => LANE_LABEL_W + c * (COL_W + COL_GAP)
+/** x of the n-th shown column (empty columns are left out) */
+const slotX = (n: number) => LANE_LABEL_W + n * (COL_W + COL_GAP)
 
 const columnOf = (p: PrView) => (p.state === 'OPEN' ? 1 : p.release?.released ? 3 : 2)
 /** Merged releases and hotfixes older than the chosen window stay off the graph */
@@ -163,7 +164,7 @@ const placed = computed(() => {
     const colY = [0, 0, 0, 0]
     const items = [...lane.items].sort((a, b) => a.col - b.col)
     for (const item of items) {
-      out.push({ item, x: colX(item.col), y: y + colY[item.col], lane: lane.repo })
+      out.push({ item, x: slotX(shownCols.value.indexOf(item.col)), y: y + colY[item.col], lane: lane.repo })
       colY[item.col] += item.h + STACK_GAP
     }
     const h = Math.max(...colY) - STACK_GAP
@@ -172,7 +173,8 @@ const placed = computed(() => {
   }
   return { out, laneLabels }
 })
-const visibleCols = computed(() => (v.showReleased ? 4 : 3))
+/** Columns with something in them for the current repo / filters */
+const shownCols = computed(() => [0, 1, 2, 3].filter((c) => lanes.value.some((l) => l.items.some((i) => i.col === c))))
 
 /** Where a PR is drawn: its own card, a row in a group, or a collapsed group */
 const locate = computed(() => {
@@ -194,11 +196,11 @@ const groupsOf = computed(() => {
 
 const nodes = computed<Node[]>(() => [
   // Column headers and lane labels move with the canvas
-  ...COLUMNS.slice(0, visibleCols.value).map((c, i) => ({
-    id: `col:${i}`,
+  ...shownCols.value.map((col, i) => ({
+    id: `col:${col}`,
     type: 'label',
-    position: { x: colX(i), y: 0 },
-    data: { title: c.title, hint: c.hint, width: COL_W },
+    position: { x: slotX(i), y: 0 },
+    data: { title: COLUMNS[col].title, hint: COLUMNS[col].hint, width: COL_W },
     selectable: false,
     draggable: false,
   })),
@@ -213,7 +215,7 @@ const nodes = computed<Node[]>(() => [
   ...placed.value.out.map(({ item, x, y }) => ({ id: item.id, type: 'group-release', position: { x, y }, data: item.data, draggable: false })),
 ])
 
-const edges = computed<Edge[]>(() => {
+const baseEdges = computed<Edge[]>(() => {
   const out = new Map<string, Edge>()
   const loc = locate.value
   // PR dependencies (prerequisite → dependent)
@@ -280,13 +282,31 @@ const edges = computed<Edge[]>(() => {
   return [...out.values()]
 })
 
+/** Hovering an edge, or a box, brings its edges forward and fades the rest */
+const hoverEdge = ref<string | null>(null)
+const hoverNode = ref<string | null>(null)
+const edges = computed<Edge[]>(() => {
+  const active = (e: Edge) => e.id === hoverEdge.value || (!!hoverNode.value && (e.source === hoverNode.value || e.target === hoverNode.value))
+  if (!hoverEdge.value && !hoverNode.value) return baseEdges.value
+  return baseEdges.value.map((e) => {
+    const on = active(e)
+    const style = (e.style ?? {}) as Record<string, unknown>
+    return {
+      ...e,
+      zIndex: on ? 1000 : 0,
+      animated: on,
+      style: { ...style, opacity: on ? 1 : 0.15, strokeWidth: Number(style.strokeWidth ?? 1.5) + (on ? 1.5 : 0) },
+    }
+  })
+})
+
 const { fitView, setViewport, dimensions } = useVueFlow('release-graph')
 /** Fit when it stays readable; otherwise start at the top left at a readable zoom and let people pan */
 async function frame() {
   await nextTick()
   const ys = placed.value.out.map((o) => o.y + o.item.h)
   const height = Math.max(HEADER_H, ...ys) + 40
-  const width = colX(visibleCols.value) + 40
+  const width = slotX(shownCols.value.length) + 40
   const zoom = Math.min(dimensions.value.width / width, dimensions.value.height / height)
   setTimeout(() => (zoom >= 0.6 ? fitView({ padding: 0.06, maxZoom: 1, duration: 200 }) : setViewport({ x: 16, y: 16, zoom: 0.8 }, { duration: 200 })), 50)
 }
@@ -294,6 +314,7 @@ watch(() => nodes.value.map((n) => n.id).join('|'), frame)
 
 const tip = ref<{ x: number; y: number; text: string } | null>(null)
 function onEdgeHover({ edge, event }: EdgeMouseEvent) {
+  hoverEdge.value = edge.id
   const m = event as MouseEvent
   tip.value = { x: m.clientX, y: m.clientY, text: (edge.data as { text: string }).text }
 }
@@ -345,7 +366,9 @@ const viewSections = computed<ViewSection[]>(() => [
         @pane-ready="frame"
         @edge-mouse-enter="onEdgeHover"
         @edge-mouse-move="onEdgeHover"
-        @edge-mouse-leave="tip = null"
+        @edge-mouse-leave="(tip = null), (hoverEdge = null)"
+        @node-mouse-enter="({ node }) => (hoverNode = node.type === 'group-release' ? node.id : null)"
+        @node-mouse-leave="hoverNode = null"
       >
         <template #node-label="p">
           <div :style="{ width: `${p.data.width}px` }" class="pointer-events-none">
