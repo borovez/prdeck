@@ -20,7 +20,7 @@ import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -158,10 +158,11 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
           </Alert>
           <Alert v-if="needsSetup && route.name !== 'settings'" class="mb-4">
             <PhGear />
-            <AlertDescription class="flex flex-wrap items-center gap-3">
-              Connect GitHub (and optionally Jira and Slack) to get started.
+            <AlertTitle>Finish setup</AlertTitle>
+            <AlertDescription>Connect GitHub (and optionally Jira and Slack) to get started.</AlertDescription>
+            <AlertAction>
               <Button size="sm" as-child><RouterLink to="/settings">Open setup</RouterLink></Button>
-            </AlertDescription>
+            </AlertAction>
           </Alert>
           <RouterView />
         </main>

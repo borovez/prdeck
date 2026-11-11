@@ -5,7 +5,7 @@ import type { SlackKind, SlackStatus } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import SlackRow from '@/components/SlackRow.vue'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -28,10 +28,11 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
   <div class="mx-auto max-w-4xl space-y-4">
     <Alert v-if="!deck.overview?.configured.slack">
       <PhSlackLogo />
-      <AlertDescription class="flex flex-wrap items-center gap-3">
-        Slack isn't connected yet.
+      <AlertTitle>Slack isn't connected yet</AlertTitle>
+      <AlertDescription>Add a user token in Settings to pull mentions, unanswered DMs and saved items.</AlertDescription>
+      <AlertAction>
         <Button size="sm" as-child><RouterLink to="/settings">Connect Slack</RouterLink></Button>
-      </AlertDescription>
+      </AlertAction>
     </Alert>
     <div class="flex flex-wrap items-center gap-2">
       <Tabs v-model="v.status">
