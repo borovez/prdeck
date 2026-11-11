@@ -159,7 +159,7 @@ const details = computed(() => {
     <template v-if="key && releaseId" #actions>
       <Tooltip>
         <TooltipTrigger as-child>
-          <Button variant="ghost" size="icon-sm" aria-label="Open on the Releases page" @click="nav.openReleases(releaseId!)"><PhRocketLaunch /></Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Open on the Releases page" @click="nav.openReleases(releaseId!, deck.byId.get(releaseId!)?.flow === 'hotfix' ? 'hotfixes' : 'releases')"><PhRocketLaunch /></Button>
         </TooltipTrigger>
         <TooltipContent>Open the release that ships this issue</TooltipContent>
       </Tooltip>

@@ -23,6 +23,7 @@ export function useReleaseNav() {
     // Panels would cover the box the graph zooms to
     deck.selectedId = null
     deck.selectedJiraKey = null
+    deck.selectedSlackId = null
     router.push({ path: '/releases', query: { focus } })
   }
   function openTrains() {
@@ -43,5 +44,27 @@ export function useReleaseNav() {
     return byContents?.prId ?? null
   }
 
-  return { openReleases, openGraph, openTrains, releaseForIssue }
+  /** A release / hotfix PR itself, or the release that ships the PR (open ones first) */
+  function releaseForPr(id: string): string | null {
+    const p = deck.byId.get(id)
+    if (!p) return null
+    if (p.flow === 'release' || p.flow === 'hotfix') return p.id
+    return [...p.shipsIn].sort((a, b) => Number(b.state === 'OPEN') - Number(a.state === 'OPEN'))[0]?.id ?? null
+  }
+
+  /** From free text (e.g. a Slack message): GitHub PR links first, then Jira keys */
+  function releaseForText(text: string, extraKeys: string[] = []): string | null {
+    for (const m of text.matchAll(/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/gi)) {
+      const r = releaseForPr(`${m[1]}/${m[2]}#${m[3]}`.toLowerCase())
+      if (r) return r
+    }
+    const keys = [...extraKeys, ...[...text.matchAll(/\b([A-Z][A-Z0-9]{1,9}-\d{1,6})\b/g)].map((m) => m[1])]
+    for (const k of keys) {
+      const r = releaseForIssue(k)
+      if (r) return r
+    }
+    return null
+  }
+
+  return { openReleases, openGraph, openTrains, releaseForIssue, releaseForPr, releaseForText }
 }

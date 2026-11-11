@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { PhArrowDown, PhArrowSquareOut, PhArrowUp, PhCircleNotch } from '@phosphor-icons/vue'
+import { PhArrowDown, PhArrowSquareOut, PhArrowUp, PhCircleNotch, PhGraph, PhRocketLaunch } from '@phosphor-icons/vue'
 import type { SlackContext } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useArrowNav } from '@/composables/prNav'
+import { useReleaseNav } from '@/composables/releaseNav'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import SidePanel from './SidePanel.vue'
@@ -20,6 +22,10 @@ import { KIND } from '@/utils/slack'
 /** Side panel for a Slack inbox item: the message with the two before and after it. */
 const deck = useDeck()
 const item = computed(() => deck.selectedSlack)
+/** The release the message is about: a linked PR's release, else a mentioned Jira issue's */
+const nav = useReleaseNav()
+const releaseId = computed(() => (item.value ? nav.releaseForText(`${item.value.rich ?? ''} ${item.value.text}`, item.value.jiraKey ? [item.value.jiraKey] : []) : null))
+const isHotfix = computed(() => (releaseId.value ? deck.byId.get(releaseId.value)?.flow === 'hotfix' : false))
 useArrowNav('slack', () => deck.selectedSlackId, (id) => (deck.selectedSlackId = id))
 
 /** Messages around the item; "Load more" widens the window by STEP on either side */
@@ -81,6 +87,21 @@ async function more(side: 'before' | 'after') {
 
 <template>
   <SidePanel :open="!!item" @close="deck.selectedSlackId = null">
+    <!-- To the release this message is about -->
+    <template v-if="item && releaseId" #actions>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button variant="ghost" size="icon-sm" aria-label="Open on the Releases page" @click="nav.openReleases(releaseId!, isHotfix ? 'hotfixes' : 'releases')"><PhRocketLaunch /></Button>
+        </TooltipTrigger>
+        <TooltipContent>Open the release this message is about</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button variant="ghost" size="icon-sm" aria-label="Show in the release graph" @click="nav.openGraph(releaseId!, releaseId!.split('#')[0])"><PhGraph /></Button>
+        </TooltipTrigger>
+        <TooltipContent>Show in the release graph</TooltipContent>
+      </Tooltip>
+    </template>
     <template v-if="item" #header>
       <div class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         <Badge variant="muted" class="gap-1"><component :is="KIND[item.kind].icon" />{{ KIND[item.kind].label }}</Badge>
