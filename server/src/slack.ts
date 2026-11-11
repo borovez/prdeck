@@ -74,6 +74,10 @@ async function resolveChannelNames(token: string, ids: string[]) {
   return channelNames
 }
 
+/** Keep Slack mrkdwn but name user mentions: <@U1> → <@U1|Name>, for the client to format */
+export const namedMentions = (text: string, users: Record<string, { name: string }>) =>
+  text.replace(/<@([UW][A-Z0-9]+)(?:\|[^>]+)?>/g, (_, id) => `<@${id}|${users[id]?.name ?? id}>`)
+
 /** Slack mrkdwn → readable text: <@U1>, <#C1|name>, <url|label>, entities. */
 export function renderText(text: string, users: Record<string, { name: string }>): string {
   return text
@@ -264,6 +268,7 @@ export async function fetchSlackInbox(cfg: SlackConfig): Promise<SlackFetchResul
         userName: u?.name ?? r.m.username ?? r.m.user,
         userAvatar: u?.avatar ?? null,
         text: renderText(r.m.text ?? '', users),
+        rich: namedMentions(r.m.text ?? '', users),
         permalink: r.permalink ?? (base ? `${base}/archives/${r.channelId}/p${r.m.ts.replace('.', '')}` : null),
         postedAt: tsToIso(r.m.ts),
         awaitingReply: r.awaitingReply,
@@ -339,6 +344,7 @@ export async function messagesAround(cfg: SlackConfig, item: SlackItem, n = 2): 
     userName: users[m.user]?.name ?? m.username ?? m.user ?? 'Unknown',
     userAvatar: users[m.user]?.avatar ?? null,
     text: renderText(m.text ?? '', users),
+    rich: namedMentions(m.text ?? '', users),
     postedAt: tsToIso(m.ts),
     isTarget: m.ts === item.ts,
   }))

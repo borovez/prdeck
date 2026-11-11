@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
+import SlackText from './SlackText.vue'
 
 const deck = useDeck()
 const item = computed(() => deck.slackToJira)
@@ -141,7 +142,7 @@ async function create() {
         <DialogDescription>{{ item.userName }} · {{ item.channelName }}</DialogDescription>
       </DialogHeader>
 
-      <blockquote class="rounded-lg border-l-4 border-primary/50 bg-muted/60 p-3 text-sm whitespace-pre-line">{{ item.text }}</blockquote>
+      <blockquote class="rounded-lg border-l-4 border-primary/50 bg-muted/60 p-3 text-sm"><SlackText :text="item.text" :rich="item.rich" /></blockquote>
 
       <template v-if="created">
         <Alert variant="success">

@@ -6,6 +6,7 @@ import { KIND } from '@/utils/slack'
 import { cn } from '@/lib/utils'
 import SlackActions from './SlackActions.vue'
 import JiraPill from './JiraPill.vue'
+import SlackText from './SlackText.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 
@@ -41,7 +42,7 @@ const deck = useDeck()
         <Badge v-if="item.threadTs" variant="muted" class="h-4 text-[10px]">in thread</Badge>
         <JiraPill v-if="item.jiraKey" :issue-key="item.jiraKey" />
       </div>
-      <p class="mt-0.5 line-clamp-2 text-sm break-words whitespace-pre-line">{{ item.text }}</p>
+      <SlackText :text="item.text" :rich="item.rich" class="mt-0.5 line-clamp-2 text-sm" />
     </div>
     <SlackActions :item="item" class="opacity-60 transition-opacity group-hover:opacity-100" />
   </div>

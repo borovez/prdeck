@@ -226,7 +226,9 @@ export interface SlackItem {
   user: string
   userName: string
   userAvatar: string | null
-  text: string // rendered (mentions/links resolved)
+  text: string // plain text (mentions/links resolved), for search and drafting
+  /** Slack mrkdwn with user mentions named (<@U1|Name>), for formatted display */
+  rich?: string
   permalink: string | null
   postedAt: string
   /** In a DM/group: nobody (me) has replied after this message */
@@ -252,6 +254,8 @@ export interface SlackMessage {
   userName: string
   userAvatar: string | null
   text: string
+  /** Slack mrkdwn with user mentions named, for formatted display */
+  rich: string
   postedAt: string
   /** The inbox item itself */
   isTarget: boolean

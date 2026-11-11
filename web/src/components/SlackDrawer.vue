@@ -8,6 +8,7 @@ import { useArrowNav } from '@/composables/prNav'
 import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import SidePanel from './SidePanel.vue'
+import SlackText from './SlackText.vue'
 import SlackActions from './SlackActions.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -76,7 +77,7 @@ watch(
                 <span class="text-muted-foreground" :title="m.postedAt">{{ timeAgo(m.postedAt) }}</span>
                 <Badge v-if="m.isTarget" variant="primary" class="h-4 text-[10px]">{{ KIND[item.kind].label }}</Badge>
               </div>
-              <p class="mt-0.5 text-sm break-words whitespace-pre-line">{{ m.text }}</p>
+              <SlackText :text="m.text" :rich="m.rich" class="mt-0.5 text-sm" />
             </div>
           </div>
         </template>
