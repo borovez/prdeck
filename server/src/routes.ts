@@ -258,8 +258,12 @@ api.post('/slack/:id/draft', async (c) => {
   const item = getSlackItem(c.req.param('id'))
   if (!s.slack?.token || !item) throw bad('Unknown Slack item')
   const { context, projectKey } = await c.req.json<{ context?: string; projectKey?: string }>()
+  const project = projectKey || s.jira?.create.projectKey || ''
+  // Let Claude fill the project's required fields too; drafting still works if Jira can't be asked
+  const required =
+    s.jira?.apiToken && project ? await requiredFields(s.jira, project, s.jira.create.issueType || 'Task').catch(() => []) : []
   const thread = await threadContext(s.slack, item)
-  const draft = await draftJiraFromSlack(s.ai, item, thread, context ?? '', projectKey || s.jira?.create.projectKey || '')
+  const draft = await draftJiraFromSlack(s.ai, item, thread, context ?? '', project, required)
   return c.json({ draft, thread })
 })
 

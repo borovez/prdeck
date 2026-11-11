@@ -57,6 +57,8 @@ watchDebounced(
   },
   { debounce: 300, immediate: true },
 )
+/** Claude's picks from the draft, to label them in the form */
+const claudePicks = ref<Record<string, string>>({})
 const missingRequired = computed(() => required.value.filter((f) => !values.value[f.key]))
 /** In Jira's shape: {id} for a select, [{id}] for a multi-select, text otherwise */
 const fieldPayload = () =>
@@ -75,6 +77,7 @@ watch(item, async (it) => {
   error.value = ''
   created.value = null
   values.value = {}
+  claudePicks.value = {}
   const jira = (await api.settings().catch(() => null))?.jira
   if (!projectKey.value) projectKey.value = jira?.create.projectKey ?? ''
   settingDefaults.value = {}
@@ -93,6 +96,9 @@ async function generate() {
     const r = await api.slackDraft(item.value!.id, context.value, projectKey.value)
     draft.value = r.draft
     thread.value = r.thread
+    // Claude's picks win over remembered/default values
+    claudePicks.value = Object.fromEntries(Object.entries(r.draft.fields ?? {}).filter(([, v]) => v))
+    Object.assign(values.value, claudePicks.value)
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -189,6 +195,9 @@ async function create() {
               <NativeSelectOption v-for="o in f.options" :key="o.id" :value="o.id">{{ o.label }}</NativeSelectOption>
             </NativeSelect>
             <Input v-else v-model="values[f.key]" />
+            <p v-if="claudePicks[f.key] && claudePicks[f.key] === values[f.key]" class="flex items-center gap-1 text-xs text-muted-foreground">
+              <PhSparkle :size="12" /> Picked by Claude
+            </p>
           </div>
           <p v-if="loadingFields" class="flex items-center gap-1.5 self-end text-xs text-muted-foreground"><PhCircleNotch class="animate-spin" /> Checking required fields…</p>
         </div>

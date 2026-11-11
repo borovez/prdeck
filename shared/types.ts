@@ -251,6 +251,8 @@ export interface JiraDraft {
   issueType: 'Task' | 'Bug' | 'Story' | 'Improvement'
   labels: string[]
   rationale: string
+  /** Claude's picks for the project's required fields: option id (selects) or text, by field key */
+  fields?: Record<string, string>
 }
 
 // ---------- Settings ----------
