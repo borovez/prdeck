@@ -7,6 +7,7 @@ import { ACTION_TONE, CHECK_STYLE, jiraTone, shortId } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import ThreadCount from './ThreadCount.vue'
 
 /**
  * Compact PR card (graph nodes, board columns). `pr` is null for a PR that isn't synced yet.
@@ -45,6 +46,7 @@ const jira = computed(() => {
         <span class="flex-1" />
         <Badge v-if="isNext" variant="primary" class="h-4 gap-0.5 px-1.5 text-[10px]"><PhArrowRight />Next</Badge>
         <template v-if="pr">
+          <ThreadCount :pr="pr" />
           <span v-if="pr.state === 'OPEN' && check" :title="check.label" class="flex">
             <PhCheckCircle v-if="pr.checks.state === 'SUCCESS'" :size="15" weight="fill" :class="check.cls" />
             <PhXCircle v-else-if="pr.checks.state === 'FAILURE' || pr.checks.state === 'ERROR'" :size="15" weight="fill" :class="check.cls" />

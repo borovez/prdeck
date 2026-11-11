@@ -17,6 +17,8 @@ const props = withDefaults(defineProps<ToggleGroupRootProps & {
   spacing?: number
 }>(), {
   spacing: 0,
+  // reka only sets data-orientation when given one; the item corner styles key off it
+  orientation: 'horizontal',
 })
 
 const emits = defineEmits<ToggleGroupRootEmits>()

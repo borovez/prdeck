@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  PhChatCircle,
   PhCheckCircle,
   PhCircleNotch,
   PhGitMerge,
@@ -19,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraPill from './JiraPill.vue'
+import ThreadCount from './ThreadCount.vue'
 
 const props = defineProps<{ pr: PrView; compact?: boolean }>()
 const deck = useDeck()
@@ -65,9 +65,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
         <TooltipTrigger as-child><PhLinkSimple :size="16" class="text-muted-foreground" /></TooltipTrigger>
         <TooltipContent>Part of a dependency chain</TooltipContent>
       </Tooltip>
-      <span v-if="pr.unresolvedThreads" class="flex items-center gap-0.5 text-xs text-muted-foreground" title="Unresolved threads">
-        <PhChatCircle :size="14" />{{ pr.unresolvedThreads }}
-      </span>
+      <ThreadCount :pr="pr" />
       <Tooltip v-if="pr.state === 'OPEN'">
         <TooltipTrigger as-child>
           <span>
