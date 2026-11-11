@@ -1,4 +1,4 @@
-import type { AiConfig, JiraDraft, Overview, Settings, SlackStatus } from '@shared/types'
+import type { AiConfig, JiraDraft, JiraRequiredField, Overview, Settings, SlackStatus } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -33,6 +33,8 @@ export const api = {
     call<{ id: number }>('POST', '/deps', { from, to, kind, note }),
   removeDep: (id: number) => call('DELETE', `/deps/${id}`),
   setMeta: (id: string, note: string | null, pinned: boolean) => call('PUT', '/prs/meta', { id, note, pinned }),
+  jiraRequiredFields: (project: string, type: string) =>
+    call<JiraRequiredField[]>('GET', `/jira/required-fields?project=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}`),
   transitions: (key: string) =>
     call<{ id: string; name: string; to: string; toCategory: string }[]>('GET', `/jira/${key}/transitions`),
   transition: (key: string, id: string) => call('POST', `/jira/${key}/transitions`, { id }),
@@ -48,5 +50,6 @@ export const api = {
     labels: string[]
     slackItemId?: string | null
     replyInThread?: boolean
+    fields?: Record<string, unknown>
   }) => call<{ key: string; url: string; replied: boolean }>('POST', '/jira/create', input),
 }

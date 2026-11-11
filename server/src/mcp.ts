@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import type { Overview, PrView } from '../../shared/types.ts'
 import { addManualDep, getSettings, getSlackItem, listSlack, removeManualDep, setSlackStatus } from './db.ts'
-import { createIssue } from './jira.ts'
+import { createIssue, requiredFields } from './jira.ts'
 import { replyInThread, threadContext } from './slack.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
@@ -234,6 +234,10 @@ server.registerTool(
       labels: z.array(z.string()).optional(),
       slackItemId: z.string().optional(),
       replyInThread: z.boolean().default(false),
+      fields: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Values for fields the project requires, in Jira shape, e.g. {"customfield_12345": {"id": "10001"}}. If one is missing, the tool lists the options.'),
     },
   },
   async (input) => {
@@ -241,6 +245,21 @@ server.registerTool(
     if (!s.jira?.apiToken) return text('Jira is not configured in PR Deck settings.')
     const projectKey = input.projectKey || s.jira.create.projectKey
     if (!projectKey) return text('No projectKey given and no default project configured.')
+    // Ask for required fields up front instead of surfacing Jira's 400
+    let defaults: Record<string, unknown> = {}
+    try {
+      defaults = JSON.parse(s.jira.create.extraFieldsJson || '{}')
+    } catch {
+      /* createIssue reports invalid JSON */
+    }
+    const missing = (await requiredFields(s.jira, projectKey, input.issueType)).filter((f) => !(f.key in { ...defaults, ...input.fields }))
+    if (missing.length)
+      return text(
+        `Not created: ${projectKey} ${input.issueType} needs these fields. Ask the user, then call again with \`fields\`:\n` +
+          missing
+            .map((f) => `- ${f.name} (${f.key})${f.options.length ? `: ${f.options.map((o) => `${o.label} = {"id": "${o.id}"}`).join(', ')}` : ': text'}`)
+            .join('\n'),
+      )
     const item = input.slackItemId ? getSlackItem(input.slackItemId) : null
     const description = item?.permalink ? `${input.description}\n\n---\nSource: [Slack message from ${item.userName}](${item.permalink})` : input.description
     const created = await createIssue(s.jira, { ...input, projectKey, description })

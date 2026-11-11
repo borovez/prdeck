@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { PhArrowSquareOut, PhCheckCircle, PhCircleNotch, PhSparkle, PhWarning } from '@phosphor-icons/vue'
-import type { JiraDraft } from '@shared/types'
+import type { JiraDraft, JiraRequiredField } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
+import { useLayout } from '@/stores/layout'
+import { watchDebounced } from '@vueuse/core'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -27,6 +29,44 @@ const busy = ref<'draft' | 'create' | null>(null)
 const error = ref('')
 const created = ref<{ key: string; url: string; replied: boolean } | null>(null)
 
+// ---- Fields the project requires on create (e.g. a required custom field), asked from Jira per project + type
+const required = ref<JiraRequiredField[]>([])
+/** Chosen values: option id(s) or text, by field key */
+const values = ref<Record<string, string>>({})
+const loadingFields = ref(false)
+/** Defaults from Settings → Jira → extra fields JSON, by field key */
+const settingDefaults = ref<Record<string, string>>({})
+/** Last values used, per project, so the next issue starts with them */
+const remembered = useLayout().view('jira-create', { fields: {} as Record<string, Record<string, string>> })
+
+watchDebounced(
+  () => [open.value && !!draft.value, projectKey.value.trim().toUpperCase(), draft.value?.issueType] as const,
+  async ([active, project, type]) => {
+    required.value = []
+    if (!active || !project || !type) return
+    loadingFields.value = true
+    try {
+      required.value = await api.jiraRequiredFields(project, type)
+      const last = remembered.fields[project] ?? {}
+      for (const f of required.value) values.value[f.key] ??= last[f.key] ?? settingDefaults.value[f.key] ?? ''
+    } catch (e) {
+      error.value = (e as Error).message
+    } finally {
+      loadingFields.value = false
+    }
+  },
+  { debounce: 300, immediate: true },
+)
+const missingRequired = computed(() => required.value.filter((f) => !values.value[f.key]))
+/** In Jira's shape: {id} for a select, [{id}] for a multi-select, text otherwise */
+const fieldPayload = () =>
+  Object.fromEntries(
+    required.value.map((f) => {
+      const v = values.value[f.key]
+      return [f.key, f.options.length ? (f.multiple ? [{ id: v }] : { id: v }) : v]
+    }),
+  )
+
 watch(item, async (it) => {
   if (!it) return
   context.value = ''
@@ -34,7 +74,16 @@ watch(item, async (it) => {
   thread.value = ''
   error.value = ''
   created.value = null
-  if (!projectKey.value) projectKey.value = (await api.settings().catch(() => null))?.jira?.create.projectKey ?? ''
+  values.value = {}
+  const jira = (await api.settings().catch(() => null))?.jira
+  if (!projectKey.value) projectKey.value = jira?.create.projectKey ?? ''
+  settingDefaults.value = {}
+  try {
+    for (const [k, v] of Object.entries(JSON.parse(jira?.create.extraFieldsJson || '{}') as Record<string, unknown>))
+      settingDefaults.value[k] = typeof v === 'object' && v && 'id' in v ? String((v as { id: unknown }).id) : String(v)
+  } catch {
+    /* invalid JSON is reported on create */
+  }
 })
 
 async function generate() {
@@ -66,7 +115,9 @@ async function create() {
       labels: d.labels,
       slackItemId: item.value!.id,
       replyInThread: replyInThread.value,
+      fields: fieldPayload(),
     })
+    remembered.fields[projectKey.value.trim().toUpperCase()] = { ...values.value }
     await deck.load()
   } catch (e) {
     error.value = (e as Error).message
@@ -130,6 +181,17 @@ async function create() {
             <Input :model-value="draft.labels.join(', ')" @change="draft.labels = ($event.target as HTMLInputElement).value.split(',').map((l) => l.trim()).filter(Boolean)" />
           </div>
         </div>
+        <div v-if="required.length || loadingFields" class="grid grid-cols-3 gap-3">
+          <div v-for="f in required" :key="f.key" class="grid gap-1.5">
+            <Label>{{ f.name }} <span class="text-destructive">*</span></Label>
+            <NativeSelect v-if="f.options.length" v-model="values[f.key]" class="w-full">
+              <NativeSelectOption value="" disabled>Choose…</NativeSelectOption>
+              <NativeSelectOption v-for="o in f.options" :key="o.id" :value="o.id">{{ o.label }}</NativeSelectOption>
+            </NativeSelect>
+            <Input v-else v-model="values[f.key]" />
+          </div>
+          <p v-if="loadingFields" class="flex items-center gap-1.5 self-end text-xs text-muted-foreground"><PhCircleNotch class="animate-spin" /> Checking required fields…</p>
+        </div>
         <div class="grid gap-1.5">
           <Label>Summary</Label>
           <Input v-model="draft.summary" />
@@ -152,7 +214,11 @@ async function create() {
         <DialogFooter>
           <Button variant="ghost" @click="draft = null">Back</Button>
           <Button v-if="item.permalink" variant="outline" as="a" :href="item.permalink" target="_blank"><PhArrowSquareOut /> Slack</Button>
-          <Button :disabled="busy === 'create' || !draft.summary || !projectKey" @click="create">
+          <Button
+            :disabled="busy === 'create' || !draft.summary || !projectKey || loadingFields || missingRequired.length > 0"
+            :title="missingRequired.length ? `Choose ${missingRequired.map((f) => f.name).join(', ')}` : undefined"
+            @click="create"
+          >
             <PhCircleNotch v-if="busy === 'create'" class="animate-spin" />
             Create in Jira
           </Button>

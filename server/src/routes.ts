@@ -21,7 +21,7 @@ import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
 import { claudeBin } from './claudeCode.ts'
 import { replyInThread, slackAuthTest, threadContext } from './slack.ts'
 import { ghCliToken, listRepos, whoAmI } from './github.ts'
-import { createIssue, getTransitions, jiraMyself, transition } from './jira.ts'
+import { createIssue, getTransitions, jiraMyself, requiredFields, transition } from './jira.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
 import { runSync } from './sync.ts'
@@ -271,9 +271,20 @@ const CreateInput = z.object({
   labels: z.array(z.string()).default([]),
   slackItemId: z.string().nullish(),
   replyInThread: z.boolean().default(false),
+  /** Values for the project's required fields, already in Jira's shape ({id}, [{id}] or text) */
+  fields: z.record(z.string(), z.unknown()).default({}),
 })
 
 /** Create a Jira issue (optionally linked to a Slack item, optionally replying in its thread). */
+api.get('/jira/required-fields', async (c) => {
+  const s = getSettings()
+  if (!s.jira?.apiToken) throw bad('Jira not configured')
+  const project = c.req.query('project')
+  const type = c.req.query('type')
+  if (!project || !type) throw bad('project and type are required')
+  return c.json(await requiredFields(s.jira, project, type))
+})
+
 api.post('/jira/create', async (c) => {
   const s = getSettings()
   if (!s.jira?.apiToken) throw bad('Jira not configured')

@@ -1,4 +1,4 @@
-import type { JiraConfig, JiraIssue, JiraLink } from '../../shared/types.ts'
+import type { JiraConfig, JiraIssue, JiraLink, JiraRequiredField } from '../../shared/types.ts'
 
 const FIELDS = [
   'summary',
@@ -203,9 +203,29 @@ export function markdownToAdf(md: string): any {
   return { type: 'doc', version: 1, content }
 }
 
+/** Fields set elsewhere (draft, settings) or by Jira itself; everything else that's required is asked for. */
+const HANDLED_FIELDS = new Set(['project', 'issuetype', 'summary', 'description', 'reporter', 'assignee', 'labels'])
+
+/** Required fields for creating an issue of this type in this project (Jira create metadata). */
+export async function requiredFields(cfg: JiraConfig, projectKey: string, issueType: string): Promise<JiraRequiredField[]> {
+  type Page<T> = { issueTypes?: T[]; fields?: T[]; values?: T[] }
+  const types = await request<Page<{ id: string; name: string }>>(cfg, `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`)
+  const type = (types.issueTypes ?? types.values ?? []).find((t) => t.name.toLowerCase() === issueType.toLowerCase())
+  if (!type) throw new JiraError(`Project ${projectKey} has no issue type "${issueType}"`)
+  const meta = await request<Page<any>>(cfg, `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes/${type.id}?maxResults=200`)
+  return (meta.fields ?? meta.values ?? [])
+    .filter((f) => f.required && !f.hasDefaultValue && !HANDLED_FIELDS.has(f.fieldId))
+    .map((f) => ({
+      key: f.fieldId,
+      name: f.name,
+      options: (f.allowedValues ?? []).map((v: any) => ({ id: String(v.id), label: v.value ?? v.name ?? String(v.id) })),
+      multiple: f.schema?.type === 'array',
+    }))
+}
+
 export async function createIssue(
   cfg: JiraConfig,
-  input: { projectKey: string; issueType: string; summary: string; description: string; labels?: string[] },
+  input: { projectKey: string; issueType: string; summary: string; description: string; labels?: string[]; fields?: Record<string, unknown> },
 ): Promise<{ key: string; url: string }> {
   let extra: Record<string, unknown> = {}
   if (cfg.create?.extraFieldsJson?.trim()) {
@@ -222,6 +242,8 @@ export async function createIssue(
     description: markdownToAdf(input.description),
     ...(input.labels?.length ? { labels: input.labels.map((l) => l.replace(/\s+/g, '-')) } : {}),
     ...extra,
+    // Per-issue values (e.g. required fields picked in the dialog) win over the settings defaults
+    ...input.fields,
   }
   if (cfg.create?.assignToMe) fields.assignee = { accountId: (await jiraMyself(cfg)).accountId }
   const r = await request<{ key: string }>(cfg, '/rest/api/3/issue', { method: 'POST', body: JSON.stringify({ fields }) })
