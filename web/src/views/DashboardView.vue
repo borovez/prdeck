@@ -9,7 +9,7 @@ import { jiraTone, shortId, timeAgo } from '@/utils/format'
 import { type PrFocus } from '@/utils/prFocus'
 import DashPanel from '@/components/DashPanel.vue'
 import PrRow from '@/components/PrRow.vue'
-import SlackRow from '@/components/SlackRow.vue'
+import SlackList from '@/components/SlackList.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -198,7 +198,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
             <div v-if="!deck.overview?.configured.slack" class="p-6 text-center text-sm text-muted-foreground">
               Slack isn't connected. <RouterLink to="/settings" class="text-primary hover:underline">Set it up</RouterLink>
             </div>
-            <SlackRow v-for="i in slackFor(p).slice(0, p.limit)" :key="i.id" :item="i" />
+            <SlackList :items="slackFor(p).slice(0, p.limit)" class="-m-1.5 [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl" />
             <div v-if="deck.overview?.configured.slack && !slackNew.length" class="p-6 text-center text-sm text-muted-foreground">Inbox zero</div>
           </template>
 
