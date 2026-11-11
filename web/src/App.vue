@@ -20,6 +20,7 @@ import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
+import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
 import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
@@ -112,9 +113,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div v-if="deck.overview?.me.length" class="truncate px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-            Signed in as {{ deck.overview.me.join(', ') }}
-          </div>
+          <NavUser />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
