@@ -16,6 +16,8 @@
 @custom-variant data-checked (&:is([data-state="checked"], [data-checked]));
 @custom-variant data-unchecked (&:is([data-state="unchecked"], [data-unchecked]));
 @custom-variant data-active (&:is([data-state="active"], [data-active]));
+@custom-variant data-horizontal (&:is([data-orientation="horizontal"], [data-horizontal]));
+@custom-variant data-vertical (&:is([data-orientation="vertical"], [data-vertical]));
 
 @theme inline {
   --color-success: var(--success);

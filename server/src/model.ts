@@ -147,6 +147,7 @@ export function buildOverview(): Overview {
     const m = meta.get(pr.id)
     return {
       ...rest,
+      threads: rest.threads ?? [], // PRs cached before thread details were synced
       relations,
       isMine,
       jiraKeys: keysByPr.get(pr.id) ?? [],

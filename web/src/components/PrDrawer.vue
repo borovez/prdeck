@@ -27,8 +27,11 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraTransition from './JiraTransition.vue'
+import ThreadList from './ThreadList.vue'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
+const dv = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
 onEscape(() => !!deck.selectedId && ((deck.selectedId = null), true))
 const layout = useLayout()
 const pr = computed(() => deck.selected)
@@ -89,7 +92,28 @@ function startResize(ev: MouseEvent) {
         <Button variant="ghost" size="icon-sm" @click="deck.selectedId = null"><PhX /></Button>
       </header>
 
-      <ScrollArea class="min-h-0 flex-1">
+      <Tabs v-model="dv.tab" class="min-h-0 flex-1 gap-0">
+        <div class="border-b px-4 py-2">
+          <TabsList>
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="conversations" :count="pr.threads.length">Conversations</TabsTrigger>
+          </TabsList>
+        </div>
+
+      <TabsContent value="conversations" class="min-h-0 flex-1">
+        <ScrollArea class="h-full">
+          <div class="p-4">
+            <ThreadList v-if="pr.threads.length" :threads="pr.threads" />
+            <p v-else-if="pr.unresolvedThreads" class="py-10 text-center text-sm text-muted-foreground">
+              {{ pr.unresolvedThreads }} unresolved conversation(s). Details load on the next sync.
+            </p>
+            <p v-else class="py-10 text-center text-sm text-muted-foreground">No unresolved conversations.</p>
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="details" class="min-h-0 flex-1">
+      <ScrollArea class="h-full">
         <div class="space-y-5 p-4">
           <Alert v-if="pr.action.detail"><AlertDescription>{{ pr.action.detail }}</AlertDescription></Alert>
 
@@ -140,7 +164,9 @@ function startResize(ev: MouseEvent) {
               <Badge v-for="r in pr.requestedReviewers" :key="'rq' + r.login" variant="outline">{{ r.isTeam ? 'team/' : '' }}{{ r.login }} · requested</Badge>
               <span v-if="!pr.reviews.length && !pr.requestedReviewers.length" class="text-sm text-muted-foreground">No reviews yet</span>
             </div>
-            <div v-if="pr.unresolvedThreads" class="mt-1 text-xs text-warning">{{ pr.unresolvedThreads }} unresolved conversation(s)</div>
+            <button v-if="pr.unresolvedThreads" class="mt-1 text-xs text-warning hover:underline" @click="dv.tab = 'conversations'">
+              {{ pr.unresolvedThreads }} unresolved conversation(s)
+            </button>
           </section>
 
           <Separator />
@@ -228,6 +254,8 @@ function startResize(ev: MouseEvent) {
           </section>
         </div>
       </ScrollArea>
+      </TabsContent>
+      </Tabs>
     </aside>
   </Transition>
 </template>

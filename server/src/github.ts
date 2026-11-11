@@ -35,7 +35,17 @@ async function request<T>(token: string, path: string, init: RequestInit = {}, a
     const text = (await res.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     throw new GithubError(`GitHub ${res.status} ${path}: ${text.slice(0, 300)}`, res.status)
   }
-  return res.json() as Promise<T>
+  // Large GraphQL pages are occasionally cut off mid-body; treat that like a 5xx and retry
+  const text = await res.text()
+  try {
+    return JSON.parse(text) as T
+  } catch (e) {
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
+      return request<T>(token, path, init, attempt + 1)
+    }
+    throw new GithubError(`GitHub ${path}: truncated response (${text.length} bytes): ${(e as Error).message}`)
+  }
 }
 
 export async function graphql<T>(token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
@@ -99,7 +109,11 @@ fragment PR on PullRequest {
   } } }
   latestReviews(first: 15) { nodes { state submittedAt author { login avatarUrl } } }
   comments { totalCount }
-  reviewThreads(first: 60) { nodes { isResolved } }
+  reviewThreads(first: 60) { nodes {
+    isResolved isOutdated path line
+    first: comments(first: 1) { totalCount nodes { url bodyText createdAt author { login avatarUrl } } }
+    last: comments(last: 1) { nodes { createdAt author { login } } }
+  } }
   commits(last: 1) { nodes { commit { statusCheckRollup {
     state
     contexts(first: 60) { totalCount nodes {
@@ -160,6 +174,25 @@ function mapPr(n: GqlPr, accountId: string): PrRecord {
     })),
     comments: n.comments.totalCount,
     unresolvedThreads: n.reviewThreads.nodes.filter((t: any) => !t.isResolved).length,
+    threads: n.reviewThreads.nodes
+      .filter((t: any) => !t.isResolved && t.first.nodes[0])
+      .map((t: any) => {
+        const c = t.first.nodes[0]
+        const last = t.last.nodes[0]
+        const body: string = c.bodyText ?? ''
+        return {
+          url: c.url,
+          path: t.path,
+          line: t.line ?? null,
+          outdated: !!t.isOutdated,
+          author: { login: c.author?.login ?? 'ghost', avatarUrl: c.author?.avatarUrl },
+          body: body.length > 400 ? `${body.slice(0, 400)}…` : body,
+          createdAt: c.createdAt,
+          comments: t.first.totalCount,
+          lastAuthor: last?.author?.login ?? null,
+          lastAt: last?.createdAt ?? null,
+        }
+      }),
     checks: {
       state: (rollup?.state as CheckState) ?? 'NONE',
       total: rollup?.contexts?.totalCount ?? 0,
@@ -178,7 +211,7 @@ export async function searchPrs(account: GithubAccount, q: string, max = 300): P
       account.token,
       `${PR_FRAGMENT}
        query($q: String!, $after: String) {
-         search(query: $q, type: ISSUE, first: 25, after: $after) {
+         search(query: $q, type: ISSUE, first: 15, after: $after) {
            pageInfo { hasNextPage endCursor }
            nodes { ... on PullRequest { ...PR } }
          }

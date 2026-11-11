@@ -75,9 +75,28 @@ export interface PrRecord {
   reviews: { login: string; avatarUrl?: string; state: string; submittedAt: string | null }[]
   comments: number
   unresolvedThreads: number
+  /** Unresolved review conversations (details), newest activity last */
+  threads: ReviewThread[]
   checks: { state: CheckState; total: number; failing: { name: string; url: string | null }[] }
   /** Which configured GitHub account saw this PR */
   accountId: string
+}
+
+export interface ReviewThread {
+  /** Link to the first comment */
+  url: string
+  path: string
+  line: number | null
+  /** The code changed since; GitHub shows it collapsed */
+  outdated: boolean
+  author: UserRef
+  /** First comment, plain text, trimmed */
+  body: string
+  createdAt: string
+  /** Total comments in the thread */
+  comments: number
+  lastAuthor: string | null
+  lastAt: string | null
 }
 
 export interface ReleaseInfo {
