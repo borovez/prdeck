@@ -69,8 +69,8 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
       <span class="flex-1" />
       <SortDirButton v-model="v.dir" desc-label="Newest first" asc-label="Oldest first" />
     </div>
-    <!-- No overflow-hidden on the card: it would make the card the sticky container and offset the headings inside it -->
-    <Card class="gap-0 py-0 [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl">
+    <!-- overflow-visible: Card clips by default, which makes it the sticky container and offsets the headings inside it -->
+    <Card class="gap-0 overflow-visible py-0 [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl">
       <section v-for="(g, gi) in groups" :key="g.label">
         <!-- Sticks under the app header (h-14) while its group is on screen -->
         <h3
