@@ -72,3 +72,9 @@
 .dep-graph .vue-flow__controls-button svg {
   fill: currentColor;
 }
+
+/* Cards off the hovered chain fade back */
+.dep-graph .vue-flow__node.is-dimmed {
+  opacity: 0.35;
+  transition: opacity 120ms;
+}

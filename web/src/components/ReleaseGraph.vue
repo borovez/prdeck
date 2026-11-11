@@ -24,15 +24,15 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
  * PR dependencies, which release has to go first, and releases that roll into another release.
  */
 const deck = useDeck()
-const VIEW_DEFAULTS = { showUnreleased: true, showHotfixes: true, showReleased: false, mergedDays: '7' }
+const VIEW_DEFAULTS = { showUnreleased: true, showHotfixes: true, showTags: true, mergedDays: '7' }
 /** repo: '' = the busiest repo, 'all' = every repo, else a repo (lower case) */
 const v = useLayout().view('releaseGraph', { ...VIEW_DEFAULTS, repo: '', expanded: {} as Record<string, boolean> })
 
 const COLUMNS = [
-  { title: 'Merged to dev', hint: 'Not in a release yet' },
+  { title: 'Merged to dev', hint: 'Not in a release yet; backmerges' },
   { title: 'In a release', hint: 'Open release PRs and hotfixes' },
-  { title: 'Merged to master', hint: 'Not released yet' },
-  { title: 'Released', hint: 'In the latest release' },
+  { title: 'Merged, not released', hint: 'Not in the latest tag yet' },
+  { title: 'Released', hint: 'In master/main or the latest tag' },
 ] as const
 const COLLAPSE_OVER = 8
 const LANE_LABEL_W = 200
@@ -66,8 +66,14 @@ const idsOf = (i: Item) => [...(i.data.pr ? [i.data.pr.id] : []), ...i.data.rows
 /** Every repo's lane, before focusing on one */
 const allLanes = computed<Lane[]>(() => {
   const byRepo = new Map<string, Lane>()
+  /** Released releases and hotfixes go into one box per repo, named after the tag */
+  const tagged = new Map<string, { repo: string; prs: PrView[] }>()
+  const release = (repo: string, p: PrView) => {
+    const t = tagged.get(repo.toLowerCase()) ?? { repo, prs: [] }
+    t.prs.push(p)
+    tagged.set(repo.toLowerCase(), t)
+  }
   const put = (repo: string, item: Item) => {
-    if (item.col === 3 && !v.showReleased) return
     const key = repo.toLowerCase()
     const lane = byRepo.get(key) ?? { key, repo, items: [] }
     lane.items.push(item)
@@ -81,6 +87,10 @@ const allLanes = computed<Lane[]>(() => {
   }
 
   for (const r of deck.prs.filter((p) => p.flow === 'release' && p.state !== 'CLOSED' && recent(p))) {
+    if (columnOf(r) === 3) {
+      release(r.repo, r)
+      continue
+    }
     const c = deck.releaseById.get(r.id)
     const rows: GroupRow[] = (c?.items ?? []).map((i) => ({
       id: i.id,
@@ -104,6 +114,10 @@ const allLanes = computed<Lane[]>(() => {
     // One box per repo and column
     const boxes = new Map<string, { repo: string; col: number; prs: PrView[] }>()
     for (const p of deck.prs.filter((p) => p.flow === 'hotfix' && p.state !== 'CLOSED' && recent(p))) {
+      if (columnOf(p) === 3) {
+        release(p.repo, p)
+        continue
+      }
       const k = `${p.repo.toLowerCase()}:${columnOf(p)}`
       const box = boxes.get(k) ?? { repo: p.repo, col: columnOf(p), prs: [] }
       box.prs.push(p)
@@ -118,6 +132,52 @@ const allLanes = computed<Lane[]>(() => {
         warn: p.state === 'MERGED' && p.backmerge && !p.backmerge.backmerged ? `Not in ${p.backmerge.into} yet` : undefined,
       }))
       put(repo, group({ kind: 'hotfixes', id: `hotfixes:${k}`, repo, branch: prs[0].baseRef, rows, jiraKeys: [...new Set(prs.flatMap((p) => p.jiraKeys))] }, col))
+    }
+  }
+  if (v.showTags)
+    for (const [key, { repo, prs }] of tagged) {
+      // The tag the merges were checked against (the repo's latest release)
+      const ref = prs.find((p) => p.release?.ref)?.release
+      const name = ref?.ref ?? null
+      const branch = ref?.via === 'branch'
+      const rows = prs.map((p) => ({ id: p.id, title: p.title, url: p.url, pr: p, isRelease: p.flow === 'release' }))
+      put(
+        repo,
+        group(
+          {
+            kind: 'tag',
+            id: `tag:${key}`,
+            repo,
+            branch: name ?? '',
+            rows,
+            jiraKeys: [...new Set(prs.flatMap((p) => [...p.jiraKeys, ...(deck.releaseById.get(p.id)?.jiraKeys ?? [])]))],
+            tag: name
+              ? {
+                  name,
+                  branch,
+                  url: branch ? `https://github.com/${repo}/commits/${encodeURIComponent(name)}` : `https://github.com/${repo}/releases/tag/${encodeURIComponent(name)}`,
+                }
+              : undefined,
+          },
+          3,
+        ),
+      )
+    }
+
+  // Back into dev: hotfixes not in the integration branch yet, and open backmerge PRs
+  if (v.showHotfixes) {
+    const repos = new Map<string, { repo: string; into: string; missing: number; open: PrView[] }>()
+    const entry = (p: PrView, into: string) => {
+      const e = repos.get(p.repo.toLowerCase()) ?? { repo: p.repo, into, missing: 0, open: [] }
+      repos.set(p.repo.toLowerCase(), e)
+      return e
+    }
+    for (const p of deck.prs)
+      if (p.flow === 'hotfix' && p.state === 'MERGED' && recent(p) && p.backmerge && !p.backmerge.backmerged) entry(p, p.backmerge.into).missing++
+    for (const p of deck.prs) if (p.flow === 'backmerge' && p.state === 'OPEN') entry(p, p.baseRef).open.push(p)
+    for (const [key, e] of repos) {
+      const rows = e.open.map((p) => ({ id: p.id, title: p.title, url: p.url, pr: p }))
+      put(e.repo, group({ kind: 'backmerge', id: `backmerge:${key}`, repo: e.repo, branch: e.into, rows, jiraKeys: [], missing: e.missing }, 0))
     }
   }
   return [...byRepo.values()].sort((a, b) => a.repo.localeCompare(b.repo))
@@ -212,7 +272,7 @@ const nodes = computed<Node[]>(() => [
     selectable: false,
     draggable: false,
   })),
-  ...placed.value.out.map(({ item, x, y }) => ({ id: item.id, type: 'group-release', position: { x, y }, data: item.data, draggable: false })),
+  ...placed.value.out.map(({ item, x, y }) => ({ id: item.id, type: 'group-release', position: { x, y }, data: item.data, draggable: false, zIndex: 10 })),
 ])
 
 const baseEdges = computed<Edge[]>(() => {
@@ -260,6 +320,39 @@ const baseEdges = computed<Edge[]>(() => {
         })
       }
   }
+  // Hotfixes not back in dev: an edge back to the repo's "Back into dev" box (to its open backmerge PR if any)
+  for (const { item } of placed.value.out) {
+    if (item.data.kind !== 'hotfixes') continue
+    const target = `backmerge:${item.data.repo.toLowerCase()}`
+    if (!placed.value.out.some((o) => o.item.id === target)) continue
+    const bm = placed.value.out.find((o) => o.item.id === target)!.item
+    for (const r of item.data.rows) {
+      const p = r.pr
+      if (!p || p.state !== 'MERGED' || !p.backmerge || p.backmerge.backmerged) continue
+      const open = p.backmergePr && bm.data.expanded && bm.data.rows.some((x) => x.id === p.backmergePr) ? p.backmergePr : null
+      const color = p.backmergePr ? 'var(--warning)' : 'var(--destructive)'
+      const id = `back:${r.id}`
+      out.set(id, {
+        id,
+        source: item.id,
+        sourceHandle: item.data.expanded ? `back:${r.id}` : 'back:group',
+        target,
+        targetHandle: open ? `back-in:${open}` : 'back-in:group',
+        type: 'smoothstep',
+        label: p.backmergePr ? 'backmerge open' : `not in ${p.backmerge.into}`,
+        labelStyle: { fill: color, fontSize: '11px' },
+        labelBgStyle: { fill: 'var(--card)' },
+        style: { stroke: color, strokeWidth: 1.75, strokeDasharray: '6 4' },
+        markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+        data: {
+          text: p.backmergePr
+            ? `${r.id} is not in ${p.backmerge.into} yet; backmerge ${p.backmergePr} is open`
+            : `${r.id} is not in ${p.backmerge.into} yet: merge ${p.baseRef} back into ${p.backmerge.into}`,
+        },
+      })
+    }
+  }
+
   // Releases inside releases: inner rolls into outer
   for (const { item } of placed.value.out) {
     if (item.data.kind !== 'release') continue
@@ -293,7 +386,7 @@ const edges = computed<Edge[]>(() => {
     const style = (e.style ?? {}) as Record<string, unknown>
     return {
       ...e,
-      zIndex: on ? 1000 : 0,
+      zIndex: on ? 5 : 0, // still below the boxes (zIndex 10)
       animated: on,
       style: { ...style, opacity: on ? 1 : 0.15, strokeWidth: Number(style.strokeWidth ?? 1.5) + (on ? 1.5 : 0) },
     }
@@ -333,7 +426,7 @@ const viewSections = computed<ViewSection[]>(() => [
   },
   { type: 'check', key: 'showUnreleased', label: 'Show merged work not in a release' },
   { type: 'check', key: 'showHotfixes', label: 'Show hotfixes' },
-  { type: 'check', key: 'showReleased', label: 'Show released' },
+  { type: 'check', key: 'showTags', label: 'Show released (latest tag)' },
 ])
 </script>
 
@@ -393,6 +486,7 @@ const viewSections = computed<ViewSection[]>(() => [
         <Panel position="bottom-right" class="graph-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-xs text-muted-foreground">
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--primary)" stroke-width="2.5" /></svg>release goes first</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--merged)" stroke-width="1.75" stroke-dasharray="2 4" /></svg>rolls into</span>
+          <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--destructive)" stroke-width="1.75" stroke-dasharray="6 4" /></svg>back into dev</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" stroke-width="1.5" /></svg>needs merge</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" stroke-width="1.5" stroke-dasharray="6 4" /></svg>needs release</span>
         </Panel>

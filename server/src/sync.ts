@@ -17,6 +17,7 @@ import {
   upsertPr,
 } from './db.ts'
 import { syncReleaseFlow } from './releases.ts'
+import { integrationBranches, releaseBranches, releaseRefFor } from './flow.ts'
 import { fetchPrsByRef, isCommitIn, resolveReleaseRef, searchPrs, whoAmI } from './github.ts'
 import { fetchIssuesByKey, searchJql } from './jira.ts'
 import { fetchSlackInbox } from './slack.ts'
@@ -141,13 +142,14 @@ async function doSync(): Promise<SyncState> {
   // 4. Release status for merged PRs
   const refCache = new Map<string, Promise<string | null>>()
   const stored = listPrs()
+  const branches = releaseBranches(stored.map((s) => s.pr), integrationBranches(stored.map((s) => s.pr)))
   await Promise.all(
     stored
       .filter((s) => s.pr.state === 'MERGED' && s.pr.mergeCommitSha && !s.release?.released)
       .map(async ({ pr }) => {
         const acc = accounts.find((a) => a.id === pr.accountId) ?? accountForOwner(accounts, pr.owner)
         if (!acc) return
-        const configured = settings.releaseRefs[pr.repo.toLowerCase()] ?? settings.releaseRefs[pr.repo] ?? settings.defaultReleaseRef
+        const configured = releaseRefFor(pr.repo, settings, branches)
         try {
           if (!refCache.has(pr.repo)) refCache.set(pr.repo, resolveReleaseRef(acc, pr.repo, configured))
           const ref = await refCache.get(pr.repo)!

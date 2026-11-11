@@ -13,7 +13,7 @@ export interface GroupRow {
   warn?: string
 }
 export interface ReleaseGroupData {
-  kind: 'release' | 'unreleased' | 'hotfixes'
+  kind: 'release' | 'unreleased' | 'hotfixes' | 'tag' | 'backmerge'
   /** Release PR id, "unreleased:<repo>" or "hotfixes:<repo>:<column>" */
   id: string
   repo: string
@@ -23,6 +23,9 @@ export interface ReleaseGroupData {
   branch: string
   rows: GroupRow[]
   jiraKeys: string[]
+  /** tag: the tag name and its GitHub page; backmerge: hotfixes still missing from dev */
+  tag?: { name: string; url: string; branch: boolean }
+  missing?: number
   expanded: boolean
   toggle: () => void
 }
@@ -80,6 +83,21 @@ function openRow(r: GroupRow, e: MouseEvent) {
   else window.open(r.url, '_blank', 'noopener')
 }
 const stateOf = (r: GroupRow) => r.pr?.state ?? 'MERGED'
+const KIND_LABEL: Record<ReleaseGroupData['kind'], string> = {
+  release: 'Release',
+  unreleased: 'Not in a release yet',
+  hotfixes: 'Hotfixes',
+  tag: 'Released',
+  backmerge: 'Back into',
+}
+const subtitle = computed(() => {
+  const d = props.data
+  if (d.kind === 'hotfixes') return `Straight to ${d.branch}`
+  if (d.kind === 'tag') return d.tag ? (d.tag.branch ? `In ${d.tag.name}` : `Latest release ${d.tag.name}`) : 'Released'
+  if (d.kind === 'backmerge')
+    return d.missing ? `${d.missing} hotfix(es) not in ${d.branch} yet` : `Open backmerge PRs into ${d.branch}`
+  return `Merged into ${d.branch}, waiting for a release`
+})
 </script>
 
 <template>
@@ -89,12 +107,17 @@ const stateOf = (r: GroupRow) => r.pr?.state ?? 'MERGED'
       'rounded-lg border bg-card text-card-foreground shadow-xs',
       data.kind === 'unreleased' && 'border-dashed bg-muted/30',
       data.kind === 'hotfixes' && 'border-l-4 border-l-warning',
+      data.kind === 'backmerge' && (data.missing ? 'border-l-4 border-l-destructive' : 'border-l-4 border-l-merged'),
+      data.kind === 'tag' && 'border-l-4 border-l-success',
       data.pr && deck.selectedId === data.pr.id && 'ring-2 ring-primary',
     )"
     :style="{ width: '320px' }"
   >
     <Handle id="in:group" type="target" :position="Position.Left" :connectable="false" class="rg-handle" style="top: 28px" />
     <Handle id="out:group" type="source" :position="Position.Right" :connectable="false" class="rg-handle" style="top: 28px" />
+    <!-- Edges that run back to the left (hotfix → dev) leave a row on its left and arrive on a box's right -->
+    <Handle id="back:group" type="source" :position="Position.Left" :connectable="false" class="rg-handle" style="top: 28px" />
+    <Handle id="back-in:group" type="target" :position="Position.Right" :connectable="false" class="rg-handle" style="top: 28px" />
 
     <!-- Header: fixed height (see HEADER_H) -->
     <button type="button" class="flex h-[80px] w-full flex-col gap-1 border-b px-3 py-2 text-left" :class="data.pr && 'hover:bg-accent/40'" @click.stop="openRelease">
@@ -106,13 +129,23 @@ const stateOf = (r: GroupRow) => r.pr?.state ?? 'MERGED'
           <RepoName :id="data.pr.id" class="min-w-0 font-mono font-medium" />
         </template>
         <span v-else class="flex min-w-0 items-center gap-1.5 font-medium">
-          {{ data.kind === 'hotfixes' ? 'Hotfixes' : 'Not in a release yet' }}
+          {{ KIND_LABEL[data.kind] }}
+          <span v-if="data.kind === 'backmerge'" class="font-mono">{{ data.branch }}</span>
+          <a
+            v-if="data.tag"
+            :href="data.tag.url"
+            target="_blank"
+            rel="noopener"
+            class="font-mono text-primary hover:underline"
+            :title="`Open ${data.tag.name} on GitHub`"
+            @click.stop
+          >{{ data.tag.name }}</a>
           <RepoName :repo="data.repo" class="min-w-0 font-mono font-normal text-muted-foreground" />
         </span>
         <span class="flex-1" />
         <Badge variant="count" class="shrink-0">{{ data.rows.length }}</Badge>
       </span>
-      <span class="w-full truncate text-[13px] font-medium">{{ data.pr?.title ?? (data.kind === 'hotfixes' ? `Straight to ${data.branch}` : `Merged into ${data.branch}, waiting for a release`) }}</span>
+      <span class="w-full truncate text-[13px] font-medium">{{ data.pr?.title ?? subtitle }}</span>
       <span class="flex w-full min-w-0 items-center gap-2 text-[11px] text-muted-foreground">
         <span class="min-w-0 truncate font-mono">{{ data.branch }}</span>
         <span v-if="data.pr?.mergedAt" class="shrink-0">· {{ timeAgo(data.pr.mergedAt) }}</span>
@@ -143,6 +176,8 @@ const stateOf = (r: GroupRow) => r.pr?.state ?? 'MERGED'
       >
         <Handle :id="`in:${r.id}`" type="target" :position="Position.Left" :connectable="false" class="rg-handle" />
         <Handle :id="`out:${r.id}`" type="source" :position="Position.Right" :connectable="false" class="rg-handle" />
+        <Handle :id="`back:${r.id}`" type="source" :position="Position.Left" :connectable="false" class="rg-handle" />
+        <Handle :id="`back-in:${r.id}`" type="target" :position="Position.Right" :connectable="false" class="rg-handle" />
         <PhRocketLaunch v-if="r.isRelease" :size="13" class="text-merged" />
         <PhGitPullRequest v-else-if="stateOf(r) === 'OPEN'" :size="13" class="text-success" />
         <PhGitMerge v-else :size="13" class="text-merged" />

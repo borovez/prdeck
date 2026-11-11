@@ -39,3 +39,27 @@ export const isReleaseItemCandidate = (head: string, base: string) =>
   !isIntegration(head) && !isRelease(head) && !isRelease(base)
 
 export type FlowMap = Map<PrId, PrFlow | null>
+
+/** Per repo: the branch release PRs go into (master/main), for repos that release through PRs */
+export function releaseBranches(prs: PrRecord[], integration: Map<string, string>): Map<string, string> {
+  const counts = new Map<string, Map<string, number>>()
+  for (const pr of prs) {
+    if (prFlow(pr, integration) !== 'release') continue
+    const m = counts.get(pr.repo.toLowerCase()) ?? new Map()
+    m.set(pr.baseRef, (m.get(pr.baseRef) ?? 0) + 1)
+    counts.set(pr.repo.toLowerCase(), m)
+  }
+  return new Map([...counts].map(([repo, m]) => [repo, [...m].sort((a, b) => b[1] - a[1])[0][0]]))
+}
+
+/**
+ * What "released" means for a repo: the per-repo setting if there is one; else, for repos that release
+ * through PRs (dev → master), being in that release branch; else the default (latest GitHub release/tag).
+ */
+export function releaseRefFor(
+  repo: string,
+  settings: { releaseRefs: Record<string, string>; defaultReleaseRef: string },
+  branches: Map<string, string>,
+): string {
+  return settings.releaseRefs[repo.toLowerCase()] ?? settings.releaseRefs[repo] ?? branches.get(repo.toLowerCase()) ?? settings.defaultReleaseRef
+}

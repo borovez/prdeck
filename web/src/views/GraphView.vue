@@ -122,8 +122,33 @@ const nodes = computed<Node<GraphNodeData>[]>(() =>
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
     data: { id, pr: deck.byId.get(id) ?? null, color: orgColor.value.get(ownerOf(id)) ?? 'var(--muted-foreground)', isNext: nextSteps.value.has(id) },
+    // Cards always above edges (hovered edges are raised above other edges only)
+    zIndex: 10,
+    class: path.value && !path.value.nodes.has(id) ? 'is-dimmed' : undefined,
   })),
 )
+
+/** Hovering a card highlights its whole chain: everything it waits on and everything waiting on it */
+const hoverNode = ref<string | null>(null)
+const path = computed(() => {
+  const start = hoverNode.value
+  if (!start) return null
+  const nodes = new Set([start])
+  const edges = new Set<string>()
+  for (const dir of ['up', 'down'] as const) {
+    const queue: string[] = [start]
+    while (queue.length) {
+      const n = queue.shift()!
+      for (const e of visibleEdges.value) {
+        const [from, to] = dir === 'up' ? [e.from, e.to] : [e.to, e.from]
+        if (from !== n) continue
+        edges.add(edgeKey(e))
+        if (!nodes.has(to)) (nodes.add(to), queue.push(to))
+      }
+    }
+  }
+  return { nodes, edges }
+})
 
 const edgeKey = (e: DepEdge) => `${e.kind}:${e.to}->${e.from}`
 const hoveredEdge = ref<string | null>(null)
@@ -133,18 +158,21 @@ const edges = computed<Edge[]>(() =>
   visibleEdges.value.map((e) => {
     const key = edgeKey(e)
     const color = e.satisfied ? 'var(--success)' : 'var(--warning)'
-    const active = hoveredEdge.value === key || (selectedEdge.value && edgeKey(selectedEdge.value) === key)
+    const onPath = path.value?.edges.has(key)
+    const active = hoveredEdge.value === key || (selectedEdge.value && edgeKey(selectedEdge.value) === key) || onPath
+    const dimmed = (path.value && !onPath) || (hoveredEdge.value && hoveredEdge.value !== key)
     return {
       id: key,
       source: e.to,
       target: e.from,
       type: 'smoothstep',
-      animated: !e.satisfied && nextSteps.value.has(e.to),
+      animated: !!active || (!e.satisfied && nextSteps.value.has(e.to)),
+      zIndex: active ? 5 : 0,
       style: {
         stroke: color,
-        strokeWidth: active ? 2.5 : 1.75,
+        strokeWidth: active ? 3 : 1.75,
         strokeDasharray: e.kind === 'release' ? '6 4' : undefined,
-        opacity: e.satisfied ? 0.55 : 1,
+        opacity: dimmed ? 0.15 : active || !e.satisfied ? 1 : 0.55,
       },
       markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
       data: e,
@@ -260,6 +288,8 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
         @edge-mouse-move="onEdgeHover"
         @edge-mouse-leave="onEdgeLeave"
         @pane-click="selectedEdge = null"
+        @node-mouse-enter="({ node }) => (hoverNode = node.id)"
+        @node-mouse-leave="hoverNode = null"
         @connect="onConnect"
       >
         <template #node-pr="p">

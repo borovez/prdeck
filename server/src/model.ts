@@ -27,7 +27,7 @@ import {
   listReleaseContents,
   type StoredPr,
 } from './db.ts'
-import { integrationBranches, prFlow } from './flow.ts'
+import { integrationBranches, prFlow, releaseBranches, releaseRefFor } from './flow.ts'
 import { extractJiraKeys, parseBodyDependencies } from './refs.ts'
 import { isSyncing } from './sync.ts'
 
@@ -97,6 +97,7 @@ export function buildOverview(): Overview {
   // --- Release flow: release / hotfix / backmerge, what each release ships, hotfix backmerges
   const integration = integrationBranches(stored.map((s) => s.pr))
   const flows = new Map(stored.map(({ pr }) => [pr.id, prFlow(pr, integration)]))
+  const branches = releaseBranches(stored.map((s) => s.pr), integration)
   const releases = listReleaseContents().filter((c) => flows.get(c.prId) === 'release')
   const shipsIn = new Map<PrId, { id: PrId; state: 'OPEN' | 'MERGED' | 'CLOSED' }[]>()
   for (const c of releases) {
@@ -113,7 +114,7 @@ export function buildOverview(): Overview {
 
   // --- PR views
   const prs: PrView[] = stored.map(({ pr, relations, release }) => {
-    const configuredRef = settings.releaseRefs[pr.repo.toLowerCase()] ?? settings.releaseRefs[pr.repo] ?? settings.defaultReleaseRef
+    const configuredRef = releaseRefFor(pr.repo, settings, branches)
     const releaseView: ReleaseInfo | null = release ? { ...release, via: configuredRef === 'latest-release' ? 'release' : 'branch' } : null
     const { body: _body, ...rest } = pr
     const isMine = meSet.has(pr.author.login.toLowerCase())

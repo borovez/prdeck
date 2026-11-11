@@ -1,6 +1,6 @@
 # Plan: see what a release contains (Releases view)
 
-Status: phase 1 done (Releases page, Contents tab, hotfixes); phase 2 steps 1-3 done (Graph tab on the Releases page); step 4 (backmerge edges, tags) open
+Status: phase 1 done (Releases page, Contents tab, hotfixes); phase 2 done (Graph tab on the Releases page); phase 3 (contents per tag) open
 
 ## Goal
 
@@ -114,7 +114,11 @@ setup and `PrCard` from the Dependencies page. No new API calls: everything is i
 2. (done) Collapsing large and merged releases; nested releases as separate groups with "rolls into" edges;
    merged releases limited to the last N days (View menu).
 3. (done) Dependency edges between rows/cards, derived release-order edges.
-4. Hotfix lane with backmerge edges; Released column from tags (with phase 3).
+4. (done) "Back into dev" box per repo (open backmerge PRs, count of hotfixes missing from dev) with
+   dashed edges from those hotfixes (amber to the open backmerge PR, red when there is none);
+   Released column as one box per repo named after the release ref (latest tag, or "In master").
+   Repos that release through PRs (dev → master) now count "in master/main" as released unless
+   Settings → Releases says otherwise (`releaseRefFor` in `server/src/flow.ts`).
 
 **Open questions**
 - Graph as a tab on the Releases page (recommended) or a mode on the Dependencies page?
