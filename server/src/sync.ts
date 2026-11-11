@@ -90,18 +90,14 @@ async function doSync(): Promise<SyncState> {
             .join(' ')
           searches.push([`is:pr is:open archived:false ${repos}`, 'tracked'])
         }
-        const results = await Promise.all(
-          searches.map(([query, rel]) =>
-            searchPrs(acc, query).then(
-              (prs) => ({ prs, rel }),
-              (e) => {
-                errors.push(`[${acc.label}] search "${query}": ${(e as Error).message}`)
-                return { prs: [] as PrRecord[], rel }
-              },
-            ),
-          ),
-        )
-        for (const r of results) add(r.prs, r.rel)
+        // One search at a time: concurrent heavy GraphQL searches trip GitHub's secondary rate limit
+        for (const [query, rel] of searches) {
+          try {
+            add(await searchPrs(acc, query), rel)
+          } catch (e) {
+            errors.push(`[${acc.label}] search "${query}": ${(e as Error).message}`)
+          }
+        }
       } catch (e) {
         errors.push(`[${acc.label}] ${(e as Error).message}`)
       }

@@ -14,7 +14,13 @@ export class GithubError extends Error {
   }
 }
 
+/** Set when GitHub rate-limits us; no requests go out until then (per process). */
+let coolDownUntil = 0
+export const githubCoolDown = () => (coolDownUntil > Date.now() ? new Date(coolDownUntil) : null)
+
 async function request<T>(token: string, path: string, init: RequestInit = {}, attempt = 0): Promise<T> {
+  if (coolDownUntil > Date.now())
+    throw new GithubError(`GitHub rate limit: paused until ${new Date(coolDownUntil).toLocaleTimeString()}`, 429)
   const res = await fetch(path.startsWith('http') ? path : API + path, {
     ...init,
     headers: {
@@ -31,8 +37,19 @@ async function request<T>(token: string, path: string, init: RequestInit = {}, a
     await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
     return request<T>(token, path, init, attempt + 1)
   }
+  // Primary or secondary rate limit: wait as long as GitHub says (retry-after / reset), default 5 min
+  if ((res.status === 403 || res.status === 429) && (res.headers.get('retry-after') || res.headers.get('x-ratelimit-remaining') === '0' || res.status === 429)) {
+    const retryAfter = Number(res.headers.get('retry-after'))
+    const reset = Number(res.headers.get('x-ratelimit-reset'))
+    coolDownUntil = retryAfter ? Date.now() + retryAfter * 1000 : reset ? reset * 1000 : Date.now() + 5 * 60_000
+    throw new GithubError(`GitHub rate limit: paused until ${new Date(coolDownUntil).toLocaleTimeString()}`, res.status)
+  }
   if (!res.ok) {
     const text = (await res.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (res.status === 403 && /secondary rate limit/i.test(text)) {
+      coolDownUntil = Date.now() + 5 * 60_000
+      throw new GithubError(`GitHub secondary rate limit: paused until ${new Date(coolDownUntil).toLocaleTimeString()}`, 403)
+    }
     throw new GithubError(`GitHub ${res.status} ${path}: ${text.slice(0, 300)}`, res.status)
   }
   // Large GraphQL pages are occasionally cut off mid-body; treat that like a 5xx and retry

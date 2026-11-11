@@ -5,7 +5,18 @@ import { getSlackUsers, saveSlackUsers } from './db.ts'
 //   search:read, im:history, mpim:history, im:read, mpim:read, channels:history,
 //   groups:history, users:read, chat:write (only for replying with the Jira link)
 
-export class SlackError extends Error {}
+export class SlackError extends Error {
+  constructor(
+    message: string,
+    /** Slack's error code, e.g. channel_not_found */
+    public code?: string,
+  ) {
+    super(message)
+  }
+}
+
+/** A DM or group we can't read (deactivated user, external Slack Connect DM…): skip it, not a sync error */
+const UNREADABLE = new Set(['channel_not_found', 'not_in_channel', 'is_archived', 'access_denied', 'method_not_supported_for_channel_type'])
 
 async function call<T = any>(token: string, method: string, params: Record<string, string | number | undefined> = {}, attempt = 0): Promise<T> {
   const body = new URLSearchParams()
@@ -21,7 +32,7 @@ async function call<T = any>(token: string, method: string, params: Record<strin
     return call(token, method, params, attempt + 1)
   }
   const json = (await res.json()) as { ok: boolean; error?: string; needed?: string }
-  if (!json.ok) throw new SlackError(`Slack ${method}: ${json.error}${json.needed ? ` (needs scope ${json.needed})` : ''}`)
+  if (!json.ok) throw new SlackError(`Slack ${method}: ${json.error}${json.needed ? ` (needs scope ${json.needed})` : ''}`, json.error)
   return json as T
 }
 
@@ -125,7 +136,11 @@ export async function fetchSlackInbox(cfg: SlackConfig): Promise<SlackFetchResul
   // 2a. Saved / bookmarked ("Later") messages – no lookback, they stay until unsaved
   if (cfg.includeSaved) {
     try {
-      const r = await call(cfg.token, 'stars.list', { count: 200 })
+      const r = await call(cfg.token, 'stars.list', { count: 200 }).catch((e) => {
+        if (e instanceof SlackError && e.code === 'missing_scope')
+          throw new SlackError('Saved messages need the stars:read scope: add it to your Slack app, reinstall, and paste the new token in Settings → Slack. Or turn off "Include saved messages".', e.code)
+        throw e
+      })
       for (const it of r.items ?? []) {
         if (it.type !== 'message' || !it.message) continue
         const m = it.message
@@ -199,7 +214,7 @@ export async function fetchSlackInbox(cfg: SlackConfig): Promise<SlackFetchResul
         for (const m of answered.filter((x) => x.user !== me).slice(0, 5))
           raw.push({ kind, channelId: c.id, channelName: kind === 'dm' ? 'DM' : 'Group DM', m, awaitingReply: false, autoDone: true, permalink: null })
       } catch (e) {
-        errors.push((e as Error).message)
+        if (!(e instanceof SlackError && e.code && UNREADABLE.has(e.code))) errors.push((e as Error).message)
       }
     })
   } catch (e) {
