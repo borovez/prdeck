@@ -120,11 +120,12 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
 
     <div v-if="v.display === 'board'" class="-mx-4 flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-2 lg:-mx-6 lg:px-6">
       <section v-for="g in groups" :key="g.key" class="flex w-80 shrink-0 flex-col rounded-xl border bg-muted/50">
-        <header class="flex items-center gap-2 px-3 py-2.5">
+        <header class="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
           <span class="truncate text-sm font-semibold" :title="g.label">{{ g.label }}</span>
           <Badge variant="muted">{{ g.prs.length }}</Badge>
         </header>
-        <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-2">
+        <!-- pt-1: the scroll area clips, and the selected card's ring draws outside the card -->
+        <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pt-1 pb-2">
           <PrCard v-for="p in g.prs" :id="p.id" :key="p.id" :pr="p" class="cursor-pointer" @click="deck.selectedId = p.id" />
           <p v-if="!g.prs.length" class="py-6 text-center text-xs text-muted-foreground">Nothing here</p>
         </div>
