@@ -24,10 +24,10 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraTransition from './JiraTransition.vue'
 import ThreadList from './ThreadList.vue'
+import MarkdownEditor from './MarkdownEditor.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
@@ -255,8 +255,11 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
           </section>
 
           <section>
-            <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">My note</h3>
-            <Textarea v-model="note" rows="3" placeholder="Private note…" @blur="saveMeta()" />
+            <MarkdownEditor v-model="note" placeholder="Private note… (Markdown)" :height="120" state-key="pr-note" @blur="saveMeta()">
+              <template #label>
+                <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">My note</h3>
+              </template>
+            </MarkdownEditor>
           </section>
         </div>
       </ScrollArea>

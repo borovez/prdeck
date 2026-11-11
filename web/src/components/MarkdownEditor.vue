@@ -23,9 +23,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 /** Markdown field with Write / Preview tabs. The preview shows the same Jira document the server sends. */
-defineProps<{ label: string }>()
+const props = withDefaults(
+  defineProps<{
+    label?: string
+    placeholder?: string
+    /** Starting height in px (both tabs) */
+    height?: number
+    /** Remembers Write / Preview separately per use, e.g. 'jira-description', 'pr-note' */
+    stateKey?: string
+  }>(),
+  { height: 288, stateKey: 'default' },
+)
+const emit = defineEmits<{ blur: [] }>()
 const model = defineModel<string>({ required: true })
-const v = useLayout().view('markdown-editor', { tab: 'write' as 'write' | 'preview' })
+const v = useLayout().view(`markdown-editor:${props.stateKey}`, { tab: 'write' as 'write' | 'preview' })
 const doc = computed(() => markdownToAdf(model.value))
 
 // ---- Formatting toolbar and shortcuts (GitHub's keys)
@@ -70,7 +81,7 @@ function onPaste(e: ClipboardEvent) {
 }
 
 // Write and Preview share one height (including after you drag-resize the textarea), so switching doesn't jump
-const height = ref(288)
+const height = ref(props.height)
 const textarea = ref<{ $el: HTMLElement } | null>(null)
 useResizeObserver(
   () => textarea.value?.$el,
@@ -84,7 +95,7 @@ useResizeObserver(
 <template>
   <Tabs v-model="v.tab" class="gap-1.5">
     <div class="flex items-center justify-between gap-2">
-      <Label>{{ label }}</Label>
+      <slot name="label"><Label>{{ label }}</Label></slot>
       <span class="flex-1" />
       <div v-if="v.tab === 'write'" class="flex items-center" role="toolbar" aria-label="Formatting">
         <Tooltip v-for="a in ACTIONS" :key="a.label">
@@ -103,7 +114,7 @@ useResizeObserver(
       </TabsList>
     </div>
     <TabsContent value="write">
-      <Textarea ref="textarea" v-model="model" @paste="onPaste" @keydown="onKeydown" class="field-sizing-fixed resize-y font-mono text-xs" :style="{ height: `${height}px` }" />
+      <Textarea ref="textarea" v-model="model" :placeholder="placeholder" @paste="onPaste" @keydown="onKeydown" @blur="emit('blur')" class="field-sizing-fixed resize-y font-mono text-xs" :style="{ height: `${height}px` }" />
     </TabsContent>
     <TabsContent value="preview">
       <div class="overflow-y-auto rounded-md border bg-background px-4 py-3" :style="{ height: `${height}px` }">

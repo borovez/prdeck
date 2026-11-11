@@ -207,7 +207,7 @@ async function create() {
           <Label>Summary</Label>
           <Input v-model="draft.summary" />
         </div>
-        <MarkdownEditor v-model="draft.description" label="Description (Markdown)" />
+        <MarkdownEditor v-model="draft.description" label="Description (Markdown)" state-key="jira-description" />
         <p v-if="draft.rationale" class="flex items-start gap-1 text-xs text-muted-foreground"><PhSparkle class="mt-0.5 shrink-0" /> {{ draft.rationale }}</p>
         <Collapsible v-if="thread">
           <CollapsibleTrigger class="text-xs text-muted-foreground hover:text-foreground">Show the Slack context Claude used</CollapsibleTrigger>
