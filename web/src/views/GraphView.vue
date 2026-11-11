@@ -122,11 +122,6 @@ const edges = computed<Edge[]>(() =>
       target: e.from,
       type: 'smoothstep',
       animated: !e.satisfied && nextSteps.value.has(e.to),
-      label: active ? `${e.kind === 'release' ? 'Release' : 'Merge'} · ${SOURCE_LABEL[e.source]}` : undefined,
-      labelStyle: { fill: 'var(--popover-foreground)', fontSize: '11px', fontWeight: 500 },
-      labelBgStyle: { fill: 'var(--popover)', stroke: 'var(--border)' },
-      labelBgPadding: [6, 3] as [number, number],
-      labelBgBorderRadius: 4,
       style: {
         stroke: color,
         strokeWidth: active ? 2.5 : 1.75,
@@ -157,8 +152,22 @@ function onNodeClick({ node }: NodeMouseEvent) {
   }
 }
 const onEdgeClick = ({ edge }: EdgeMouseEvent) => (selectedEdge.value = edge.data as DepEdge)
-const onEdgeEnter = ({ edge }: EdgeMouseEvent) => (hoveredEdge.value = edge.id)
-const onEdgeLeave = () => (hoveredEdge.value = null)
+// Hover tooltip: HTML above the canvas (an SVG edge label sits under the nodes and gets clipped)
+const tip = ref<{ x: number; y: number; text: string } | null>(null)
+function onEdgeHover({ edge, event }: EdgeMouseEvent) {
+  hoveredEdge.value = edge.id
+  const e = edge.data as DepEdge
+  const m = event as MouseEvent
+  tip.value = {
+    x: m.clientX,
+    y: m.clientY,
+    text: `${e.kind === 'release' ? 'Needs release' : 'Needs merge'} · ${SOURCE_LABEL[e.source]}${e.satisfied ? ' · satisfied' : ''}`,
+  }
+}
+function onEdgeLeave() {
+  hoveredEdge.value = null
+  tip.value = null
+}
 
 const busy = ref(false)
 async function run(fn: () => Promise<unknown>, success: string) {
@@ -231,7 +240,8 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
         fit-view-on-init
         @node-click="onNodeClick"
         @edge-click="onEdgeClick"
-        @edge-mouse-enter="onEdgeEnter"
+        @edge-mouse-enter="onEdgeHover"
+        @edge-mouse-move="onEdgeHover"
         @edge-mouse-leave="onEdgeLeave"
         @pane-click="selectedEdge = null"
         @connect="onConnect"
@@ -298,6 +308,15 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
           </template>
         </p>
       </div>
+      <Teleport to="body">
+      <div
+        v-if="tip"
+        class="pointer-events-none fixed z-50 w-max max-w-xs -translate-x-1/2 -translate-y-full rounded-md bg-foreground px-3 py-1.5 text-xs text-background shadow-md"
+        :style="{ left: `${tip.x}px`, top: `${tip.y - 10}px` }"
+      >
+        {{ tip.text }}
+      </div>
+      </Teleport>
     </Card>
   </div>
 </template>
