@@ -21,6 +21,7 @@ import { useLayout } from '@/stores/layout'
 import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
 import PrDrawer from '@/components/PrDrawer.vue'
+import SlackDrawer from '@/components/SlackDrawer.vue'
 import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -192,6 +193,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
       </SidebarInset>
     </SidebarProvider>
     <PrDrawer />
+    <SlackDrawer />
     <SlackToJiraModal />
     <Toaster :theme="theme === 'auto' ? 'system' : theme" position="bottom-right" close-button />
   </TooltipProvider>

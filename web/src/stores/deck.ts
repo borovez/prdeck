@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Overview, PrView, SlackItem } from '@shared/types'
 import { toast } from 'vue-sonner'
 import { api } from '@/api'
@@ -11,11 +11,16 @@ export const useDeck = defineStore('deck', () => {
   const syncing = ref(false)
   const error = ref<string | null>(null)
   const selectedId = ref<string | null>(null)
+  /** Slack item shown in the side panel; only one side panel is open at a time */
+  const selectedSlackId = ref<string | null>(null)
+  watch(selectedId, (id) => id && (selectedSlackId.value = null))
+  watch(selectedSlackId, (id) => id && (selectedId.value = null))
   /** Slack item being turned into a Jira task (opens the modal) */
   const slackToJira = ref<SlackItem | null>(null)
 
   const prs = computed(() => overview.value?.prs ?? [])
   const byId = computed(() => new Map(prs.value.map((p) => [p.id, p])))
+  const selectedSlack = computed(() => (overview.value?.slack ?? []).find((i) => i.id === selectedSlackId.value) ?? null)
   const selected = computed<PrView | null>(() => (selectedId.value ? byId.value.get(selectedId.value) ?? null : null))
   const jiraByKey = computed(() => new Map((overview.value?.jira ?? []).map((j) => [j.key, j])))
   const repos = computed(() => [...new Set(prs.value.map((p) => p.repo))].sort())
@@ -68,5 +73,5 @@ export const useDeck = defineStore('deck', () => {
     timer = window.setInterval(() => !syncing.value && load(), 60_000)
   }
 
-  return { overview, loading, syncing, error, selectedId, slackToJira, prs, byId, selected, jiraByKey, repos, load, sync, mutate, startPolling }
+  return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, slackToJira, prs, byId, selected, jiraByKey, repos, load, sync, mutate, startPolling }
 })

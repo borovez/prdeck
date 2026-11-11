@@ -1,4 +1,4 @@
-import type { SlackConfig, SlackItem, SlackKind } from '../../shared/types.ts'
+import type { SlackConfig, SlackItem, SlackKind, SlackMessage } from '../../shared/types.ts'
 import { getSlackUsers, saveSlackUsers } from './db.ts'
 
 // Slack Web API with a *user* token (xoxp-). Required user scopes:
@@ -58,6 +58,20 @@ async function resolveUsers(token: string, ids: Iterable<string>) {
   })
   if (missing.length) saveSlackUsers(cache)
   return cache
+}
+
+/** Channel id → "#name" / "DM" / "Group DM", cached for the life of the process */
+const channelNames = new Map<string, string>()
+async function resolveChannelNames(token: string, ids: string[]) {
+  await pool([...new Set(ids)].filter((id) => !channelNames.has(id)), 4, async (id) => {
+    try {
+      const c = (await call(token, 'conversations.info', { channel: id })).channel
+      channelNames.set(id, c.is_im ? 'DM' : c.is_mpim ? 'Group DM' : `#${c.name}`)
+    } catch {
+      channelNames.set(id, id) // no access: keep the id, don't retry every sync
+    }
+  })
+  return channelNames
 }
 
 /** Slack mrkdwn → readable text: <@U1>, <#C1|name>, <url|label>, entities. */
@@ -225,6 +239,10 @@ export async function fetchSlackInbox(cfg: SlackConfig): Promise<SlackFetchResul
     cfg.token,
     raw.flatMap((r) => [r.m.user, ...[...String(r.m.text ?? '').matchAll(/<@([UW][A-Z0-9]+)/g)].map((x) => x[1])]),
   )
+  // Some sources (todo reactions, saved items) only give a channel id: look the names up
+  const names = await resolveChannelNames(cfg.token, raw.filter((r) => r.channelName === r.channelId).map((r) => r.channelId))
+  for (const r of raw) if (r.channelName === r.channelId && names.has(r.channelId)) r.channelName = names.get(r.channelId)!
+
   const base = (cfg.teamUrl ?? '').replace(/\/+$/, '')
   const items = new Map<string, { item: SlackItem; autoDone: boolean }>()
   // saved/todo first so they win over a plain mention of the same message
@@ -282,6 +300,48 @@ export async function threadContext(cfg: SlackConfig, item: SlackItem): Promise<
   return msgs
     .map((m) => `[${tsToIso(m.ts).slice(0, 16).replace('T', ' ')}] ${users[m.user]?.name ?? m.user}${m.ts === item.ts ? ' (★ the message in question)' : ''}: ${renderText(m.text ?? '', users)}`)
     .join('\n')
+}
+
+/**
+ * `n` messages before and after an inbox item, oldest first. A thread reply gets its neighbours in
+ * the thread; anything else gets its neighbours in the channel or DM.
+ */
+export async function messagesAround(cfg: SlackConfig, item: SlackItem, n = 2): Promise<SlackMessage[]> {
+  const visible = (m: any) => !m.subtype || m.subtype === 'thread_broadcast' || m.subtype === 'bot_message' || m.subtype === 'file_share'
+  let msgs: any[]
+  if (item.threadTs) {
+    const r = await call(cfg.token, 'conversations.replies', { channel: item.channelId, ts: item.threadTs, limit: 200 })
+    msgs = (r.messages ?? []).filter(visible) // oldest first, parent included
+  } else {
+    // History is newest first. Before: up to the item. After: a week's window from the item, keep the oldest.
+    const [before, after] = await Promise.all([
+      call(cfg.token, 'conversations.history', { channel: item.channelId, latest: item.ts, inclusive: 'true', limit: n + 6 }),
+      call(cfg.token, 'conversations.history', { channel: item.channelId, oldest: item.ts, latest: String(Number(item.ts) + 7 * 86400), limit: 200 }),
+    ])
+    const prev = (before.messages ?? []).filter(visible).reverse() // oldest first, ends with the item
+    const next = (after.messages ?? []).filter(visible).reverse().filter((m: any) => m.ts !== item.ts) // oldest first
+    msgs = [...prev, ...next]
+  }
+  let i = msgs.findIndex((m) => m.ts === item.ts)
+  if (i < 0) {
+    // Deleted or not visible: show the item on its own
+    msgs = [{ ts: item.ts, user: item.user, text: item.text }]
+    i = 0
+  }
+  const window = msgs.slice(Math.max(0, i - n), i + n + 1)
+  const users = await resolveUsers(
+    cfg.token,
+    window.flatMap((m) => [m.user, ...[...String(m.text ?? '').matchAll(/<@([UW][A-Z0-9]+)/g)].map((x) => x[1])]),
+  )
+  return window.map((m) => ({
+    ts: m.ts,
+    user: m.user ?? '',
+    userName: users[m.user]?.name ?? m.username ?? m.user ?? 'Unknown',
+    userAvatar: users[m.user]?.avatar ?? null,
+    text: renderText(m.text ?? '', users),
+    postedAt: tsToIso(m.ts),
+    isTarget: m.ts === item.ts,
+  }))
 }
 
 export async function replyInThread(cfg: SlackConfig, item: SlackItem, text: string) {

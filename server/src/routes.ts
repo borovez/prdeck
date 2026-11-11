@@ -19,7 +19,7 @@ import {
 } from './db.ts'
 import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
 import { claudeBin } from './claudeCode.ts'
-import { replyInThread, slackAuthTest, threadContext } from './slack.ts'
+import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
 import { ghCliToken, listRepos, whoAmI } from './github.ts'
 import { createIssue, getTransitions, jiraMyself, requiredFields, transition } from './jira.ts'
 import { buildOverview } from './model.ts'
@@ -253,6 +253,13 @@ api.get('/slack/:id/thread', async (c) => {
 })
 
 /** Ask Claude to draft a Jira issue from the Slack message + its thread + my extra context. */
+api.get('/slack/:id/around', async (c) => {
+  const s = getSettings()
+  const item = getSlackItem(c.req.param('id'))
+  if (!s.slack?.token || !item) throw bad('Unknown Slack item')
+  return c.json(await messagesAround(s.slack, item, Math.min(5, Number(c.req.query('n') ?? 2))))
+})
+
 api.post('/slack/:id/draft', async (c) => {
   const s = getSettings()
   const item = getSlackItem(c.req.param('id'))

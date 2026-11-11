@@ -59,7 +59,7 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
       <SortDirButton v-model="v.dir" desc-label="Newest first" asc-label="Oldest first" />
     </div>
     <Card class="gap-0 p-1.5">
-      <SlackRow v-for="i in items" :key="i.id" :item="i" @jira="deck.slackToJira = $event" />
+      <SlackRow v-for="i in items" :key="i.id" :item="i" />
       <div v-if="!items.length" class="py-12 text-center text-muted-foreground">Nothing here.</div>
     </Card>
   </div>

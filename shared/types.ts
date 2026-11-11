@@ -245,6 +245,18 @@ export interface JiraRequiredField {
   multiple: boolean
 }
 
+/** A message shown around a Slack inbox item (side panel) */
+export interface SlackMessage {
+  ts: string
+  user: string
+  userName: string
+  userAvatar: string | null
+  text: string
+  postedAt: string
+  /** The inbox item itself */
+  isTarget: boolean
+}
+
 export interface JiraDraft {
   summary: string
   description: string // markdown

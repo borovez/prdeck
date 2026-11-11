@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onEscape } from '@/composables/escape'
-import { usePrArrowNav } from '@/composables/prNav'
+import { useArrowNav } from '@/composables/prNav'
+import SidePanel from './SidePanel.vue'
 import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
@@ -10,7 +10,6 @@ import {
   PhPushPin,
   PhRocketLaunch,
   PhTrash,
-  PhX,
   PhXCircle,
 } from '@phosphor-icons/vue'
 import type { DepEdge, JiraLink } from '@shared/types'
@@ -45,9 +44,7 @@ function sortedLinks(links: JiraLink[]) {
 }
 const jiraUrl = (key: string) => (deck.overview?.jiraBaseUrl ? `${deck.overview.jiraBaseUrl}/browse/${key}` : undefined)
 const dv = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
-onEscape(() => !!deck.selectedId && ((deck.selectedId = null), true))
-usePrArrowNav(() => deck.selectedId, (id) => (deck.selectedId = id))
-const layout = useLayout()
+useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
 
@@ -65,27 +62,11 @@ async function addDep() {
 }
 const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!), 'Dependency removed')
 
-function startResize(ev: MouseEvent) {
-  const startX = ev.clientX
-  const startW = layout.prefs.drawerWidth
-  const onMove = (e: MouseEvent) => (layout.prefs.drawerWidth = Math.min(1100, Math.max(380, startW + startX - e.clientX)))
-  const onUp = () => (window.removeEventListener('mousemove', onMove), window.removeEventListener('mouseup', onUp))
-  window.addEventListener('mousemove', onMove)
-  window.addEventListener('mouseup', onUp)
-}
 </script>
 
 <template>
-  <Transition name="slide">
-    <aside
-      v-if="pr"
-      data-pr-drawer
-      class="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l bg-background shadow-2xl"
-      :style="{ width: layout.prefs.drawerWidth + 'px' }"
-    >
-      <div class="absolute inset-y-0 left-0 w-1.5 cursor-col-resize hover:bg-primary/30" title="Drag to resize" @mousedown.prevent="startResize" />
-      <header class="flex items-start gap-2 border-b p-4">
-        <div class="min-w-0 flex-1">
+  <SidePanel :open="!!pr" @close="deck.selectedId = null">
+    <template v-if="pr" #header>
           <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
             <Badge :variant="ACTION_TONE[pr.action.kind]">{{ pr.action.label }}</Badge>
             <Badge variant="outline">{{ pr.state }}{{ pr.isDraft ? ' · draft' : '' }}</Badge>
@@ -95,7 +76,8 @@ function startResize(ev: MouseEvent) {
           <a :href="pr.url" target="_blank" class="mt-1 inline-flex items-center gap-1 font-mono text-sm text-primary hover:underline">
             {{ pr.repo }}#{{ pr.number }} <PhArrowSquareOut :size="14" />
           </a>
-        </div>
+    </template>
+    <template v-if="pr" #actions>
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon-sm" @click="saveMeta(!pr.pinned)">
@@ -104,10 +86,9 @@ function startResize(ev: MouseEvent) {
           </TooltipTrigger>
           <TooltipContent>{{ pr.pinned ? 'Unpin' : 'Pin to top of lists' }}</TooltipContent>
         </Tooltip>
-        <Button variant="ghost" size="icon-sm" @click="deck.selectedId = null"><PhX /></Button>
-      </header>
+    </template>
 
-      <Tabs v-model="dv.tab" class="min-h-0 flex-1 gap-0">
+      <Tabs v-if="pr" v-model="dv.tab" class="min-h-0 flex-1 gap-0">
         <div class="border-b px-4 py-2">
           <TabsList>
             <TabsTrigger value="details">Details</TabsTrigger>
@@ -275,17 +256,6 @@ function startResize(ev: MouseEvent) {
       </ScrollArea>
       </TabsContent>
       </Tabs>
-    </aside>
-  </Transition>
+  </SidePanel>
 </template>
 
-<style scoped>
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.18s ease;
-}
-.slide-enter-from,
-.slide-leave-to {
-  transform: translateX(100%);
-}
-</style>

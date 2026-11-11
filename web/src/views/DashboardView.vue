@@ -198,7 +198,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
             <div v-if="!deck.overview?.configured.slack" class="p-6 text-center text-sm text-muted-foreground">
               Slack isn't connected. <RouterLink to="/settings" class="text-primary hover:underline">Set it up</RouterLink>
             </div>
-            <SlackRow v-for="i in slackFor(p).slice(0, p.limit)" :key="i.id" :item="i" @jira="deck.slackToJira = $event" />
+            <SlackRow v-for="i in slackFor(p).slice(0, p.limit)" :key="i.id" :item="i" />
             <div v-if="deck.overview?.configured.slack && !slackNew.length" class="p-6 text-center text-sm text-muted-foreground">Inbox zero</div>
           </template>
 
