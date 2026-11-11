@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraPill from './JiraPill.vue'
+import RepoName from './RepoName.vue'
 import ThreadCount from './ThreadCount.vue'
 
 const props = defineProps<{ pr: PrView; compact?: boolean }>()
@@ -47,7 +48,9 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
         <span class="truncate text-sm font-medium" :class="{ 'text-muted-foreground': pr.isDraft }">{{ pr.title }}</span>
       </div>
       <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <a :href="pr.url" target="_blank" rel="noopener" class="font-mono text-foreground/80 hover:underline" @click.stop>{{ pr.repo }}#{{ pr.number }}</a>
+        <a :href="pr.url" target="_blank" rel="noopener" class="min-w-0 font-mono text-foreground/80 hover:underline" @click.stop>
+          <RepoName :repo="pr.repo" :suffix="`#${pr.number}`" />
+        </a>
         <span v-if="!compact">{{ pr.author.login }}</span>
         <span v-if="!compact">updated {{ timeAgo(pr.updatedAt) }}</span>
         <JiraPill v-for="k in pr.jiraKeys.slice(0, 2)" :key="k" :issue-key="k" />

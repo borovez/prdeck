@@ -3,11 +3,12 @@ import { computed, type HTMLAttributes } from 'vue'
 import { PhArrowRight, PhCheckCircle, PhCircleNotch, PhCloudSlash, PhGitMerge, PhRocketLaunch, PhXCircle } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
-import { ACTION_TONE, CHECK_STYLE, jiraTone, shortId } from '@/utils/format'
+import { ACTION_TONE, CHECK_STYLE, jiraTone } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import ThreadCount from './ThreadCount.vue'
+import RepoName from './RepoName.vue'
 
 /**
  * Compact PR card (graph nodes, board columns). `pr` is null for a PR that isn't synced yet.
@@ -42,7 +43,7 @@ const jira = computed(() => {
           <AvatarImage :src="pr.author.avatarUrl ?? ''" :alt="pr.author.login" />
           <AvatarFallback class="text-[8px]">{{ pr.author.login.slice(0, 2).toUpperCase() }}</AvatarFallback>
         </Avatar>
-        <span class="truncate font-mono font-medium" :title="id">{{ shortId(id) }}</span>
+        <RepoName :repo="id.split('#')[0]" :suffix="`#${id.split('#')[1]}`" class="font-mono font-medium" />
         <span class="flex-1" />
         <Badge v-if="isNext" variant="primary" class="h-4 gap-0.5 px-1.5 text-[10px]"><PhArrowRight />Next</Badge>
         <template v-if="pr">
