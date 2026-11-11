@@ -4,6 +4,8 @@ import { PhCircleHalf, PhKanban, PhMagnifyingGlass } from '@phosphor-icons/vue'
 import type { JiraIssueView, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout, type SortDir } from '@/stores/layout'
+import { priorityRank, statusRank } from '@/utils/jiraOrder'
+import CollapseAllButton from '@/components/CollapseAllButton.vue'
 import FilterChips from '@/components/FilterChips.vue'
 import GroupCard from '@/components/GroupCard.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
@@ -47,7 +49,7 @@ const VIEW_DEFAULTS = {
   category: '',
   showDone: false,
   group: 'status' as 'none' | 'status' | 'project' | 'parent',
-  sort: 'updated' as 'updated' | 'key',
+  sort: 'priority' as 'priority' | 'updated' | 'key',
   dir: 'desc' as SortDir,
 }
 const v = layout.view('jira', { query: '', scope: 'mine' as Scope, ...VIEW_DEFAULTS })
@@ -67,7 +69,16 @@ const viewSections = computed<ViewSection[]>(() => [
       { value: 'none', label: 'None' },
     ],
   },
-  { type: 'radio', key: 'sort', label: 'Sort by', options: [{ value: 'updated', label: 'Updated' }, { value: 'key', label: 'Key' }] },
+  {
+    type: 'radio',
+    key: 'sort',
+    label: 'Sort by',
+    options: [
+      { value: 'priority', label: 'Priority' },
+      { value: 'updated', label: 'Updated' },
+      { value: 'key', label: 'Key' },
+    ],
+  },
   { type: 'dir', key: 'dir' },
   { type: 'check', key: 'showDone', label: 'Show done' },
 ])
@@ -76,7 +87,7 @@ const chips = computed(() => [
   ...(v.project ? [{ key: 'project', label: v.project, clear: () => (v.project = '') }] : []),
   ...(v.category ? [{ key: 'category', label: CATEGORIES.find((c) => c.value === v.category)?.label ?? v.category, clear: () => (v.category = '') }] : []),
 ])
-const collapsed = layout.view('jira-collapsed', {} as Record<string, boolean>)
+const collapsed = layout.view('jira-collapsed', {} as Record<string, boolean | undefined>)
 
 const items = computed<Item[]>(() => {
   const keys = new Map<string, PrView[]>()
@@ -118,15 +129,19 @@ const scopeCount = (s: (typeof SCOPES)[number]) => base.value.filter(s.match).le
 const filtered = computed(() => {
   const scope = SCOPES.find((s) => s.value === v.scope) ?? SCOPES[0]
   const sign = v.dir === 'asc' ? 1 : -1
+  // Priority: highest first (then most recently updated), so "descending" means most urgent first
   const cmp = (a: Item, b: Item) =>
-    v.sort === 'key' ? a.key.localeCompare(b.key, undefined, { numeric: true }) : a.updated.localeCompare(b.updated)
+    v.sort === 'key'
+      ? a.key.localeCompare(b.key, undefined, { numeric: true })
+      : v.sort === 'priority'
+        ? priorityRank(b.issue?.priority) - priorityRank(a.issue?.priority) || a.updated.localeCompare(b.updated)
+        : a.updated.localeCompare(b.updated)
   return base.value.filter(scope.match).sort((a, b) => cmp(a, b) * sign)
 })
 
-const CATEGORY_ORDER = ['indeterminate', 'new', 'done']
 const groups = computed(() => {
-  if (v.group === 'none') return [{ key: 'all', label: 'Jira issues', items: filtered.value }]
-  const map = new Map<string, { label: string; rank: string; items: Item[] }>()
+  if (v.group === 'none') return [{ key: 'all', label: 'Jira issues', items: filtered.value, category: '' }]
+  const map = new Map<string, { label: string; rank: string; items: Item[]; category: string }>()
   for (const i of filtered.value) {
     const [key, label, rank] =
       v.group === 'project'
@@ -136,14 +151,23 @@ const groups = computed(() => {
             ? [i.issue.parent.key, `${i.issue.parent.key} · ${i.issue.parent.summary}`, `0${i.issue.parent.key}`]
             : ['~none', 'No parent', '1']
           : i.issue
-            ? [i.issue.status, i.issue.status, `${CATEGORY_ORDER.indexOf(i.issue.statusCategory)}${i.issue.status}`]
-            : ['~unknown', 'Not loaded from Jira', '9']
-    const g = map.get(key) ?? { label, rank, items: [] }
+            ? [i.issue.status, i.issue.status, `${statusRank(i.issue.status, i.issue.statusCategory).toFixed(1).padStart(4, '0')}${i.issue.status}`]
+            : ['~unknown', 'Not loaded from Jira', '99']
+    const g = map.get(key) ?? { label, rank, items: [], category: v.group === 'status' ? (i.issue?.statusCategory ?? '') : '' }
     g.items.push(i)
     map.set(key, g)
   }
   return [...map].sort(([, a], [, b]) => a.rank.localeCompare(b.rank, undefined, { numeric: true })).map(([key, g]) => ({ key, ...g }))
 })
+
+// Done groups start collapsed; Expand / Collapse all applies to the groups shown
+const isCollapsed = (g: { key: string; category: string }) => collapsed[g.key] ?? g.category === 'done'
+const allCollapsed = computed(() => groups.value.length > 0 && groups.value.every(isCollapsed))
+const toggleAll = () => {
+  const to = !allCollapsed.value
+  for (const g of groups.value) collapsed[g.key] = to
+}
+const DOT: Record<string, string> = { new: 'bg-muted-foreground', indeterminate: 'bg-info', done: 'bg-success' }
 </script>
 
 <template>
@@ -169,13 +193,24 @@ const groups = computed(() => {
       </Tabs>
       <FilterChips :chips="chips" />
       <span class="flex-1" />
+      <CollapseAllButton v-if="groups.length > 1" :collapsed="allCollapsed" @toggle="toggleAll" />
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
     <ScrollArea type="auto" class="min-h-0 flex-1">
       <!-- p-px keeps the cards' rings inside the clipping viewport; pr-3 clears the scrollbar -->
       <div class="space-y-4 p-px pr-3">
-        <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.items.length">
+        <GroupCard
+          v-for="g in groups"
+          :key="g.key"
+          :collapsed="isCollapsed(g)"
+          :label="g.label"
+          :count="g.items.length"
+          @update:collapsed="(c: boolean) => (collapsed[g.key] = c)"
+        >
+          <template v-if="g.category" #label>
+            <span class="flex items-center gap-2"><span class="size-2 shrink-0 rounded-full" :class="DOT[g.category] ?? 'bg-muted-foreground'" />{{ g.label }}</span>
+          </template>
           <div class="-m-1.5 divide-y">
             <JiraRow v-for="i in g.items" :key="i.key" :issue-key="i.key" :issue="i.issue" :prs="i.prs" :dense="layout.prefs.dense" />
           </div>

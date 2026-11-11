@@ -6,6 +6,7 @@ import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type SortDir } from '@/stores/layout'
 import { BUCKETS } from '@/utils/format'
 import { PR_FOCUS, type PrFocus } from '@/utils/prFocus'
+import CollapseAllButton from '@/components/CollapseAllButton.vue'
 import FilterChips from '@/components/FilterChips.vue'
 import GroupCard from '@/components/GroupCard.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
@@ -93,6 +94,11 @@ const groups = computed(() => {
     .map((k) => ({ key: k, label: group === 'bucket' ? (BUCKETS.find((b) => b.key === k)?.label ?? 'Done') : k, prs: map.get(k) ?? [] }))
 })
 const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
+const allCollapsed = computed(() => groups.value.length > 0 && groups.value.every((g) => collapsed[g.key]))
+const toggleAll = () => {
+  const to = !allCollapsed.value
+  for (const g of groups.value) collapsed[g.key] = to
+}
 </script>
 
 <template>
@@ -113,6 +119,7 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
         <ToggleGroupItem value="list" aria-label="List"><PhRows /></ToggleGroupItem>
         <ToggleGroupItem value="board" aria-label="Board"><PhKanban /></ToggleGroupItem>
       </ToggleGroup>
+      <CollapseAllButton v-if="v.display === 'list' && groups.length > 1" :collapsed="allCollapsed" @toggle="toggleAll" />
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
