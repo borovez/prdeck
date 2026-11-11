@@ -28,6 +28,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
 
 <template>
   <div
+    :data-pr-id="pr.id"
     :class="cn(
       'group flex cursor-pointer items-start gap-3 rounded-lg px-3 transition-colors hover:bg-accent',
       compact ? 'py-1.5' : 'py-2.5',

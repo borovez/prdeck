@@ -223,6 +223,7 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
         :edges="edges"
         :nodes-draggable="true"
         :nodes-connectable="true"
+        :nodes-focusable="false"
         :elements-selectable="true"
         :delete-key-code="null"
         :min-zoom="0.2"

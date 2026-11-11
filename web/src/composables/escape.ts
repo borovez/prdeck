@@ -1,6 +1,7 @@
 import { useEventListener } from '@vueuse/core'
 
-const LAYER_OPEN =
+/** A reka-ui dialog, menu or listbox is open on top: it owns the keyboard. */
+export const LAYER_OPEN =
   '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"], [role="listbox"]'
 
 /**

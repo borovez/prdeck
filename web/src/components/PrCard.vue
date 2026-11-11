@@ -23,6 +23,7 @@ const jira = computed(() => {
 
 <template>
   <div
+    :data-pr-id="id"
     :class="cn(
       'relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-md',
       !pr && 'border-dashed bg-muted/40 text-muted-foreground shadow-none',

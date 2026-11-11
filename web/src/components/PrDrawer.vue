@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onEscape } from '@/composables/escape'
+import { usePrArrowNav } from '@/composables/prNav'
 import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
@@ -33,6 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 const deck = useDeck()
 const dv = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
 onEscape(() => !!deck.selectedId && ((deck.selectedId = null), true))
+usePrArrowNav(() => deck.selectedId, (id) => (deck.selectedId = id))
 const layout = useLayout()
 const pr = computed(() => deck.selected)
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
@@ -65,6 +67,7 @@ function startResize(ev: MouseEvent) {
   <Transition name="slide">
     <aside
       v-if="pr"
+      data-pr-drawer
       class="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l bg-background shadow-2xl"
       :style="{ width: layout.prefs.drawerWidth + 'px' }"
     >
