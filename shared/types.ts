@@ -317,6 +317,8 @@ export interface SlackConfig {
   includeSaved: boolean
   /** Messages I reacted to with any of these emoji names count as todos – needs reactions:read */
   todoReactions: string[]
+  /** A todo I also reacted to with one of these counts as done (moves to the Done tab) */
+  doneReactions: string[]
 }
 
 /** api = Anthropic API key; claude-code = the local `claude` CLI and its login (e.g. a company Claude seat) */

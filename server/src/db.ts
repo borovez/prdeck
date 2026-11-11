@@ -91,7 +91,7 @@ export function getSettings(): Settings {
           },
         }
       : null,
-    slack: s.slack ? { lookbackDays: 7, maxConversations: 40, includeSaved: true, todoReactions: ['todo', 'eyes', 'bookmark'], ...(s.slack as Partial<NonNullable<Settings['slack']>>), token: s.slack.token, userId: s.slack.userId ?? null, teamUrl: s.slack.teamUrl ?? null } : null,
+    slack: s.slack ? { lookbackDays: 7, maxConversations: 40, includeSaved: true, todoReactions: ['todo', 'eyes', 'bookmark'], doneReactions: ['white_check_mark', 'heavy_check_mark', 'done'], ...(s.slack as Partial<NonNullable<Settings['slack']>>), token: s.slack.token, userId: s.slack.userId ?? null, teamUrl: s.slack.teamUrl ?? null } : null,
   }
 }
 export const saveSettings = (s: Settings) => kvSet('settings', s)

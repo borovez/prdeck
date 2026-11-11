@@ -24,6 +24,7 @@ const DEFAULTS: SlackConfig = {
   maxConversations: 40,
   includeSaved: true,
   todoReactions: ['todo', 'eyes', 'bookmark'],
+  doneReactions: ['white_check_mark', 'heavy_check_mark', 'done'],
 }
 const SCOPES =
   'search:read, im:history, mpim:history, im:read, mpim:read, channels:history, groups:history, users:read, stars:read, reactions:read, chat:write'
@@ -37,6 +38,7 @@ const details = computed(() => {
     { label: 'Look back', value: `${s.lookbackDays} days, up to ${s.maxConversations} DMs / groups` },
     { label: 'Saved messages', value: s.includeSaved ? 'Included' : 'Not included' },
     { label: 'Todo reactions', value: s.todoReactions.map((r) => `:${r}:`).join(' ') || 'None' },
+    { label: 'Done reactions', value: (s.doneReactions ?? []).map((r) => `:${r}:`).join(' ') || 'None' },
   ]
 })
 
@@ -54,7 +56,7 @@ const submit = () => st.saveSection({ slack: draft.value }, slack.value ? 'Slack
     :icon="PhSlackLogo"
     :connected="!!slack"
     :details="details"
-    :on-open="() => (draft = clone(slack ?? DEFAULTS))"
+    :on-open="() => (draft = { ...clone(DEFAULTS), ...clone(slack ?? DEFAULTS) })"
     :on-test="test"
     :on-submit="submit"
     :on-disconnect="() => st.saveSection({ slack: null }, 'Slack disconnected')"
@@ -74,6 +76,9 @@ const submit = () => st.saveSection({ slack: draft.value }, slack.value ? 'Slack
         <Field label="Max DMs / groups scanned"><Input v-model.number="draft.maxConversations" type="number" min="5" max="200" /></Field>
         <Field label="Todo reactions" hint="Emoji names, comma separated">
           <Input :model-value="draft.todoReactions.join(', ')" placeholder="todo, eyes, bookmark" @change="draft.todoReactions = splitList(($event.target as HTMLInputElement).value).map((r) => r.replace(/:/g, ''))" />
+        </Field>
+        <Field label="Done reactions" hint="A todo you also react to with one of these moves to Done">
+          <Input :model-value="draft.doneReactions.join(', ')" placeholder="white_check_mark, heavy_check_mark" @change="draft.doneReactions = splitList(($event.target as HTMLInputElement).value).map((r) => r.replace(/:/g, ''))" />
         </Field>
         <Label class="cursor-pointer gap-2 self-center font-normal"><Switch v-model="draft.includeSaved" /> Include saved messages</Label>
       </div>

@@ -181,20 +181,23 @@ export async function fetchSlackInbox(cfg: SlackConfig): Promise<SlackFetchResul
   // 2b. Messages I marked with a todo reaction
   if (cfg.todoReactions?.length) {
     try {
-      const wanted = new Set(cfg.todoReactions.map((x) => x.replace(/:/g, '').trim()))
+      const clean = (list: string[] = []) => new Set(list.map((x) => x.replace(/:/g, '').trim()).filter(Boolean))
+      const wanted = clean(cfg.todoReactions)
+      const done = clean(cfg.doneReactions)
       const r = await call(cfg.token, 'reactions.list', { user: me, full: 'true', count: 200 })
       for (const it of r.items ?? []) {
         if (it.type !== 'message' || !it.message) continue
         const m = it.message
-        const mine = (m.reactions ?? []).some((x: any) => wanted.has(x.name) && (x.users ?? []).includes(me))
-        if (!mine) continue
+        const mineWith = (names: Set<string>) => (m.reactions ?? []).some((x: any) => names.has(x.name) && (x.users ?? []).includes(me))
+        if (!mineWith(wanted)) continue
         raw.push({
           kind: 'todo',
           channelId: it.channel,
           channelName: channelLabel(it.channel, undefined, undefined, m.channel_name),
           m,
           awaitingReply: false,
-          autoDone: false,
+          // Also reacted with a "done" emoji: completed
+          autoDone: mineWith(done),
           permalink: m.permalink ?? null,
         })
       }
