@@ -110,7 +110,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
       <SidebarInset class="min-w-0">
         <header class="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
           <SidebarTrigger class="-ml-1" />
-          <Separator orientation="vertical" class="mr-1 h-4!" />
+          <Separator orientation="vertical" class="mr-1 data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center" />
           <h1 class="text-sm font-semibold">{{ title }}</h1>
           <span class="ml-2 hidden text-xs text-muted-foreground sm:inline">
             <template v-if="deck.overview?.sync.lastFinishedAt">
