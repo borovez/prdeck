@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhKanban, PhMagnifyingGlass } from '@phosphor-icons/vue'
+import { PhCircleHalf, PhKanban, PhMagnifyingGlass } from '@phosphor-icons/vue'
 import type { JiraIssueView, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout, type SortDir } from '@/stores/layout'
+import FilterChips from '@/components/FilterChips.vue'
 import GroupCard from '@/components/GroupCard.vue'
+import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import JiraRow from '@/components/JiraRow.vue'
-import SortDirButton from '@/components/SortDirButton.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
@@ -43,16 +41,41 @@ const CATEGORIES = [
   { value: 'done', label: 'Done' },
 ]
 
-const v = layout.view('jira', {
-  query: '',
-  scope: 'mine' as Scope,
+/** View options in the View menu, and their defaults (Reset view) */
+const VIEW_DEFAULTS = {
   project: '',
   category: '',
   showDone: false,
   group: 'status' as 'none' | 'status' | 'project' | 'parent',
   sort: 'updated' as 'updated' | 'key',
   dir: 'desc' as SortDir,
-})
+}
+const v = layout.view('jira', { query: '', scope: 'mine' as Scope, ...VIEW_DEFAULTS })
+const viewSections = computed<ViewSection[]>(() => [
+  { type: 'filter', key: 'project', label: 'Project', icon: PhKanban, allLabel: 'All projects', options: projects.value.map((p) => ({ value: p, label: p })), mono: true },
+  ...(deck.overview?.configured.jira
+    ? [{ type: 'filter', key: 'category', label: 'Status', icon: PhCircleHalf, allLabel: 'Any status', options: CATEGORIES } as ViewSection]
+    : []),
+  {
+    type: 'radio',
+    key: 'group',
+    label: 'Group by',
+    options: [
+      { value: 'status', label: 'Status' },
+      { value: 'project', label: 'Project' },
+      { value: 'parent', label: 'Parent / epic' },
+      { value: 'none', label: 'None' },
+    ],
+  },
+  { type: 'radio', key: 'sort', label: 'Sort by', options: [{ value: 'updated', label: 'Updated' }, { value: 'key', label: 'Key' }] },
+  { type: 'dir', key: 'dir' },
+  { type: 'check', key: 'showDone', label: 'Show done' },
+])
+/** Active filters that aren't otherwise visible in the toolbar */
+const chips = computed(() => [
+  ...(v.project ? [{ key: 'project', label: v.project, clear: () => (v.project = '') }] : []),
+  ...(v.category ? [{ key: 'category', label: CATEGORIES.find((c) => c.value === v.category)?.label ?? v.category, clear: () => (v.category = '') }] : []),
+])
 const collapsed = layout.view('jira-collapsed', {} as Record<string, boolean>)
 
 const items = computed<Item[]>(() => {
@@ -135,7 +158,7 @@ const groups = computed(() => {
     </Alert>
 
     <div class="flex flex-wrap items-center gap-2">
-      <div class="relative w-72">
+      <div class="relative w-64 min-w-40 flex-1 sm:flex-none">
         <PhMagnifyingGlass class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" :size="14" />
         <Input v-model="v.query" type="search" placeholder="Search key, summary, assignee, PR…" class="h-8 pl-8" />
       </div>
@@ -144,33 +167,9 @@ const groups = computed(() => {
           <TabsTrigger v-for="s in SCOPES" :key="s.value" :value="s.value" :count="scopeCount(s)">{{ s.label }}</TabsTrigger>
         </TabsList>
       </Tabs>
-      <NativeSelect v-model="v.project" size="sm">
-        <NativeSelectOption value="">All projects</NativeSelectOption>
-        <NativeSelectOption v-for="p in projects" :key="p" :value="p">{{ p }}</NativeSelectOption>
-      </NativeSelect>
-      <NativeSelect v-if="deck.overview?.configured.jira" v-model="v.category" size="sm">
-        <NativeSelectOption value="">Any status</NativeSelectOption>
-        <NativeSelectOption v-for="c in CATEGORIES" :key="c.value" :value="c.value">{{ c.label }}</NativeSelectOption>
-      </NativeSelect>
+      <FilterChips :chips="chips" />
       <span class="flex-1" />
-      <Label class="gap-1.5 font-normal text-muted-foreground">
-        Group
-        <NativeSelect v-model="v.group" size="sm">
-          <NativeSelectOption value="status">Status</NativeSelectOption>
-          <NativeSelectOption value="project">Project</NativeSelectOption>
-          <NativeSelectOption value="parent">Parent / epic</NativeSelectOption>
-          <NativeSelectOption value="none">None</NativeSelectOption>
-        </NativeSelect>
-      </Label>
-      <Label class="gap-1.5 font-normal text-muted-foreground">
-        Sort
-        <NativeSelect v-model="v.sort" size="sm">
-          <NativeSelectOption value="updated">Updated</NativeSelectOption>
-          <NativeSelectOption value="key">Key</NativeSelectOption>
-        </NativeSelect>
-      </Label>
-      <SortDirButton v-model="v.dir" />
-      <Label class="gap-2 font-normal"><Switch v-model="v.showDone" /> Done</Label>
+      <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
     <ScrollArea type="auto" class="min-h-0 flex-1">

@@ -1,43 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  PhArrowCounterClockwise,
-  PhGitBranch,
-  PhKanban,
-  PhMagnifyingGlass,
-  PhRows,
-  PhSlidersHorizontal,
-  PhSortAscending,
-  PhSortDescending,
-  PhX,
-} from '@phosphor-icons/vue'
+import { PhGitBranch, PhKanban, PhMagnifyingGlass, PhRows } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type SortDir } from '@/stores/layout'
 import { BUCKETS } from '@/utils/format'
 import { PR_FOCUS, type PrFocus } from '@/utils/prFocus'
+import FilterChips from '@/components/FilterChips.vue'
 import GroupCard from '@/components/GroupCard.vue'
+import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import PrCard from '@/components/PrCard.vue'
 import PrRow from '@/components/PrRow.vue'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 const deck = useDeck()
@@ -74,8 +50,13 @@ const SORTS = [
   { value: 'repo', label: 'Repo' },
   { value: 'size', label: 'Size' },
 ]
-const customised = computed(() => (Object.keys(VIEW_DEFAULTS) as (keyof typeof VIEW_DEFAULTS)[]).some((k) => v[k] !== VIEW_DEFAULTS[k]))
-const resetView = () => Object.assign(v, VIEW_DEFAULTS)
+const viewSections = computed<ViewSection[]>(() => [
+  { type: 'filter', key: 'repo', label: 'Repo', icon: PhGitBranch, allLabel: 'All repos', options: deck.repos.map((r) => ({ value: r, label: r })), mono: true },
+  { type: 'radio', key: 'group', label: v.display === 'board' ? 'Columns' : 'Group by', options: GROUPINGS.filter((g) => v.display === 'list' || g.value !== 'none') },
+  { type: 'radio', key: 'sort', label: 'Sort by', options: SORTS },
+  { type: 'dir', key: 'dir' },
+  { type: 'check', key: 'showDone', label: 'Show done' },
+])
 /** Active filters that aren't otherwise visible in the toolbar */
 const chips = computed(() => [
   ...(v.focus ? [{ key: 'focus', label: PR_FOCUS[v.focus].label, clear: () => (v.focus = '') }] : []),
@@ -122,60 +103,13 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
           <TabsTrigger v-for="s in SCOPES" :key="s.value" :value="s.value" :count="scopeCount(s)">{{ s.label }}</TabsTrigger>
         </TabsList>
       </Tabs>
-      <!-- Filters not visible elsewhere in the row -->
-      <Badge v-for="c in chips" :key="c.key" variant="primary" class="h-7 gap-1 pr-1 text-xs">
-        {{ c.label }}
-        <button type="button" class="rounded p-0.5 hover:bg-primary/15" :aria-label="`Clear ${c.label}`" @click="c.clear()"><PhX /></button>
-      </Badge>
+      <FilterChips :chips="chips" />
       <span class="flex-1" />
       <ToggleGroup :model-value="v.display" type="single" variant="outline" size="sm" aria-label="Display" @update:model-value="(d) => d && (v.display = d as typeof v.display)">
         <ToggleGroupItem value="list" aria-label="List"><PhRows /></ToggleGroupItem>
         <ToggleGroupItem value="board" aria-label="Board"><PhKanban /></ToggleGroupItem>
       </ToggleGroup>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" class="relative">
-            <PhSlidersHorizontal /> View
-            <span v-if="customised" class="absolute -top-1 -right-1 size-2 rounded-full bg-primary" aria-label="Customised" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-60">
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <PhGitBranch /> Repo <span class="ml-auto max-w-28 truncate pl-2 text-xs text-muted-foreground">{{ v.repo || 'All' }}</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent class="max-h-80 w-72 overflow-y-auto">
-              <DropdownMenuRadioGroup v-model="v.repo">
-                <DropdownMenuRadioItem value="">All repos</DropdownMenuRadioItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuRadioItem v-for="r in deck.repos" :key="r" :value="r" class="font-mono text-xs">{{ r }}</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel class="text-xs text-muted-foreground">{{ v.display === 'board' ? 'Columns' : 'Group by' }}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup v-model="v.group">
-            <DropdownMenuRadioItem v-for="g in GROUPINGS.filter((x) => v.display === 'list' || x.value !== 'none')" :key="g.value" :value="g.value">
-              {{ g.label }}
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel class="text-xs text-muted-foreground">Sort by</DropdownMenuLabel>
-          <DropdownMenuRadioGroup v-model="v.sort">
-            <DropdownMenuRadioItem v-for="o in SORTS" :key="o.value" :value="o.value">{{ o.label }}</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup v-model="v.dir">
-            <DropdownMenuRadioItem value="desc"><PhSortDescending /> Descending</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="asc"><PhSortAscending /> Ascending</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuCheckboxItem v-model="v.showDone" @select.prevent>Show done</DropdownMenuCheckboxItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem :disabled="!customised" @select="resetView"><PhArrowCounterClockwise /> Reset view</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
     <!-- Horizontal scroll across columns; the viewport's content gets full height so each column can scroll on its own -->
