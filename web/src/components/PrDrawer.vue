@@ -9,6 +9,7 @@ import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
   PhArrowsClockwise,
+  PhGraph,
   PhTrain,
   PhInfo,
   PhWarning,
@@ -101,6 +102,21 @@ const train = computed(() => {
     with: t.releases.filter((r) => r !== id && !t.links.some((l) => l.kind === 'order' && (l.from === r || l.to === r) && (l.from === id || l.to === id))),
   }
 })
+/** The release to show on the Releases page: this one (release / hotfix) or the release that ships it */
+const releaseTarget = computed(() => (pr.value?.flow ? pr.value.id : pr.value?.shipsIn[0]?.id) ?? null)
+const graphView = useLayout().view('releaseGraph', { repo: '' as string })
+function goReleases() {
+  releasesView.tab = pr.value?.flow === 'hotfix' ? 'hotfixes' : 'releases'
+  router.push({ path: '/releases', query: { focus: releaseTarget.value! } })
+}
+function goGraph() {
+  releasesView.tab = 'graph'
+  graphView.repo = pr.value!.repo.toLowerCase()
+  const id = pr.value!.id
+  // The panel would cover the box the graph zooms to
+  deck.selectedId = null
+  router.push({ path: '/releases', query: { focus: id } })
+}
 function openTrains() {
   releasesView.tab = 'trains'
   router.push('/releases')
@@ -180,6 +196,20 @@ const removeDep = (e: DepEdge) => deps.remove(e)
           </a>
     </template>
     <template v-if="pr" #actions>
+        <template v-if="releaseTarget">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon-sm" aria-label="Open on the Releases page" @click="goReleases"><PhRocketLaunch /></Button>
+            </TooltipTrigger>
+            <TooltipContent>{{ pr.flow ? 'Open on the Releases page' : 'Open the release that ships this' }}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon-sm" aria-label="Show in the release graph" @click="goGraph"><PhGraph /></Button>
+            </TooltipTrigger>
+            <TooltipContent>Show in the release graph</TooltipContent>
+          </Tooltip>
+        </template>
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon-sm" aria-label="Open beside" @click="openBeside(pr.url)"><PhSquareSplitHorizontal /></Button>

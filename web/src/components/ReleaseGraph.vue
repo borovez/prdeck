@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { MarkerType, Panel, VueFlow, useVueFlow, type Edge, type EdgeMouseEvent, type Node } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { ControlButton, Controls } from '@vue-flow/controls'
@@ -426,8 +427,18 @@ const edges = computed<Edge[]>(() => {
 
 const { fitView, setViewport, dimensions } = useVueFlow('release-graph')
 /** Fit when it stays readable; otherwise start at the top left at a readable zoom and let people pan */
+/** ?focus=<pr id>: zoom to the box holding that PR (set by the PR panel's "Show in release graph") */
+const route = useRoute()
+const router = useRouter()
 async function frame() {
   await nextTick()
+  const focus = typeof route.query.focus === 'string' ? route.query.focus : null
+  const node = focus ? locate.value.get(focus)?.node : undefined
+  if (node) {
+    setTimeout(() => fitView({ nodes: [node], maxZoom: 1, minZoom: 0.6, padding: 0.3, duration: 300 }), 80)
+    router.replace({ query: {} })
+    return
+  }
   const ys = placed.value.out.map((o) => o.y + o.item.h)
   const height = Math.max(HEADER_H, ...ys) + 40
   const width = slotX(shownCols.value.length) + 40
@@ -435,6 +446,7 @@ async function frame() {
   setTimeout(() => (zoom >= 0.6 ? fitView({ padding: 0.06, maxZoom: 1, duration: 200 }) : setViewport({ x: 16, y: 16, zoom: 0.8 }, { duration: 200 })), 50)
 }
 watch(() => nodes.value.map((n) => n.id).join('|'), frame)
+watch(() => route.query.focus, (f) => f && frame())
 
 const tip = ref<{ x: number; y: number; text: string } | null>(null)
 function onEdgeHover({ edge, event }: EdgeMouseEvent) {

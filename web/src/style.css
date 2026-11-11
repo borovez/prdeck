@@ -218,3 +218,17 @@ html, body, #app { height: 100%; }
     height: calc(100svh - 6.5rem);
   }
 }
+
+/* Brief highlight on an item jumped to (e.g. from the PR panel to the Releases page) */
+.flash-focus {
+  animation: flash-focus 1.6s ease-out;
+}
+@keyframes flash-focus {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px var(--primary);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}

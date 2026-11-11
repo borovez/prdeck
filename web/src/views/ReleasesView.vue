@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { PhArrowsClockwise, PhCheckCircle, PhGitBranch, PhMagnifyingGlass, PhWarning } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { api } from '@/api'
@@ -91,6 +92,30 @@ const toggleAll = () => {
   for (const k of groupKeys.value) v.collapsed[k] = c
 }
 
+// ?focus=<pr id>: expand that release (or hotfix) and scroll to it; the graph tab handles it itself
+const route = useRoute()
+const router = useRouter()
+watch(
+  () => route.query.focus,
+  async (focus) => {
+    if (typeof focus !== 'string' || !focus || v.tab === 'graph') return
+    v.query = ''
+    if (v.tab === 'hotfixes') {
+      // Open just the group the hotfix is in
+      const p = deck.byId.get(focus)
+      const group = p?.state === 'OPEN' ? 'hf:open' : p?.backmerge && !p.backmerge.backmerged ? 'hf:needs' : 'hf:done'
+      v.collapsed[group] = false
+    } else v.collapsed[focus] = false
+    await nextTick()
+    const el = document.querySelector(`[data-release-id="${CSS.escape(focus)}"]`) ?? document.querySelector(`[data-pr-id="${CSS.escape(focus)}"]`)
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    el?.classList.add('flash-focus')
+    setTimeout(() => el?.classList.remove('flash-focus'), 1600)
+    router.replace({ query: {} })
+  },
+  { immediate: true },
+)
+
 /** Release being re-read from GitHub (spinner on its button) */
 const refreshing = ref<string | null>(null)
 async function refresh(id: string) {
@@ -133,6 +158,7 @@ async function refresh(id: string) {
           <GroupCard
             v-for="r in sec.prs"
             :key="r.id"
+            :data-release-id="r.id"
             label=""
             :count="deck.releaseById.get(r.id)?.items.length ?? 0"
             :collapsed="isCollapsed(r.id, r.state === 'MERGED')"
