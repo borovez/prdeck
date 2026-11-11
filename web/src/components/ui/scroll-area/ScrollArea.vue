@@ -10,9 +10,13 @@ import {
 } from 'reka-ui'
 import ScrollBar from './ScrollBar.vue'
 
-const props = defineProps<ScrollAreaRootProps & { class?: HTMLAttributes['class'] }>()
+/** orientation: which scrollbars to render (local addition; the generated one only has vertical) */
+const props = withDefaults(
+  defineProps<ScrollAreaRootProps & { class?: HTMLAttributes['class']; orientation?: 'vertical' | 'horizontal' | 'both' }>(),
+  { orientation: 'vertical' },
+)
 
-const delegatedProps = reactiveOmit(props, 'class')
+const delegatedProps = reactiveOmit(props, 'class', 'orientation')
 </script>
 
 <template>
@@ -27,7 +31,8 @@ const delegatedProps = reactiveOmit(props, 'class')
     >
       <slot />
     </ScrollAreaViewport>
-    <ScrollBar />
+    <ScrollBar v-if="orientation !== 'horizontal'" />
+    <ScrollBar v-if="orientation !== 'vertical'" orientation="horizontal" />
     <ScrollAreaCorner />
   </ScrollAreaRoot>
 </template>

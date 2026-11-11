@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 const deck = useDeck()
 const layout = useLayout()
@@ -118,19 +119,29 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
       <Label class="gap-2 font-normal"><Switch v-model="v.showDone" /> Done</Label>
     </div>
 
-    <div v-if="v.display === 'board'" class="-mx-4 flex min-h-0 flex-1 gap-3 overflow-x-auto px-4 pb-2 lg:-mx-6 lg:px-6">
+    <!-- Horizontal scroll across columns; the viewport's content gets full height so each column can scroll on its own -->
+    <ScrollArea
+      v-if="v.display === 'board'"
+      type="auto"
+      orientation="horizontal"
+      class="-mx-4 min-h-0 flex-1 lg:-mx-6 [&>[data-slot=scroll-area-viewport]>div]:h-full"
+    >
+      <div class="flex h-full gap-3 px-4 pb-4 lg:px-6">
       <section v-for="g in groups" :key="g.key" class="flex w-80 shrink-0 flex-col rounded-xl border bg-muted/50">
         <header class="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
           <span class="truncate text-sm font-semibold" :title="g.label">{{ g.label }}</span>
           <Badge variant="muted">{{ g.prs.length }}</Badge>
         </header>
-        <!-- pt-1: the scroll area clips, and the selected card's ring draws outside the card -->
-        <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pt-1 pb-2">
-          <PrCard v-for="p in g.prs" :id="p.id" :key="p.id" :pr="p" class="cursor-pointer" @click="deck.selectedId = p.id" />
-          <p v-if="!g.prs.length" class="py-6 text-center text-xs text-muted-foreground">Nothing here</p>
-        </div>
+        <ScrollArea type="auto" class="min-h-0 flex-1">
+          <!-- pt-1: the viewport clips, and the selected card's ring draws outside the card; pr-3.5 clears the scrollbar (shown only when the column overflows) -->
+          <div class="space-y-2 pt-1 pr-3.5 pb-2 pl-2">
+            <PrCard v-for="p in g.prs" :id="p.id" :key="p.id" :pr="p" class="cursor-pointer" @click="deck.selectedId = p.id" />
+            <p v-if="!g.prs.length" class="py-6 text-center text-xs text-muted-foreground">Nothing here</p>
+          </div>
+        </ScrollArea>
       </section>
-    </div>
+      </div>
+    </ScrollArea>
     <template v-else>
       <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.prs.length">
         <PrRow v-for="p in g.prs" :key="p.id" :pr="p" :compact="layout.prefs.dense" />
