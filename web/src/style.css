@@ -144,6 +144,11 @@
 }
 
 @layer base {
+  /* Text selection in the brand colour */
+  ::selection {
+    background-color: var(--primary);
+    color: oklch(1 0 0);
+  }
   /* Icons keep their size in tight flex rows (a shrinking row shouldn't squash them) */
   svg {
     flex-shrink: 0;
