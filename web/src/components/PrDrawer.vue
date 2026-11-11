@@ -13,7 +13,7 @@ import {
   PhX,
   PhXCircle,
 } from '@phosphor-icons/vue'
-import type { DepEdge } from '@shared/types'
+import type { DepEdge, JiraLink } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
@@ -32,6 +32,18 @@ import ThreadList from './ThreadList.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
+/** Blocking links first, then the rest; Jira can return the same link twice */
+const LINK_ORDER = ['is blocked by', 'blocks']
+function sortedLinks(links: JiraLink[]) {
+  const seen = new Set<string>()
+  return links
+    .filter((l) => !seen.has(l.label + l.key) && seen.add(l.label + l.key))
+    .sort((a, b) => {
+      const rank = (l: JiraLink) => (LINK_ORDER.indexOf(l.label) + 1 || LINK_ORDER.length + 1)
+      return rank(a) - rank(b) || a.label.localeCompare(b.label)
+    })
+}
+const jiraUrl = (key: string) => (deck.overview?.jiraBaseUrl ? `${deck.overview.jiraBaseUrl}/browse/${key}` : undefined)
 const dv = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
 onEscape(() => !!deck.selectedId && ((deck.selectedId = null), true))
 usePrArrowNav(() => deck.selectedId, (id) => (deck.selectedId = id))
@@ -190,11 +202,15 @@ function startResize(ev: MouseEvent) {
                 <div class="mt-1 text-xs text-muted-foreground">
                   {{ issue.assignee?.displayName ?? 'Unassigned' }}<template v-if="issue.fixVersions.length"> · fix: {{ issue.fixVersions.join(', ') }}</template>
                 </div>
-                <ul v-if="issue.links.length" class="mt-2 space-y-0.5 text-xs">
-                  <li v-for="l in issue.links" :key="l.key + l.label" class="flex items-center gap-1">
-                    <span class="text-muted-foreground">{{ l.label }}</span> <span class="font-mono">{{ l.key }}</span>
-                    <span class="truncate">{{ l.summary }}</span>
-                    <Badge :variant="jiraTone(l.statusCategory)" class="h-4 text-[10px]">{{ l.status }}</Badge>
+                <ul
+                  v-if="issue.links.length"
+                  class="mt-2 grid grid-cols-[max-content_max-content_minmax(0,1fr)_max-content] items-center gap-x-3 gap-y-1 text-xs"
+                >
+                  <li v-for="l in sortedLinks(issue.links)" :key="l.key + l.label" class="contents">
+                    <span class="whitespace-nowrap text-muted-foreground">{{ l.label }}</span>
+                    <a :href="jiraUrl(l.key)" target="_blank" rel="noopener" class="font-mono whitespace-nowrap hover:underline">{{ l.key }}</a>
+                    <span class="truncate" :title="l.summary">{{ l.summary }}</span>
+                    <Badge :variant="jiraTone(l.statusCategory)" class="h-4 justify-self-end text-[10px]">{{ l.status }}</Badge>
                   </li>
                 </ul>
               </template>
