@@ -21,7 +21,7 @@ const deck = useDeck()
     :class="cn(
       'group flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 hover:bg-accent',
       item.status !== 'new' && 'opacity-60',
-      deck.selectedSlackId === item.id && 'bg-accent',
+      deck.selectedSlackId === item.id && 'bg-accent ring-2 ring-primary ring-inset',
     )"
     @click="deck.selectedSlackId = item.id"
   >

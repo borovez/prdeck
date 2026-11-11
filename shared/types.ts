@@ -82,6 +82,27 @@ export interface PrRecord {
   accountId: string
 }
 
+/** Loaded on demand for the PR panel's Description and Files tabs */
+export interface PrDetail {
+  /** GitHub's rendered description (sanitize before display) */
+  bodyHTML: string
+  files: PrFile[]
+  /** More files than were loaded */
+  filesTruncated: boolean
+}
+export interface PrFile {
+  filename: string
+  previousFilename: string | null
+  status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged'
+  additions: number
+  deletions: number
+  /** Unified diff; null for binary or too-large files */
+  patch: string | null
+  /** The patch was cut to its first lines */
+  patchTruncated: boolean
+  url: string
+}
+
 export interface ReviewThread {
   /** Link to the first comment */
   url: string

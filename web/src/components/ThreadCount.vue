@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 /** Unresolved conversation count; opens the PR drawer on its Conversations tab. */
 const props = defineProps<{ pr: PrView }>()
 const deck = useDeck()
-const drawer = useLayout().view('drawer', { tab: 'details' as 'details' | 'conversations' })
+const drawer = useLayout().view('drawer', { tab: 'details' as 'details' | 'description' | 'files' | 'conversations' })
 
 function open() {
   drawer.tab = 'conversations'

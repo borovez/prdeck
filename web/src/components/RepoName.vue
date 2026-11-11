@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useDeck } from '@/stores/deck'
 
 /**
  * "owner/name" with the name kept visible: the owner (grey) gives way first, with its ellipsis on the
@@ -7,10 +8,12 @@ import { computed } from 'vue'
  */
 /** Either `repo` ("owner/name", optional `suffix` kept with the name, e.g. "#123") or a PR `id` ("owner/name#123") */
 const props = defineProps<{ repo?: string; suffix?: string; id?: string }>()
+const deck = useDeck()
 const full = computed(() => {
   if (props.id) {
     const [repo, n] = props.id.split('#')
-    return { repo, suffix: n ? `#${n}` : '' }
+    // PR ids are lowercase; show the repo as GitHub spells it when we have the PR
+    return { repo: deck.byId.get(props.id)?.repo ?? repo, suffix: n ? `#${n}` : '' }
   }
   return { repo: props.repo ?? '', suffix: props.suffix ?? '' }
 })

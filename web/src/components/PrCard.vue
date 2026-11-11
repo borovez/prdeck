@@ -29,8 +29,8 @@ const jira = computed(() => {
     :class="cn(
       'relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-xs transition-shadow hover:shadow-md',
       !pr && 'border-dashed bg-muted/40 text-muted-foreground shadow-none',
-      isNext && 'ring-2 ring-primary',
-      (selected || deck.selectedId === id) && 'ring-2 ring-ring',
+      isNext && 'ring-2 ring-primary/40',
+      (selected || deck.selectedId === id) && 'ring-2 ring-primary',
       props.class,
     )"
   >

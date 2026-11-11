@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useArrowNav } from '@/composables/prNav'
+import { followBeside, openBeside } from '@/composables/besideWindow'
 import { releaseStatus } from '@shared/release'
 import SidePanel from './SidePanel.vue'
 import { computed, ref, watch } from 'vue'
@@ -10,11 +11,12 @@ import {
   PhCaretDown,
   PhPlus,
   PhPushPin,
+  PhSquareSplitHorizontal,
   PhRocketLaunch,
   PhTrash,
   PhXCircle,
 } from '@phosphor-icons/vue'
-import type { DepEdge } from '@shared/types'
+import type { DepEdge, PrDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
@@ -34,10 +36,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraTransition from './JiraTransition.vue'
 import ThreadList from './ThreadList.vue'
+import PrDescription from './PrDescription.vue'
+import PrFiles from './PrFiles.vue'
 import JiraLinks from './JiraLinks.vue'
 import RepoName from './RepoName.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
@@ -50,7 +55,7 @@ const alertTone = computed(() => {
   return t === 'destructive' || t === 'warning' || t === 'success' || t === 'info' ? t : 'default'
 })
 const dv = useLayout().view('drawer', {
-  tab: 'details' as 'details' | 'conversations',
+  tab: 'details' as 'details' | 'description' | 'files' | 'conversations',
   // Last dependency type used in the add form
   depDirection: 'dependsOn' as 'dependsOn' | 'blocks',
   depKind: 'merge' as 'merge' | 'release',
@@ -58,6 +63,32 @@ const dv = useLayout().view('drawer', {
 useArrowNav('pr', () => deck.selectedId, (id) => (deck.selectedId = id))
 const pr = computed(() => deck.selected)
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
+
+// ---- Description / Files: loaded when one of those tabs is shown, cached per PR version
+const detailCache = new Map<string, Promise<PrDetail>>()
+const detail = ref<PrDetail | null>(null)
+const detailError = ref('')
+watch(
+  () => [pr.value?.id, pr.value?.updatedAt, dv.tab] as const,
+  async ([id, updatedAt, tab]) => {
+    if (!id || (tab !== 'description' && tab !== 'files')) return
+    const key = `${id}|${updatedAt}`
+    if (detail.value && detailCache.get(key) && (await detailCache.get(key)) === detail.value) return
+    detail.value = null
+    detailError.value = ''
+    if (!detailCache.has(key)) detailCache.set(key, api.prDetail(id))
+    try {
+      const d = await detailCache.get(key)!
+      if (pr.value?.id === id) detail.value = d
+    } catch (e) {
+      detailCache.delete(key)
+      if (pr.value?.id === id) detailError.value = (e as Error).message
+    }
+  },
+  { immediate: true },
+)
+// The beside window follows the PR shown here
+watch(() => pr.value?.url, (url) => url && followBeside(url))
 
 const note = ref('')
 watch(pr, (p) => (note.value = p?.note ?? ''), { immediate: true })
@@ -89,6 +120,12 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
     <template v-if="pr" #actions>
         <Tooltip>
           <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon-sm" aria-label="Open beside" @click="openBeside(pr.url)"><PhSquareSplitHorizontal /></Button>
+          </TooltipTrigger>
+          <TooltipContent>Open on GitHub in a window beside this one (follows the PR you select)</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger as-child>
             <Button variant="ghost" size="icon-sm" @click="saveMeta(!pr.pinned)">
               <PhPushPin :weight="pr.pinned ? 'fill' : 'regular'" :class="{ 'text-primary': pr.pinned }" />
             </Button>
@@ -101,9 +138,24 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
         <div class="border-b px-4 py-2">
           <TabsList>
             <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="description">Description</TabsTrigger>
+            <TabsTrigger value="files" :count="pr.changedFiles">Files</TabsTrigger>
             <TabsTrigger value="conversations" :count="pr.threads.length">Conversations</TabsTrigger>
           </TabsList>
         </div>
+
+      <TabsContent v-for="t in ['description', 'files'] as const" :key="t" :value="t" class="min-h-0 flex-1">
+        <ScrollArea class="h-full">
+          <div class="p-4">
+            <p v-if="detailError" class="text-sm text-destructive">{{ detailError }}</p>
+            <template v-else-if="detail">
+              <PrDescription v-if="t === 'description'" :html="detail.bodyHTML" />
+              <PrFiles v-else :key="pr.id" :files="detail.files" :truncated="detail.filesTruncated" :pr-url="pr.url" />
+            </template>
+            <div v-else class="space-y-2"><Skeleton class="h-3 w-full" /><Skeleton class="h-3 w-5/6" /><Skeleton class="h-3 w-2/3" /></div>
+          </div>
+        </ScrollArea>
+      </TabsContent>
 
       <TabsContent value="conversations" class="min-h-0 flex-1">
         <ScrollArea class="h-full">

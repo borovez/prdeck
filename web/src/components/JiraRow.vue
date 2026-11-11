@@ -36,7 +36,7 @@ const initials = (name: string) =>
 <template>
   <div
     :data-jira-id="issueKey"
-    :class="cn('cursor-pointer px-4 py-3 transition-colors hover:bg-accent/50', deck.selectedJiraKey === issueKey && 'bg-accent/60')"
+    :class="cn('cursor-pointer px-4 py-3 transition-colors hover:bg-accent/50', deck.selectedJiraKey === issueKey && 'bg-accent/60 ring-2 ring-primary ring-inset')"
     @click="select"
   >
     <div class="flex items-start gap-2">

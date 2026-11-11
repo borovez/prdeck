@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { CheckState, GithubAccount, PrRecord } from '../../shared/types.ts'
+import type { CheckState, GithubAccount, PrRecord, PrDetail } from '../../shared/types.ts'
 import { prId } from './refs.ts'
 
 const API = 'https://api.github.com'
@@ -293,4 +293,39 @@ export async function isCommitIn(account: GithubAccount, repo: string, sha: stri
     `/repos/${repo}/compare/${encodeURIComponent(sha)}...${encodeURIComponent(ref)}?per_page=1`,
   )
   return cmp.status === 'ahead' || cmp.status === 'identical'
+}
+
+const MAX_FILES = 300
+const MAX_PATCH_LINES = 400
+
+/** Rendered description and changed files with diffs, for the PR panel */
+export async function prDetail(account: GithubAccount, repo: string, number: number): Promise<PrDetail> {
+  const [owner, name] = repo.split('/')
+  const [body, ...pages] = await Promise.all([
+    graphql<{ repository: { pullRequest: { bodyHTML: string } | null } | null }>(
+      account.token,
+      `query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { bodyHTML } } }`,
+      { owner, name, number },
+    ),
+    // GitHub returns up to 3000 files, 100 per page; the first 300 are plenty to read here
+    ...[1, 2, 3].map((page) => request<any[]>(account.token, `/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`)),
+  ])
+  const raw = pages.flat()
+  return {
+    bodyHTML: body.repository?.pullRequest?.bodyHTML ?? '',
+    filesTruncated: raw.length >= MAX_FILES,
+    files: raw.slice(0, MAX_FILES).map((f) => {
+      const lines: string[] | null = typeof f.patch === 'string' ? f.patch.split('\n') : null
+      return {
+        filename: f.filename,
+        previousFilename: f.previous_filename ?? null,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: lines ? lines.slice(0, MAX_PATCH_LINES).join('\n') : null,
+        patchTruncated: !!lines && lines.length > MAX_PATCH_LINES,
+        url: f.blob_url,
+      }
+    }),
+  }
 }

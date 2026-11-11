@@ -33,7 +33,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
     :class="cn(
       'group flex cursor-pointer items-start gap-3 rounded-lg px-3 transition-colors hover:bg-accent',
       compact ? 'py-1.5' : 'py-2.5',
-      deck.selectedId === pr.id && 'bg-accent',
+      deck.selectedId === pr.id && 'bg-accent ring-2 ring-primary ring-inset',
     )"
     @click="deck.selectedId = pr.id"
   >

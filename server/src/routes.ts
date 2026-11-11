@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import type { AiProvider, GithubAccount, Settings } from '../../shared/types.ts'
 import {
+  listPrs,
   addManualDep,
   DB_PATH,
   getSettings,
@@ -20,11 +21,11 @@ import {
 import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
-import { ghCliToken, listRepos, whoAmI } from './github.ts'
+import { ghCliToken, listRepos, prDetail, whoAmI } from './github.ts'
 import { createIssue, getIssueDetail, getTransitions, jiraMyself, requiredFields, transition } from './jira.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
-import { runSync } from './sync.ts'
+import { accountForOwner, runSync } from './sync.ts'
 
 export const api = new Hono()
 
@@ -194,6 +195,17 @@ api.post('/deps', async (c) => {
 })
 
 api.delete('/deps/:id', (c) => c.json({ removed: removeManualDep(Number(c.req.param('id'))) }))
+
+// ---------- PR detail (panel: description, files) ----------
+api.get('/prs/detail', async (c) => {
+  const id = c.req.query('id') ?? ''
+  const stored = listPrs().find((s) => s.pr.id === id)
+  if (!stored) throw bad('Unknown PR')
+  const accounts = getSettings().github.accounts.filter((a) => a.token)
+  const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
+  if (!acc) throw bad('No GitHub account for this PR')
+  return c.json(await prDetail(acc, stored.pr.repo, stored.pr.number))
+})
 
 // ---------- Per-PR notes / pins ----------
 api.put('/prs/meta', async (c) => {

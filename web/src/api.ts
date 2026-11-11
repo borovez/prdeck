@@ -1,4 +1,4 @@
-import type { AiConfig, JiraDraft, JiraIssueDetail, JiraRequiredField, Overview, Settings, SlackContext, SlackStatus } from '@shared/types'
+import type { AiConfig, JiraDraft, JiraIssueDetail, PrDetail, JiraRequiredField, Overview, Settings, SlackContext, SlackStatus } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -32,6 +32,7 @@ export const api = {
   addDep: (from: string, to: string, kind: 'merge' | 'release', note?: string) =>
     call<{ id: number }>('POST', '/deps', { from, to, kind, note }),
   removeDep: (id: number) => call('DELETE', `/deps/${id}`),
+  prDetail: (id: string) => call<PrDetail>('GET', `/prs/detail?id=${encodeURIComponent(id)}`),
   setMeta: (id: string, note: string | null, pinned: boolean) => call('PUT', '/prs/meta', { id, note, pinned }),
   jiraRequiredFields: (project: string, type: string) =>
     call<JiraRequiredField[]>('GET', `/jira/required-fields?project=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}`),
