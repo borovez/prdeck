@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useArrowNav } from '@/composables/prNav'
 import { useDependencies } from '@/composables/dependencies'
+import { useReleaseNav } from '@/composables/releaseNav'
 import { followBeside, openBeside } from '@/composables/besideWindow'
 import { loadPrDetail } from '@/composables/prDetail'
 import { releaseStatus } from '@shared/release'
@@ -27,7 +28,6 @@ import type { DepEdge, PrDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
-import { useRouter } from 'vue-router'
 import { ACTION_TONE, CHECK_STYLE, jiraCardTone, timeAgo } from '@/utils/format'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -60,8 +60,6 @@ import { FLOW_LABEL } from '@/utils/releaseFlow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
-const router = useRouter()
-const releasesView = useLayout().view('releases', { tab: 'releases' as string })
 /** The action's badge tone, where alerts have a matching one */
 const alertTone = computed(() => {
   const t = pr.value ? ACTION_TONE[pr.value.action.kind] : 'default'
@@ -104,23 +102,10 @@ const train = computed(() => {
 })
 /** The release to show on the Releases page: this one (release / hotfix) or the release that ships it */
 const releaseTarget = computed(() => (pr.value?.flow ? pr.value.id : pr.value?.shipsIn[0]?.id) ?? null)
-const graphView = useLayout().view('releaseGraph', { repo: '' as string })
-function goReleases() {
-  releasesView.tab = pr.value?.flow === 'hotfix' ? 'hotfixes' : 'releases'
-  router.push({ path: '/releases', query: { focus: releaseTarget.value! } })
-}
-function goGraph() {
-  releasesView.tab = 'graph'
-  graphView.repo = pr.value!.repo.toLowerCase()
-  const id = pr.value!.id
-  // The panel would cover the box the graph zooms to
-  deck.selectedId = null
-  router.push({ path: '/releases', query: { focus: id } })
-}
-function openTrains() {
-  releasesView.tab = 'trains'
-  router.push('/releases')
-}
+const nav = useReleaseNav()
+const goReleases = () => nav.openReleases(releaseTarget.value!, pr.value?.flow === 'hotfix' ? 'hotfixes' : 'releases')
+const goGraph = () => nav.openGraph(pr.value!.id, pr.value!.repo)
+const openTrains = () => nav.openTrains()
 /** Banner: the next step, why, and where the release stands (merged PRs) */
 const banner = computed(() => {
   const p = pr.value

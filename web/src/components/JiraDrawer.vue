@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PhArrowSquareOut, PhChatCircle } from '@phosphor-icons/vue'
+import { PhArrowSquareOut, PhChatCircle, PhGraph, PhRocketLaunch } from '@phosphor-icons/vue'
 import type { JiraIssueDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useArrowNav } from '@/composables/prNav'
+import { useReleaseNav } from '@/composables/releaseNav'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { jiraTone, timeAgo, fullDate } from '@/utils/format'
 import AdfView from './AdfView.vue'
 import JiraLinks from './JiraLinks.vue'
@@ -21,6 +23,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 /** Side panel for a Jira issue: details, linked PRs and issues, description and latest comments. */
 const deck = useDeck()
 const key = computed(() => deck.selectedJiraKey)
+const nav = useReleaseNav()
+const releaseId = computed(() => (key.value ? nav.releaseForIssue(key.value) : null))
 const issue = computed(() => (key.value ? (deck.jiraByKey.get(key.value) ?? null) : null))
 const prs = computed(() => (key.value ? deck.prs.filter((p) => p.jiraKeys.includes(key.value!)) : []))
 const url = computed(() => issue.value?.url ?? (deck.overview?.jiraBaseUrl && key.value ? `${deck.overview.jiraBaseUrl}/browse/${key.value}` : undefined))
@@ -151,6 +155,22 @@ const details = computed(() => {
       </div>
     </ScrollArea>
     <!-- Pinned actions, like the Slack panel -->
+    <!-- To the release that ships this issue -->
+    <template v-if="key && releaseId" #actions>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button variant="ghost" size="icon-sm" aria-label="Open on the Releases page" @click="nav.openReleases(releaseId!)"><PhRocketLaunch /></Button>
+        </TooltipTrigger>
+        <TooltipContent>Open the release that ships this issue</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button variant="ghost" size="icon-sm" aria-label="Show in the release graph" @click="nav.openGraph(releaseId!, releaseId!.split('#')[0])"><PhGraph /></Button>
+        </TooltipTrigger>
+        <TooltipContent>Show in the release graph</TooltipContent>
+      </Tooltip>
+    </template>
+
     <template v-if="key && (issue || url)" #footer>
       <Button v-if="url" variant="outline" size="sm" as="a" :href="url" target="_blank" rel="noopener"><PhArrowSquareOut /> Open in Jira</Button>
       <span class="flex-1" />
