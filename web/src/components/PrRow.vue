@@ -85,6 +85,8 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
       </Tooltip>
       <PhGitMerge v-else-if="pr.state === 'MERGED'" :size="18" class="text-merged" />
       <PhRocketLaunch v-if="pr.release?.released" :size="16" class="text-success" />
+      <!-- Extra badges from the parent (e.g. "release · 13" in release contents) -->
+      <slot name="badges" />
       <Badge :variant="ACTION_TONE[pr.action.kind]">{{ pr.action.label }}</Badge>
     </div>
   </div>
