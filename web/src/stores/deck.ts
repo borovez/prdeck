@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Overview, PrView, SlackItem } from '@shared/types'
 import { toast } from 'vue-sonner'
 import { api } from '@/api'
+import { clearTransitions } from '@/composables/jiraTransitions'
 
 export const useDeck = defineStore('deck', () => {
   const overview = ref<Overview | null>(null)
@@ -36,6 +37,7 @@ export const useDeck = defineStore('deck', () => {
     syncing.value = true
     try {
       overview.value = await api.sync()
+      clearTransitions() // workflows may have changed; refetch on next open
       error.value = null
     } catch (e) {
       error.value = (e as Error).message
