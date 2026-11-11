@@ -18,16 +18,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import JiraPill from './JiraPill.vue'
+import PrHover from './PrHover.vue'
 import RepoName from './RepoName.vue'
 import ThreadCount from './ThreadCount.vue'
 
-const props = defineProps<{ pr: PrView; compact?: boolean }>()
+/** preview: hover preview (off for rows inside side panels) */
+const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean }>(), { preview: true })
 const deck = useDeck()
 const check = computed(() => CHECK_STYLE[props.pr.checks.state])
 const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).length)
 </script>
 
 <template>
+  <PrHover :pr="pr" side="bottom" :disabled="!preview">
   <div
     :data-pr-id="pr.id"
     :class="cn(
@@ -84,4 +87,5 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
       <Badge :variant="ACTION_TONE[pr.action.kind]">{{ pr.action.label }}</Badge>
     </div>
   </div>
+  </PrHover>
 </template>

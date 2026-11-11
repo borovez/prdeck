@@ -110,7 +110,7 @@ const details = computed(() => {
 
         <section>
           <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Pull requests</h3>
-          <div v-if="prs.length" class="-mx-3"><PrRow v-for="p in prs" :key="p.id" :pr="p" compact /></div>
+          <div v-if="prs.length" class="-mx-3"><PrRow v-for="p in prs" :key="p.id" :pr="p" compact :preview="false" /></div>
           <p v-else class="text-sm text-muted-foreground">No linked pull requests</p>
         </section>
 

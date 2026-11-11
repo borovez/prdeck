@@ -31,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const props = defineProps<{ panel: PanelConfig; count: number; sortOptions?: { value: string; label: string }[] }>()
@@ -83,15 +82,20 @@ const LIMITS = [5, 8, 12, 20, 50, 999]
       <slot name="toolbar" />
 
       <template v-if="sortOptions?.length && !panel.collapsed">
-        <NativeSelect
-          size="sm"
-          class="h-7 text-xs"
-          :model-value="panel.sort"
-          title="Sort"
-          @update:model-value="set({ sort: String($event) as PanelConfig['sort'] })"
-        >
-          <NativeSelectOption v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</NativeSelectOption>
-        </NativeSelect>
+        <!-- Flat sort picker: a small ghost button with a menu -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="ghost" size="xs" class="gap-0.5 text-muted-foreground" title="Sort">
+              {{ sortOptions.find((o) => o.value === panel.sort)?.label ?? 'Sort' }} <PhCaretDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-40">
+            <DropdownMenuLabel class="text-xs text-muted-foreground">Sort by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup :model-value="panel.sort" @update:model-value="set({ sort: String($event) as PanelConfig['sort'] })">
+              <DropdownMenuRadioItem v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <SortDirButton size="icon-xs" :model-value="panel.dir" @update:model-value="set({ dir: $event })" />
       </template>
 
