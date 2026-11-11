@@ -54,7 +54,7 @@ watch(
       </div>
       <h2 class="mt-1.5 font-semibold">{{ item.userName }}</h2>
       <a v-if="item.permalink" :href="item.permalink" target="_blank" rel="noopener" class="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-        Open in Slack <PhArrowSquareOut :size="14" />
+        Open in Slack <PhArrowSquareOut :size="14" class="shrink-0" />
       </a>
     </template>
 

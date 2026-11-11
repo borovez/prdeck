@@ -94,10 +94,15 @@ useResizeObserver(
 
 <template>
   <Tabs v-model="v.tab" class="gap-1.5">
-    <div class="flex items-center justify-between gap-2">
-      <slot name="label"><Label>{{ label }}</Label></slot>
-      <span class="flex-1" />
-      <div v-if="v.tab === 'write'" class="flex items-center" role="toolbar" aria-label="Formatting">
+    <!-- Label and tabs keep their size; the formatting buttons scroll sideways when space runs out -->
+    <div class="flex items-center gap-2">
+      <div class="shrink-0 whitespace-nowrap"><slot name="label"><Label>{{ label }}</Label></slot></div>
+      <div
+        v-if="v.tab === 'write'"
+        class="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] *:shrink-0 [&::-webkit-scrollbar]:hidden [&>*:first-child]:ml-auto"
+        role="toolbar"
+        aria-label="Formatting"
+      >
         <Tooltip v-for="a in ACTIONS" :key="a.label">
           <TooltipTrigger as-child>
             <!-- mousedown.prevent keeps the textarea's selection -->
@@ -108,7 +113,8 @@ useResizeObserver(
           <TooltipContent>{{ a.label }} <span class="opacity-70">{{ a.keys }}</span></TooltipContent>
         </Tooltip>
       </div>
-      <TabsList class="h-8">
+      <span v-else class="flex-1" />
+      <TabsList class="h-8 shrink-0">
         <TabsTrigger value="write" class="px-2.5 text-xs"><PhPencilSimple /> Write</TabsTrigger>
         <TabsTrigger value="preview" class="px-2.5 text-xs"><PhEye /> Preview</TabsTrigger>
       </TabsList>

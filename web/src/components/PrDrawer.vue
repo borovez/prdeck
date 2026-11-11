@@ -78,8 +78,9 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
             <Badge v-for="r in pr.relations" :key="r" variant="muted">{{ r.replace('_', ' ') }}</Badge>
           </div>
           <h2 class="leading-snug font-semibold">{{ pr.title }}</h2>
-          <a :href="pr.url" target="_blank" class="mt-1 inline-flex items-center gap-1 font-mono text-sm text-primary hover:underline">
-            {{ pr.repo }}#{{ pr.number }} <PhArrowSquareOut :size="14" />
+          <!-- Inline (not flex) so a long repo name wraps and the icon keeps its size after the last word -->
+          <a :href="pr.url" target="_blank" rel="noopener" class="mt-1 block font-mono text-sm break-all text-primary hover:underline">
+            {{ pr.repo }}#{{ pr.number }}<PhArrowSquareOut :size="14" class="ml-1 inline-block shrink-0 align-[-2px]" />
           </a>
     </template>
     <template v-if="pr" #actions>
