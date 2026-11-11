@@ -2,12 +2,12 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { MarkerType, Panel, VueFlow, useVueFlow, type Edge, type EdgeMouseEvent, type Node } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
+import { ControlButton, Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import './flowTheme.css'
-import { PhRocketLaunch } from '@phosphor-icons/vue'
+import { PhArrowsCounterClockwise, PhRocketLaunch } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
@@ -387,7 +387,9 @@ const viewSections = computed<ViewSection[]>(() => [
         </template>
 
         <Background :gap="18" :size="1.2" />
-        <Controls position="bottom-left" :show-interactive="false" />
+        <Controls position="bottom-left" :show-interactive="false" :show-fit-view="false">
+          <ControlButton title="Reset view" aria-label="Reset view" @click="frame"><PhArrowsCounterClockwise /></ControlButton>
+        </Controls>
         <Panel position="bottom-right" class="graph-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-xs text-muted-foreground">
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--primary)" stroke-width="2.5" /></svg>release goes first</span>
           <span class="flex items-center gap-1.5"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="var(--merged)" stroke-width="1.75" stroke-dasharray="2 4" /></svg>rolls into</span>

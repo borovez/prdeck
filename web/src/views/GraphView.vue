@@ -3,13 +3,13 @@ import { onEscape } from '@/composables/escape'
 import { computed, nextTick, ref, watch } from 'vue'
 import { MarkerType, Panel, Position, VueFlow, useVueFlow, type Connection, type Edge, type EdgeMouseEvent, type Node, type NodeMouseEvent } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
+import { ControlButton, Controls } from '@vue-flow/controls'
 import dagre from '@dagrejs/dagre'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import '@/components/flowTheme.css'
-import { PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from '@phosphor-icons/vue'
+import { PhArrowsCounterClockwise, PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from '@phosphor-icons/vue'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
@@ -156,11 +156,13 @@ const { fitView } = useVueFlow('dep-graph')
 // Re-fit when the set of nodes changes (filters, new links), not on every poll
 watch(
   () => nodeIds.value.join('|'),
-  async () => {
-    await nextTick()
-    setTimeout(() => fitView({ padding: 0.15, maxZoom: 1.25, duration: 200 }), 50)
-  },
+  () => resetView(),
 )
+/** The position and zoom the graph opens with (also the Reset view button) */
+async function resetView() {
+  await nextTick()
+  setTimeout(() => fitView({ padding: 0.15, maxZoom: 1.25, duration: 200 }), 50)
+}
 
 function onNodeClick({ node }: NodeMouseEvent) {
   if (deck.byId.has(node.id)) deck.selectedId = node.id
@@ -265,7 +267,9 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
         </template>
 
         <Background :gap="18" :size="1.2" />
-        <Controls position="bottom-left" :show-interactive="false" />
+        <Controls position="bottom-left" :show-interactive="false" :show-fit-view="false">
+          <ControlButton title="Reset view" aria-label="Reset view" @click="resetView"><PhArrowsCounterClockwise /></ControlButton>
+        </Controls>
 
         <Panel v-if="legendOrgs.length" position="top-left" class="graph-panel flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 text-xs">
           <span v-for="o in legendOrgs" :key="o" class="flex items-center gap-1.5">
