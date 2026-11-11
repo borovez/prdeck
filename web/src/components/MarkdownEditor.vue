@@ -15,6 +15,23 @@ const model = defineModel<string>({ required: true })
 const v = useLayout().view('markdown-editor', { tab: 'write' as 'write' | 'preview' })
 const doc = computed(() => markdownToAdf(model.value))
 
+/** Pasting a URL over selected text makes it a link: [selection](url) */
+const URL_ONLY = /^(https?:\/\/|mailto:)\S+$/i
+function onPaste(e: ClipboardEvent) {
+  const el = e.target as HTMLTextAreaElement
+  const url = e.clipboardData?.getData('text/plain').trim() ?? ''
+  const selected = el.value.slice(el.selectionStart, el.selectionEnd)
+  if (!selected.trim() || !URL_ONLY.test(url) || URL_ONLY.test(selected.trim()) || selected.includes('\n')) return
+  e.preventDefault()
+  const link = `[${selected}](${url})`
+  // insertText keeps the browser's undo history (Cmd+Z undoes the whole paste) and fires input for v-model
+  if (!document.execCommand('insertText', false, link)) {
+    const start = el.selectionStart
+    model.value = el.value.slice(0, start) + link + el.value.slice(el.selectionEnd)
+    requestAnimationFrame(() => el.setSelectionRange(start + link.length, start + link.length))
+  }
+}
+
 // Write and Preview share one height (including after you drag-resize the textarea), so switching doesn't jump
 const height = ref(288)
 const textarea = ref<{ $el: HTMLElement } | null>(null)
@@ -37,7 +54,7 @@ useResizeObserver(
       </TabsList>
     </div>
     <TabsContent value="write">
-      <Textarea ref="textarea" v-model="model" class="field-sizing-fixed resize-y font-mono text-xs" :style="{ height: `${height}px` }" />
+      <Textarea ref="textarea" v-model="model" @paste="onPaste" class="field-sizing-fixed resize-y font-mono text-xs" :style="{ height: `${height}px` }" />
     </TabsContent>
     <TabsContent value="preview">
       <div class="overflow-y-auto rounded-md border bg-background px-4 py-3" :style="{ height: `${height}px` }">
