@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
 import { z } from 'zod'
 import type { AiConfig, JiraDraft, SlackItem } from '../../shared/types.ts'
+import { claudeBin, claudeCodeJson } from './claudeCode.ts'
 
 const DraftSchema = z.object({
   summary: z.string().describe('Imperative Jira summary, max ~90 chars, no ticket prefix'),
@@ -27,8 +28,21 @@ export function aiClient(cfg: AiConfig) {
 /** Credentials the server process has of its own (used when no key is stored) */
 export const envCredentials = () => !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN)
 
-/** Checks the credentials and model without spending tokens (model lookup). */
+/** Whether drafting can work with this config (for the UI) */
+export const aiAvailable = (cfg: AiConfig) => (cfg.provider === 'claude-code' ? !!claudeBin() : !!cfg.apiKey || envCredentials())
+
+/** API: checks key and model with a model lookup (no tokens). Claude Code: a tiny structured call. */
 export async function testAi(cfg: AiConfig) {
+  if (cfg.provider === 'claude-code') {
+    const r = await claudeCodeJson<{ ok: boolean }>({
+      system: 'Reply with the requested JSON only.',
+      prompt: 'Return ok: true.',
+      schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] },
+      model: cfg.model,
+      timeoutMs: 60_000,
+    })
+    return { model: r.model, source: 'claude-code' }
+  }
   try {
     const m = await aiClient(cfg).models.retrieve(cfg.model)
     return { model: m.display_name, source: cfg.apiKey ? 'key' : 'environment' }
@@ -46,7 +60,6 @@ export async function draftJiraFromSlack(
   extraContext: string,
   projectKey: string,
 ): Promise<JiraDraft> {
-  const client = aiClient(cfg)
   const prompt = [
     `Jira project: ${projectKey || '(unspecified)'}`,
     `Slack source: ${item.channelName}${item.permalink ? ` - ${item.permalink}` : ''}`,
@@ -57,6 +70,20 @@ export async function draftJiraFromSlack(
     .filter(Boolean)
     .join('\n\n')
 
+  const source = item.permalink ? `\n\n---\nSource: [Slack message from ${item.userName}](${item.permalink})` : ''
+
+  if (cfg.provider === 'claude-code') {
+    const { data } = await claudeCodeJson<z.infer<typeof DraftSchema>>({
+      system: SYSTEM,
+      prompt,
+      schema: z.toJSONSchema(DraftSchema),
+      model: cfg.model || 'claude-opus-5-5',
+    })
+    const d = DraftSchema.parse(data)
+    return { ...d, description: d.description + source }
+  }
+
+  const client = aiClient(cfg)
   const response = await client.beta.messages.parse({
     model: cfg.model || 'claude-opus-5-5',
     max_tokens: 16000,
@@ -69,6 +96,5 @@ export async function draftJiraFromSlack(
   if (response.stop_reason === 'refusal') throw new Error('Claude declined to draft this issue')
   if (!response.parsed_output) throw new Error(`Claude returned no draft (stop_reason: ${response.stop_reason})`)
   const d = response.parsed_output
-  const source = item.permalink ? `\n\n---\nSource: [Slack message from ${item.userName}](${item.permalink})` : ''
   return { ...d, description: d.description + source }
 }

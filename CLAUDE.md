@@ -21,7 +21,7 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
   - `github.ts`: GraphQL search plus aliased batch fetch, release detection (latest release/tag or a per-repo branch, via the compare API). Retries 5xx.
   - `jira.ts`: REST v3 (`/search/jql`), transitions, create (Markdown → ADF).
   - `slack.ts`: user token (xoxp). Sources: mentions (search.messages), unanswered DMs/group DMs, saved items (stars.list), todo reactions (reactions.list).
-  - `ai.ts`: Claude drafts a Jira issue from a Slack thread (`@anthropic-ai/sdk`, `beta.messages.parse` + zod, `claude-opus-5-5`, server-side fallbacks).
+  - `ai.ts`: Claude drafts a Jira issue from a Slack thread. Provider `claude-code` (default) runs the local `claude -p` CLI with its own login via `claudeCode.ts` (safe mode, no tools, `--json-schema`; strip zod's `$schema`); provider `api` uses `@anthropic-ai/sdk` `beta.messages.parse` + zod with server-side fallbacks. Model default `claude-opus-5-5`.
   - `sync.ts`: single-flight sync. GitHub searches per account, then dependency targets (2 levels), prune, release checks, Jira, Slack.
   - `model.ts`: `buildOverview()` derives everything: dependency edges (manual > PR body `Depends on:` / `Requires release of` > Jira "is blocked by"), satisfied/blocked, action and bucket per PR, dependency chains (topologically sorted connected components).
   - `routes.ts` (Hono, `/api/*`), `index.ts` (server + background sync loop; honours `settings.sync.auto` / `intervalMinutes`, toggled from the header via `PUT /api/sync/auto`), `mcp.ts` (11 tools).

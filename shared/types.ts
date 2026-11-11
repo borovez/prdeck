@@ -291,7 +291,11 @@ export interface SlackConfig {
   todoReactions: string[]
 }
 
+/** api = Anthropic API key; claude-code = the local `claude` CLI and its login (e.g. a company Claude seat) */
+export type AiProvider = 'api' | 'claude-code'
+
 export interface AiConfig {
+  provider: AiProvider
   /** Anthropic API key. Blank = use ANTHROPIC_API_KEY / `ant auth login` profile. */
   apiKey: string
   hasKey?: boolean
@@ -321,7 +325,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trackedRepos: [],
   jira: null,
   slack: null,
-  ai: { apiKey: '', model: 'claude-opus-5-5' },
+  ai: { provider: 'claude-code', apiKey: '', model: 'claude-opus-5-5' },
   sync: { auto: true, intervalMinutes: 5, mergedLookbackDays: 14 },
   releaseRefs: {},
   defaultReleaseRef: 'latest-release',

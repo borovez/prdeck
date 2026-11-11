@@ -1,3 +1,4 @@
+import { aiAvailable } from './ai.ts'
 import type {
   ActionKind,
   Bucket,
@@ -202,7 +203,7 @@ export function buildOverview(): Overview {
       github: settings.github.accounts.some((a) => a.token),
       jira: !!settings.jira?.apiToken,
       slack: !!settings.slack?.token,
-      ai: !!(settings.ai.apiKey || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+      ai: aiAvailable(settings.ai),
     },
     jiraBaseUrl: settings.jira?.baseUrl ?? null,
     autoSync: { enabled: settings.sync.auto, intervalMinutes: settings.sync.intervalMinutes },

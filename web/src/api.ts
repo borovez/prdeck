@@ -1,4 +1,4 @@
-import type { JiraDraft, Overview, Settings, SlackStatus } from '@shared/types'
+import type { AiConfig, JiraDraft, Overview, Settings, SlackStatus } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -25,8 +25,9 @@ export const api = {
     call<{ nameWithOwner: string; pushedAt: string }[]>('GET', `/setup/github/${accountId}/repos?owner=${encodeURIComponent(owner)}`),
   testJira: (baseUrl: string, email: string, apiToken: string) =>
     call<{ displayName: string; accountId: string }>('POST', '/setup/jira/test', { baseUrl, email, apiToken }),
-  aiInfo: () => call<{ env: boolean }>('GET', '/setup/ai'),
-  testAi: (apiKey: string, model: string) => call<{ model: string; source: 'key' | 'environment' }>('POST', '/setup/ai/test', { apiKey, model }),
+  aiInfo: () => call<{ env: boolean; claudeCode: string | null }>('GET', '/setup/ai'),
+  testAi: (ai: Pick<AiConfig, 'provider' | 'apiKey' | 'model'>) =>
+    call<{ model: string; source: 'key' | 'environment' | 'claude-code' }>('POST', '/setup/ai/test', ai),
   mcpInfo: () => call<{ node: string; entry: string; dbPath: string; tsxCandidates: string[] }>('GET', '/setup/mcp'),
   addDep: (from: string, to: string, kind: 'merge' | 'release', note?: string) =>
     call<{ id: number }>('POST', '/deps', { from, to, kind, note }),

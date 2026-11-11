@@ -77,7 +77,8 @@ export function getSettings(): Settings {
     github: { accounts: s.github?.accounts ?? [] },
     sync: { ...DEFAULT_SETTINGS.sync, ...s.sync },
     releaseRefs: s.releaseRefs ?? {},
-    ai: { ...DEFAULT_SETTINGS.ai, ...s.ai },
+    // Older settings have no provider: a stored key means the API was in use
+    ai: { ...DEFAULT_SETTINGS.ai, ...s.ai, provider: s.ai?.provider ?? (s.ai?.apiKey ? 'api' : 'claude-code') },
     jira: s.jira
       ? {
           ...s.jira,

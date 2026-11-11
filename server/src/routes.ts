@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
-import type { GithubAccount, Settings } from '../../shared/types.ts'
+import type { AiProvider, GithubAccount, Settings } from '../../shared/types.ts'
 import {
   addManualDep,
   DB_PATH,
@@ -18,6 +18,7 @@ import {
   setSlackStatus,
 } from './db.ts'
 import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
+import { claudeBin } from './claudeCode.ts'
 import { replyInThread, slackAuthTest, threadContext } from './slack.ts'
 import { ghCliToken, listRepos, whoAmI } from './github.ts'
 import { createIssue, getTransitions, jiraMyself, transition } from './jira.ts'
@@ -155,11 +156,11 @@ api.post('/setup/jira/test', async (c) => {
 })
 
 /** Command for wiring the MCP server into Claude Code. */
-api.get('/setup/ai', (c) => c.json({ env: envCredentials() }))
+api.get('/setup/ai', (c) => c.json({ env: envCredentials(), claudeCode: claudeBin() }))
 api.post('/setup/ai/test', async (c) => {
-  const { apiKey, model } = await c.req.json<{ apiKey?: string; model?: string }>()
+  const { apiKey, model, provider } = await c.req.json<{ apiKey?: string; model?: string; provider?: AiProvider }>()
   const stored = getSettings().ai
-  return c.json(await testAi({ apiKey: apiKey || stored.apiKey, model: model || stored.model }))
+  return c.json(await testAi({ provider: provider ?? stored.provider, apiKey: apiKey || stored.apiKey, model: model || stored.model }))
 })
 
 api.get('/setup/mcp', (c) => {
