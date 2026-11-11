@@ -1,23 +1,30 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhSlackLogo } from '@phosphor-icons/vue'
-import type { SlackKind, SlackStatus } from '@shared/types'
+import { PhFunnel, PhMagnifyingGlass, PhSlackLogo } from '@phosphor-icons/vue'
+import type { SlackItem, SlackKind, SlackStatus } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout, type SortDir } from '@/stores/layout'
 import SlackList from '@/components/SlackList.vue'
-import SortDirButton from '@/components/SortDirButton.vue'
+import FilterChips from '@/components/FilterChips.vue'
+import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const deck = useDeck()
-const v = useLayout().view('slack', { status: 'new' as SlackStatus, kind: '' as SlackKind | '', dir: 'desc' as SortDir })
+/** View options in the View menu, and their defaults (Reset view) */
+const VIEW_DEFAULTS = { kind: '' as SlackKind | '', dir: 'desc' as SortDir }
+const v = useLayout().view('slack', { status: 'new' as SlackStatus, query: '', ...VIEW_DEFAULTS })
 const all = computed(() => deck.overview?.slack ?? [])
+const matchesQuery = (i: SlackItem) => {
+  const q = v.query.toLowerCase().trim()
+  return !q || `${i.text} ${i.userName} ${i.channelName} ${i.jiraKey ?? ''}`.toLowerCase().includes(q)
+}
 const items = computed(() => {
-  const list = all.value.filter((i) => i.status === v.status && (!v.kind || i.kind === v.kind))
+  const list = all.value.filter((i) => i.status === v.status && (!v.kind || i.kind === v.kind) && matchesQuery(i))
   return v.dir === 'desc' ? list : [...list].reverse()
 })
 const STATUS_TABS: { value: SlackStatus; label: string }[] = [
@@ -34,6 +41,14 @@ const KINDS: { value: SlackKind; label: string }[] = [
   { value: 'todo', label: 'Marked todo' },
 ]
 const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.status && i.kind === k).length
+const viewSections = computed<ViewSection[]>(() => [
+  { type: 'filter', key: 'kind', label: 'Source', icon: PhFunnel, allLabel: 'All sources', options: KINDS.map((k) => ({ value: k.value, label: `${k.label} · ${kindCount(k.value)}` })) },
+  { type: 'dir', key: 'dir', desc: 'Newest first', asc: 'Oldest first' },
+])
+/** Active filters that aren't otherwise visible in the toolbar */
+const chips = computed(() =>
+  v.kind ? [{ key: 'kind', label: KINDS.find((k) => k.value === v.kind)?.label ?? v.kind, clear: () => (v.kind = '') }] : [],
+)
 </script>
 
 <template>
@@ -52,12 +67,13 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
           <TabsTrigger v-for="t in STATUS_TABS" :key="t.value" :value="t.value" :count="count(t.value)">{{ t.label }}</TabsTrigger>
         </TabsList>
       </Tabs>
-      <NativeSelect v-model="v.kind" size="sm">
-        <NativeSelectOption value="">All sources</NativeSelectOption>
-        <NativeSelectOption v-for="k in KINDS" :key="k.value" :value="k.value">{{ k.label }} ({{ kindCount(k.value) }})</NativeSelectOption>
-      </NativeSelect>
+      <div class="relative w-64 min-w-40 flex-1 sm:flex-none">
+        <PhMagnifyingGlass class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" :size="14" />
+        <Input v-model="v.query" type="search" placeholder="Search messages, people, channels…" class="h-8 pl-8" />
+      </div>
+      <FilterChips :chips="chips" />
       <span class="flex-1" />
-      <SortDirButton v-model="v.dir" desc-label="Newest first" asc-label="Oldest first" />
+      <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
     <ScrollArea type="auto" class="min-h-0 flex-1">
       <!-- p-px keeps the card's ring inside the clipping viewport; pr-3 clears the scrollbar -->

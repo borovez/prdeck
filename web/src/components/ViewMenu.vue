@@ -26,13 +26,13 @@ export interface ViewOption {
  * One block of the menu, bound to `state[key]`:
  * - filter: a submenu of options with an "all" entry ('' value), for long lists (repos, projects)
  * - radio: a labelled radio group (group by, sort by)
- * - dir: Descending / Ascending
+ * - dir: Descending / Ascending (or your own labels, e.g. Newest first / Oldest first)
  * - check: a checkbox (show done)
  */
 export type ViewSection =
   | { type: 'filter'; key: string; label: string; icon?: Component; allLabel: string; options: ViewOption[]; mono?: boolean }
   | { type: 'radio'; key: string; label: string; options: ViewOption[] }
-  | { type: 'dir'; key: string }
+  | { type: 'dir'; key: string; desc?: string; asc?: string }
   | { type: 'check'; key: string; label: string }
 
 /** The view menu shared by list pages. `defaults` drives Reset view and the "customised" dot. */
@@ -83,8 +83,8 @@ const labelOf = (s: Extract<ViewSection, { type: 'filter' }>) => s.options.find(
         </template>
 
         <DropdownMenuRadioGroup v-else-if="s.type === 'dir'" :model-value="model(s.key).get()" @update:model-value="model(s.key).set">
-          <DropdownMenuRadioItem value="desc"><PhSortDescending /> Descending</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="asc"><PhSortAscending /> Ascending</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="desc"><PhSortDescending /> {{ s.desc ?? 'Descending' }}</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="asc"><PhSortAscending /> {{ s.asc ?? 'Ascending' }}</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
 
         <DropdownMenuCheckboxItem v-else-if="s.type === 'check'" :model-value="!!state[s.key]" @update:model-value="model(s.key).set" @select.prevent>
