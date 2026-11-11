@@ -10,6 +10,7 @@ function text(n: AdfNode): VNode | string {
   let el: VNode | string = n.text ?? ''
   for (const m of n.marks ?? []) {
     if (m.type === 'strong') el = h('strong', { class: 'font-semibold' }, [el])
+    else if (m.type === 'em') el = h('em', [el])
     else if (m.type === 'code') el = h('code', { class: 'rounded bg-muted px-1 font-mono text-[0.9em]' }, [el])
     else if (m.type === 'link' && m.attrs && SAFE_URL.test(m.attrs.href))
       el = h('a', { href: m.attrs.href, target: '_blank', rel: 'noopener', class: 'text-primary underline underline-offset-2 break-all' }, [el])
@@ -36,6 +37,8 @@ function node(n: AdfNode): VNode | string {
     case 'listItem':
       // list items wrap a paragraph; drop its margins inside the list
       return h('li', (n.content ?? []).map((c) => (c.type === 'paragraph' ? h('span', (c.content ?? []).map(node)) : node(c))))
+    case 'blockquote':
+      return h('blockquote', { class: 'my-2 border-l-2 border-border pl-3 text-muted-foreground [&>p]:my-1' }, kids())
     case 'codeBlock':
       return h('pre', { class: 'my-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs' }, (n.content ?? []).map((c) => c.text ?? '').join(''))
     default:

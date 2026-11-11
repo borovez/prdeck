@@ -1,9 +1,9 @@
 // Markdown -> Atlassian Document Format (Jira descriptions). Shared so the create dialog previews
-// exactly what the server sends: headings, paragraphs, bullet/numbered lists, code blocks, and inline
-// **bold**, `code`, [links](url) and bare URLs.
+// exactly what the server sends: headings, paragraphs, bullet/numbered lists, > quotes, code blocks,
+// and inline **bold**, *italic* / _italic_, `code`, [links](url) and bare URLs.
 
 export interface AdfMark {
-  type: 'strong' | 'code' | 'link'
+  type: 'strong' | 'em' | 'code' | 'link'
   attrs?: { href: string }
 }
 export interface AdfNode {
@@ -23,13 +23,15 @@ export function markdownToAdf(md: string): AdfDoc {
   const inline = (text: string): AdfNode[] => {
     const out: AdfNode[] = []
     // Bare URLs stop before trailing punctuation and closing brackets: "(see https://x.io/a)," links https://x.io/a
-    const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>()]*[^\s<>().,;:!?'"])/g
+    // Italic needs a non-word character around it, so snake_case_names and 2*3*4 stay as they are
+    const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s<>()]*[^\s<>().,;:!?'"]|(?<![\w*])\*(?![\s*])[^*\n]*[^\s*]\*(?![\w*])|(?<!\w)_(?!\s)[^_\n]*[^\s_]_(?!\w))/g
     let last = 0
     for (const m of text.matchAll(re)) {
       if (m.index! > last) out.push({ type: 'text', text: text.slice(last, m.index) })
       const t = m[0]
       if (t.startsWith('**')) out.push({ type: 'text', text: t.slice(2, -2), marks: [{ type: 'strong' }] })
       else if (t.startsWith('`')) out.push({ type: 'text', text: t.slice(1, -1), marks: [{ type: 'code' }] })
+      else if (t.startsWith('*') || t.startsWith('_')) out.push({ type: 'text', text: t.slice(1, -1), marks: [{ type: 'em' }] })
       else if (t.startsWith('[')) {
         const [, label, href] = /\[([^\]]+)\]\(([^)]+)\)/.exec(t)!
         out.push({ type: 'text', text: label, marks: [{ type: 'link', attrs: { href } }] })
@@ -50,6 +52,22 @@ export function markdownToAdf(md: string): AdfDoc {
       content.push({ type: 'codeBlock', content: code.length ? [{ type: 'text', text: code.join('\n') }] : [] })
       continue
     }
+    if (/^\s*>/.test(line)) {
+      // A run of "> " lines is one quote; "> " on its own starts a new paragraph inside it
+      const paras: string[][] = [[]]
+      while (i < lines.length && /^\s*>/.test(lines[i])) {
+        const q = lines[i].replace(/^\s*>\s?/, '')
+        if (q.trim()) paras[paras.length - 1].push(q)
+        else if (paras[paras.length - 1].length) paras.push([])
+        i++
+      }
+      i--
+      content.push({
+        type: 'blockquote',
+        content: paras.filter((p) => p.length).map((p) => ({ type: 'paragraph', content: inline(p.join(' ')) })),
+      })
+      continue
+    }
     const h = /^(#{1,6})\s+(.*)$/.exec(line)
     if (h) {
       content.push({ type: 'heading', attrs: { level: h[1].length }, content: inline(h[2]) })
@@ -68,7 +86,7 @@ export function markdownToAdf(md: string): AdfDoc {
       continue
     }
     const para = [line]
-    while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|```|\s*([-*]|\d+\.)\s)/.test(lines[i + 1])) para.push(lines[++i])
+    while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|```|\s*>|\s*([-*]|\d+\.)\s)/.test(lines[i + 1])) para.push(lines[++i])
     content.push({ type: 'paragraph', content: inline(para.join(' ')) })
   }
   return { type: 'doc', version: 1, content }
