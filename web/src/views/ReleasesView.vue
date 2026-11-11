@@ -73,7 +73,8 @@ async function refresh(id: string) {
 </script>
 
 <template>
-  <div class="h-page flex flex-col gap-4" :class="{ 'max-w-6xl': v.tab !== 'graph' }">
+  <!-- Width cap on the children, not the page, so the scrollbar sits at the far right -->
+  <div class="h-page flex flex-col gap-4" :class="{ '*:max-w-6xl': v.tab !== 'graph' }">
     <div class="flex flex-wrap items-center gap-2">
       <div v-if="v.tab !== 'graph'" class="relative w-64 min-w-40 flex-1 sm:flex-none">
         <PhMagnifyingGlass class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" :size="14" />
@@ -91,8 +92,8 @@ async function refresh(id: string) {
     </div>
 
     <ReleaseGraph v-if="v.tab === 'graph'" />
-    <ScrollArea v-else type="auto" class="min-h-0 flex-1">
-      <div class="space-y-4 p-px pr-3">
+    <ScrollArea v-else type="auto" class="min-h-0 flex-1 max-w-none!">
+      <div class="max-w-6xl space-y-4 p-px">
         <template v-if="v.tab === 'releases'">
           <h3 v-if="openReleases.length" class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Open releases</h3>
           <GroupCard

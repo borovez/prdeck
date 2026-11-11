@@ -171,7 +171,8 @@ const DOT: Record<string, string> = { new: 'bg-muted-foreground', indeterminate:
 </script>
 
 <template>
-  <div class="h-page flex max-w-6xl flex-col gap-4">
+  <!-- Width cap on the children, not the page, so the scrollbar sits at the far right -->
+  <div class="h-page flex flex-col gap-4 *:max-w-6xl">
     <Alert v-if="deck.overview && !deck.overview.configured.jira">
       <PhKanban />
       <AlertTitle>Jira isn't connected yet</AlertTitle>
@@ -197,9 +198,9 @@ const DOT: Record<string, string> = { new: 'bg-muted-foreground', indeterminate:
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
-    <ScrollArea type="auto" class="min-h-0 flex-1">
-      <!-- p-px keeps the cards' rings inside the clipping viewport; pr-3 clears the scrollbar -->
-      <div class="space-y-4 p-px pr-3">
+    <ScrollArea type="auto" class="min-h-0 flex-1 max-w-none!">
+      <!-- p-px keeps the cards' rings inside the clipping viewport -->
+      <div class="max-w-6xl space-y-4 p-px">
         <GroupCard
           v-for="g in groups"
           :key="g.key"
