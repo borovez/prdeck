@@ -7,6 +7,8 @@ Claude Code can query and edit the same data.
 It runs on your machine only. The API binds to `127.0.0.1`, tokens stay in a local SQLite file, and
 nothing is hosted.
 
+![PR Deck overview: stat tiles, the "Needs my action" list, the Slack inbox and dependency chains (demo data)](docs/screenshot.png)
+
 ## Features
 
 - **Overview**: what needs your action (reviews, failing CI, feedback, conflicts, merges, releases),
