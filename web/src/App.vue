@@ -20,6 +20,7 @@ import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
+import GlobalSearch from '@/components/GlobalSearch.vue'
 import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
@@ -134,6 +135,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
             <template v-else-if="deck.overview">Never synced</template>
           </span>
           <span class="flex-1" />
+          <GlobalSearch />
 
           <Tooltip v-if="deck.overview?.sync.errors.length">
             <TooltipTrigger as-child>
