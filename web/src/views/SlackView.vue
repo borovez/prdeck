@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { dateGroup } from '@/utils/format'
 import { computed } from 'vue'
 import { PhSlackLogo } from '@phosphor-icons/vue'
 import type { SlackKind, SlackStatus } from '@shared/types'
@@ -15,6 +16,16 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 const deck = useDeck()
 const v = useLayout().view('slack', { status: 'new' as SlackStatus, kind: '' as SlackKind | '', dir: 'desc' as SortDir })
 const all = computed(() => deck.overview?.slack ?? [])
+/** Consecutive items sharing a date bucket, in list order */
+const groups = computed(() => {
+  const out: { label: string; items: typeof items.value }[] = []
+  for (const i of items.value) {
+    const label = dateGroup(i.postedAt)
+    if (out.at(-1)?.label === label) out.at(-1)!.items.push(i)
+    else out.push({ label, items: [i] })
+  }
+  return out
+})
 const items = computed(() => {
   const list = all.value.filter((i) => i.status === v.status && (!v.kind || i.kind === v.kind))
   return v.dir === 'desc' ? list : [...list].reverse()
@@ -58,8 +69,20 @@ const kindCount = (k: SlackKind) => all.value.filter((i) => i.status === v.statu
       <span class="flex-1" />
       <SortDirButton v-model="v.dir" desc-label="Newest first" asc-label="Oldest first" />
     </div>
-    <Card class="gap-0 p-1.5">
-      <SlackRow v-for="i in items" :key="i.id" :item="i" />
+    <!-- No overflow-hidden on the card: it would make the card the sticky container and offset the headings inside it -->
+    <Card class="gap-0 py-0 [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl">
+      <section v-for="(g, gi) in groups" :key="g.label">
+        <!-- Sticks under the app header (h-14) while its group is on screen -->
+        <h3
+          class="sticky top-14 z-10 border-b bg-muted/90 px-4 py-1.5 text-xs font-semibold text-muted-foreground backdrop-blur"
+          :class="{ 'rounded-t-xl': gi === 0 }"
+        >
+          {{ g.label }} <span class="font-normal">· {{ g.items.length }}</span>
+        </h3>
+        <div class="divide-y">
+          <SlackRow v-for="i in g.items" :key="i.id" :item="i" class="rounded-none px-4 py-3" />
+        </div>
+      </section>
       <div v-if="!items.length" class="py-12 text-center text-muted-foreground">Nothing here.</div>
     </Card>
   </div>

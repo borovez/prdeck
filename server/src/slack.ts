@@ -68,7 +68,8 @@ async function resolveChannelNames(token: string, ids: string[]) {
       const c = (await call(token, 'conversations.info', { channel: id })).channel
       channelNames.set(id, c.is_im ? 'DM' : c.is_mpim ? 'Group DM' : `#${c.name}`)
     } catch {
-      channelNames.set(id, id) // no access: keep the id, don't retry every sync
+      // Usually a private channel without channels:read / groups:read; don't retry every sync
+      channelNames.set(id, id.startsWith('D') ? 'DM' : 'Private channel')
     }
   })
   return channelNames

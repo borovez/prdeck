@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SlackItem } from '@shared/types'
 import { useDeck } from '@/stores/deck'
-import { timeAgo } from '@/utils/format'
+import { fullDate, timeAgo } from '@/utils/format'
 import { KIND } from '@/utils/slack'
 import { cn } from '@/lib/utils'
 import SlackActions from './SlackActions.vue'
@@ -35,7 +35,6 @@ const deck = useDeck()
         <span class="inline-flex items-center gap-1 text-muted-foreground">
           <component :is="KIND[item.kind].icon" :size="12" />{{ item.channelName }}
         </span>
-        <span class="text-muted-foreground">{{ timeAgo(item.postedAt) }}</span>
         <Badge v-if="item.kind === 'saved'" variant="primary" class="h-4 text-[10px]">saved</Badge>
         <Badge v-if="item.kind === 'todo'" variant="primary" class="h-4 text-[10px]">todo</Badge>
         <Badge v-if="item.awaitingReply && item.status === 'new'" variant="warning" class="h-4 text-[10px]">awaiting reply</Badge>
@@ -44,6 +43,13 @@ const deck = useDeck()
       </div>
       <SlackText :text="item.text" :rich="item.rich" class="mt-0.5 line-clamp-2 text-sm" />
     </div>
+    <time
+      :datetime="item.postedAt"
+      :title="fullDate(item.postedAt)"
+      class="w-16 shrink-0 pt-0.5 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+    >
+      {{ timeAgo(item.postedAt) }}
+    </time>
     <SlackActions :item="item" class="opacity-60 transition-opacity group-hover:opacity-100" />
   </div>
 </template>

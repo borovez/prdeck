@@ -57,7 +57,7 @@ Open <http://localhost:5317> and go to **Settings**:
    [API token](https://id.atlassian.com/manage-profile/security/api-tokens).
 3. **Slack** (optional): create a Slack app, add these **User Token Scopes**, install it to your
    workspace and paste the `xoxp-…` user token:
-   `search:read, im:history, mpim:history, im:read, mpim:read, channels:history, groups:history, users:read, stars:read, reactions:read, chat:write`
+   `search:read, im:history, mpim:history, im:read, mpim:read, channels:history, groups:history, users:read, channels:read, groups:read, stars:read, reactions:read, chat:write`
 4. **Claude** (optional, for drafting Jira issues): use your local
    [Claude Code](https://claude.com/claude-code) login (no API key needed), or an Anthropic API key.
 

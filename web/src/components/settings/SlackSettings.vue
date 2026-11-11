@@ -27,7 +27,7 @@ const DEFAULTS: SlackConfig = {
   doneReactions: ['white_check_mark', 'heavy_check_mark', 'done'],
 }
 const SCOPES =
-  'search:read, im:history, mpim:history, im:read, mpim:read, channels:history, groups:history, users:read, stars:read, reactions:read, chat:write'
+  'search:read, im:history, mpim:history, im:read, mpim:read, channels:history, groups:history, users:read, channels:read, groups:read, stars:read, reactions:read, chat:write'
 
 const details = computed(() => {
   const s = slack.value

@@ -71,3 +71,19 @@ export const splitList = (v: string) =>
 
 /** Plain deep copy of reactive data (structuredClone rejects Vue proxies) */
 export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
+
+/** Relative date bucket for grouping lists: Today, Yesterday, This week, Last week, then "October 2026" */
+export function dateGroup(iso: string, now = new Date()): string {
+  const d = new Date(iso)
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.round((day(now) - day(d)) / 86400_000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return 'This week'
+  if (days < 14) return 'Last week'
+  return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
+/** "Tue 4 Nov 2026, 14:05" for tooltips */
+export const fullDate = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
