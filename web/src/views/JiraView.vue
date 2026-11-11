@@ -147,7 +147,7 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <div class="h-page mx-auto flex max-w-6xl flex-col gap-4">
+  <div class="h-page flex flex-col gap-4">
     <Alert v-if="deck.overview && !deck.overview.configured.jira">
       <PhKanban />
       <AlertTitle>Jira isn't connected yet</AlertTitle>

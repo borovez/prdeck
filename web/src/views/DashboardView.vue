@@ -105,7 +105,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
 </script>
 
 <template>
-  <div class="mx-auto max-w-7xl space-y-4">
+  <div class="space-y-4">
     <div class="flex min-h-8 flex-wrap items-center gap-1 text-xs text-muted-foreground">
       <template v-if="hidden.length">
         Hidden:

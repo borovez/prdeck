@@ -52,7 +52,7 @@ const chips = computed(() =>
 </script>
 
 <template>
-  <div class="h-page mx-auto flex max-w-4xl flex-col gap-4">
+  <div class="h-page flex flex-col gap-4">
     <Alert v-if="!deck.overview?.configured.slack">
       <PhSlackLogo />
       <AlertTitle>Slack isn't connected yet</AlertTitle>
