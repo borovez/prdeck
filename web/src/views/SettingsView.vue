@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import {
-  PhCheckCircle,
   PhCircleNotch,
   PhGithubLogo,
   PhKanban,
@@ -10,12 +9,11 @@ import {
   PhSlackLogo,
   PhSparkle,
   PhTrash,
-  PhWarning,
 } from '@phosphor-icons/vue'
 import type { GithubAccount, Settings } from '@shared/types'
+import { toast } from 'vue-sonner'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,7 +26,6 @@ import { Switch } from '@/components/ui/switch'
 
 const deck = useDeck()
 const s = ref<Settings | null>(null)
-const msg = ref<{ ok: boolean; text: string } | null>(null)
 const busy = ref('')
 const mcp = ref<Awaited<ReturnType<typeof api.mcpInfo>> | null>(null)
 
@@ -39,11 +36,10 @@ onMounted(async () => {
 
 async function run(label: string, fn: () => Promise<string>) {
   busy.value = label
-  msg.value = null
   try {
-    msg.value = { ok: true, text: await fn() }
+    toast.success(await fn())
   } catch (e) {
-    msg.value = { ok: false, text: (e as Error).message }
+    toast.error((e as Error).message)
   } finally {
     busy.value = ''
   }
@@ -138,10 +134,6 @@ const SLACK_SCOPES =
 
 <template>
   <div v-if="s" class="mx-auto max-w-4xl space-y-6 pb-24">
-    <Alert v-if="msg" :variant="msg.ok ? 'default' : 'destructive'" class="sticky top-16 z-10 shadow-sm">
-      <PhCheckCircle v-if="msg.ok" class="text-success" /><PhWarning v-else />
-      <AlertDescription class="break-all">{{ msg.text }}</AlertDescription>
-    </Alert>
 
     <!-- GitHub -->
     <Card>

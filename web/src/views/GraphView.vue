@@ -158,30 +158,23 @@ const onEdgeEnter = ({ edge }: EdgeMouseEvent) => (hoveredEdge.value = edge.id)
 const onEdgeLeave = () => (hoveredEdge.value = null)
 
 const busy = ref(false)
-const actionError = ref<string | null>(null)
-async function run(fn: () => Promise<unknown>) {
+async function run(fn: () => Promise<unknown>, success: string) {
   busy.value = true
-  actionError.value = null
-  try {
-    await deck.mutate(fn)
-  } catch (e) {
-    actionError.value = (e as Error).message
-  } finally {
-    busy.value = false
-  }
+  const ok = await deck.mutate(fn, success)
+  busy.value = false
+  return ok
 }
 
 /** Drag from prerequisite (right handle) to dependent (left handle). */
 function onConnect(c: Connection) {
   if (!c.source || !c.target || c.source === c.target) return
-  run(() => api.addDep(c.target, c.source, v.newKind))
+  run(() => api.addDep(c.target, c.source, v.newKind), 'Dependency added')
 }
 
 async function deleteSelected() {
   const e = selectedEdge.value
   if (e?.id == null) return
-  await run(() => api.removeDep(e.id!))
-  if (!actionError.value) selectedEdge.value = null
+  if (await run(() => api.removeDep(e.id!), 'Dependency removed')) selectedEdge.value = null
 }
 
 // Drop the selection when the edge disappears after a reload
@@ -288,9 +281,6 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
           </p>
         </Panel>
 
-        <Panel v-if="actionError" position="bottom-right" class="graph-panel border-destructive/50 px-3 py-2 text-xs text-destructive">
-          {{ actionError }}
-        </Panel>
       </VueFlow>
 
       <div v-if="!nodeIds.length" class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">

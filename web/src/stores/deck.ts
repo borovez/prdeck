@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Overview, PrView, SlackItem } from '@shared/types'
+import { toast } from 'vue-sonner'
 import { api } from '@/api'
 
 export const useDeck = defineStore('deck', () => {
@@ -43,10 +44,20 @@ export const useDeck = defineStore('deck', () => {
     }
   }
 
-  /** Mutations change derived state (blocked, actions, chains) – reload the overview after. */
-  async function mutate(fn: () => Promise<unknown>) {
-    await fn()
+  /**
+   * Run a write, then reload (mutations change derived state: blocked, actions, chains).
+   * Errors become a toast; `success` (if given) too. Resolves to whether the write worked.
+   */
+  async function mutate(fn: () => Promise<unknown>, success?: string): Promise<boolean> {
+    try {
+      await fn()
+    } catch (e) {
+      toast.error((e as Error).message)
+      return false
+    }
+    if (success) toast.success(success)
     await load()
+    return true
   }
 
   let timer: number | undefined

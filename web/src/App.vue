@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
+import { Toaster } from '@/components/ui/sonner'
 import {
   Sidebar,
   SidebarContent,
@@ -152,7 +153,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
         </header>
 
         <main class="flex-1 bg-muted/30 p-4 lg:p-6">
-          <Alert v-if="deck.error" variant="destructive" class="mb-4">
+          <Alert v-if="deck.error" :key="deck.error" variant="destructive" class="mb-4" closable @close="deck.error = null">
             <PhWarning />
             <AlertDescription>{{ deck.error }}</AlertDescription>
           </Alert>
@@ -170,5 +171,6 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
     </SidebarProvider>
     <PrDrawer />
     <SlackToJiraModal />
+    <Toaster :theme="theme === 'auto' ? 'system' : theme" position="bottom-right" close-button />
   </TooltipProvider>
 </template>

@@ -20,16 +20,10 @@ async function load(open: boolean) {
     error.value = (e as Error).message
   }
 }
-async function run(id: string) {
+async function run(t: { id: string; to: string }) {
   busy.value = true
-  try {
-    await deck.mutate(() => api.transition(props.issueKey, id))
-    transitions.value = null
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    busy.value = false
-  }
+  if (await deck.mutate(() => api.transition(props.issueKey, t.id), `${props.issueKey} → ${t.to}`)) transitions.value = null
+  busy.value = false
 }
 </script>
 
@@ -41,7 +35,7 @@ async function run(id: string) {
     <DropdownMenuContent align="end" class="w-56">
       <DropdownMenuLabel v-if="error" class="text-xs text-destructive">{{ error }}</DropdownMenuLabel>
       <DropdownMenuLabel v-else-if="!transitions" class="text-xs text-muted-foreground">Loading…</DropdownMenuLabel>
-      <DropdownMenuItem v-for="t in transitions ?? []" :key="t.id" @select="run(t.id)">
+      <DropdownMenuItem v-for="t in transitions ?? []" :key="t.id" @select="run(t)">
         {{ t.name }} <span class="ml-auto text-xs text-muted-foreground">→ {{ t.to }}</span>
       </DropdownMenuItem>
     </DropdownMenuContent>

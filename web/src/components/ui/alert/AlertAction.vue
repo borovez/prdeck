@@ -10,7 +10,7 @@ const props = defineProps<{
 <template>
   <div
     data-slot="alert-action"
-    :class="cn('absolute top-1/2 right-3 -translate-y-1/2', props.class)"
+    :class="cn('absolute top-1/2 right-3 -translate-y-1/2 group-data-closable/alert:right-11', props.class)"
   >
     <slot />
   </div>

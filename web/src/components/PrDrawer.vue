@@ -39,19 +39,12 @@ const saveMeta = (pinned = pr.value!.pinned) => deck.mutate(() => api.setMeta(pr
 const depTarget = ref('')
 const depKind = ref<'merge' | 'release'>('merge')
 const depDirection = ref<'dependsOn' | 'blocks'>('dependsOn')
-const depError = ref('')
 const candidates = computed(() => deck.prs.filter((p) => p.id !== pr.value?.id).map((p) => p.id))
 async function addDep() {
-  depError.value = ''
-  try {
-    const [from, to] = depDirection.value === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
-    await deck.mutate(() => api.addDep(from, to, depKind.value))
-    depTarget.value = ''
-  } catch (e) {
-    depError.value = (e as Error).message
-  }
+  const [from, to] = depDirection.value === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
+  if (await deck.mutate(() => api.addDep(from, to, depKind.value), 'Dependency added')) depTarget.value = ''
 }
-const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!))
+const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!), 'Dependency removed')
 
 function startResize(ev: MouseEvent) {
   const startX = ev.clientX
@@ -224,7 +217,6 @@ function startResize(ev: MouseEvent) {
                 <span class="flex-1 text-xs text-muted-foreground">Or write “Depends on: org/repo#12” in the PR body.</span>
                 <Button size="sm" type="submit"><PhPlus /> Add</Button>
               </div>
-              <div v-if="depError" class="text-xs text-destructive">{{ depError }}</div>
             </form>
           </section>
 
