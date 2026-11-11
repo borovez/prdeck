@@ -367,3 +367,24 @@ export async function messagesAround(cfg: SlackConfig, item: SlackItem, before =
 export async function replyInThread(cfg: SlackConfig, item: SlackItem, text: string) {
   await call(cfg.token, 'chat.postMessage', { channel: item.channelId, thread_ts: item.threadTs ?? item.ts, text })
 }
+
+/**
+ * Mirror PR Deck's Done on a Slack todo: add my first "done" reaction (or take it off when the item goes
+ * back to the inbox). Needs the reactions:write scope.
+ */
+export async function setTodoDoneInSlack(cfg: SlackConfig, item: SlackItem, done: boolean): Promise<string | null> {
+  const name = (cfg.doneReactions ?? []).map((x) => x.replace(/:/g, '').trim()).find(Boolean)
+  if (!name) return null
+  try {
+    await call(cfg.token, done ? 'reactions.add' : 'reactions.remove', { channel: item.channelId, timestamp: item.ts, name })
+  } catch (e) {
+    const code = (e as SlackError).code
+    // Already in the wanted state
+    if (code !== 'already_reacted' && code !== 'no_reaction') {
+      if (code === 'missing_scope')
+        throw new SlackError('Marking todos done in Slack needs the reactions:write scope: add it to your Slack app, reinstall, and paste the new token in Settings → Slack.', code)
+      throw e
+    }
+  }
+  return name
+}

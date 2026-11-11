@@ -45,7 +45,8 @@ export const api = {
   testSlack: (token: string) => call<{ userId: string; user: string; team: string; url: string }>('POST', '/setup/slack/test', { token }),
   slackAround: (id: string, before = 2, after = 2) =>
     call<SlackContext>('GET', `/slack/${encodeURIComponent(id)}/around?before=${before}&after=${after}`),
-  slackStatus: (id: string, status: SlackStatus) => call('PUT', `/slack/${encodeURIComponent(id)}/status`, { status }),
+  slackStatus: (id: string, status: SlackStatus) =>
+    call<{ ok: boolean; slack: { reaction: string; done: boolean } | null; warning?: string }>('PUT', `/slack/${encodeURIComponent(id)}/status`, { status }),
   slackDraft: (id: string, context: string, projectKey?: string) =>
     call<{ draft: JiraDraft; thread: string }>('POST', `/slack/${encodeURIComponent(id)}/draft`, { context, projectKey }),
   createJira: (input: {

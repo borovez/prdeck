@@ -4,6 +4,7 @@ import type { SlackItem } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useEventListener } from '@vueuse/core'
+import { toast } from 'vue-sonner'
 import { LAYER_OPEN } from '@/composables/escape'
 import { neighbourId } from '@/composables/prNav'
 import Kbd from './Kbd.vue'
@@ -20,8 +21,15 @@ const deck = useDeck()
 async function status(s: SlackItem['status']) {
   // In the panel, Done/Dismiss moves on to the next message in the list
   const next = props.labelled && s !== 'new' ? neighbourId('slack', props.item.id) : null
-  if ((await deck.mutate(() => api.slackStatus(props.item.id, s), s === 'done' ? 'Marked done' : s === 'dismissed' ? 'Dismissed' : 'Back in inbox')) && props.labelled && s !== 'new')
-    deck.selectedSlackId = next
+  let res: Awaited<ReturnType<typeof api.slackStatus>> | undefined
+  const ok = await deck.mutate(async () => void (res = await api.slackStatus(props.item.id, s)))
+  if (!ok) return
+  const label = s === 'done' ? 'Marked done' : s === 'dismissed' ? 'Dismissed' : 'Back in inbox'
+  // Todos also change in Slack (done reaction added / removed)
+  if (res?.slack) toast.success(label, { description: res.slack.done ? `Added :${res.slack.reaction}: in Slack` : `Removed :${res.slack.reaction}: in Slack` })
+  else if (res?.warning) toast.warning(`${label} in PR Deck only`, { description: res.warning })
+  else toast.success(label)
+  if (props.labelled && s !== 'new') deck.selectedSlackId = next
 }
 const jira = () => (deck.slackToJira = props.item)
 

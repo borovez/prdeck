@@ -1,4 +1,5 @@
 import { computeReleaseContents } from './releases.ts'
+import { setTodoDoneInSlack } from './slack.ts'
 import { editDescription, withDependency, withoutDependency } from './bodyDeps.ts'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
@@ -307,8 +308,20 @@ api.put('/prefs', async (c) => {
 // ---------- Slack inbox ----------
 api.put('/slack/:id/status', async (c) => {
   const { status } = await c.req.json<{ status: 'new' | 'done' | 'dismissed' }>()
-  setSlackStatus(c.req.param('id'), status)
-  return c.json({ ok: true })
+  const id = c.req.param('id')
+  const item = getSlackItem(id)
+  setSlackStatus(id, status)
+  // Todos (marked with a reaction) get the done reaction in Slack too, or lose it when reopened
+  const cfg = getSettings().slack
+  if (cfg?.token && item?.kind === 'todo' && status !== 'dismissed' && item.status !== status) {
+    try {
+      const reaction = await setTodoDoneInSlack(cfg, item, status === 'done')
+      return c.json({ ok: true, slack: reaction ? { reaction, done: status === 'done' } : null })
+    } catch (e) {
+      return c.json({ ok: true, slack: null, warning: (e as Error).message })
+    }
+  }
+  return c.json({ ok: true, slack: null })
 })
 
 api.get('/slack/:id/thread', async (c) => {
