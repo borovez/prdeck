@@ -6,6 +6,7 @@ import {
   PhArrowSquareOut,
   PhCheckCircle,
   PhGitBranch,
+  PhCaretDown,
   PhPlus,
   PhPushPin,
   PhRocketLaunch,
@@ -20,8 +21,17 @@ import { ACTION_TONE, CHECK_STYLE, jiraTone, shortId, timeAgo } from '@/utils/fo
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -236,20 +246,35 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
 
             <form class="mt-3 space-y-2 rounded-lg bg-muted/60 p-3" @submit.prevent="addDep">
               <div class="flex gap-2">
-                <NativeSelect v-model="depDirection" size="sm">
-                  <NativeSelectOption value="dependsOn">depends on</NativeSelectOption>
-                  <NativeSelectOption value="blocks">blocks</NativeSelectOption>
-                </NativeSelect>
-                <Input v-model="depTarget" list="pr-candidates" placeholder="owner/repo#123 or PR URL" class="h-8 flex-1" required />
+                <Input v-model="depTarget" list="pr-candidates" placeholder="owner/repo#123 or PR URL" class="h-8 min-w-0 flex-1" required />
                 <datalist id="pr-candidates"><option v-for="c in candidates" :key="c" :value="c" /></datalist>
-              </div>
-              <div class="flex items-center gap-2">
-                <NativeSelect v-model="depKind" size="sm">
-                  <NativeSelectOption value="merge">needs merge</NativeSelectOption>
-                  <NativeSelectOption value="release">needs release</NativeSelectOption>
-                </NativeSelect>
-                <span class="flex-1" />
-                <Button size="sm" type="submit"><PhPlus /> Add</Button>
+                <!-- Split button: add with the current choice, or switch direction / kind from the menu -->
+                <ButtonGroup class="shrink-0">
+                  <Button size="sm" type="submit">
+                    <PhPlus /> {{ depDirection === 'dependsOn' ? 'Depends on' : 'Blocks' }}
+                    <span class="opacity-75">· {{ depKind }}</span>
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button size="icon-sm" type="button" aria-label="Choose dependency type" class="border-l border-primary-foreground/20">
+                        <PhCaretDown />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-56">
+                      <DropdownMenuLabel class="text-xs text-muted-foreground">This PR…</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup v-model="depDirection">
+                        <DropdownMenuRadioItem value="dependsOn">depends on it</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="blocks">blocks it</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel class="text-xs text-muted-foreground">…waits for</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup v-model="depKind">
+                        <DropdownMenuRadioItem value="merge">the merge</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="release">the release</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ButtonGroup>
               </div>
               <p class="text-xs text-muted-foreground">Or write “Depends on: org/repo#12” in the PR description.</p>
             </form>
