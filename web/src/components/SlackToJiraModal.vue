@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import SlackText from './SlackText.vue'
+import MarkdownEditor from './MarkdownEditor.vue'
 
 const deck = useDeck()
 const item = computed(() => deck.slackToJira)
@@ -206,10 +207,7 @@ async function create() {
           <Label>Summary</Label>
           <Input v-model="draft.summary" />
         </div>
-        <div class="grid gap-1.5">
-          <Label>Description (Markdown)</Label>
-          <Textarea v-model="draft.description" rows="12" class="font-mono text-xs" />
-        </div>
+        <MarkdownEditor v-model="draft.description" label="Description (Markdown)" />
         <p v-if="draft.rationale" class="flex items-start gap-1 text-xs text-muted-foreground"><PhSparkle class="mt-0.5 shrink-0" /> {{ draft.rationale }}</p>
         <Collapsible v-if="thread">
           <CollapsibleTrigger class="text-xs text-muted-foreground hover:text-foreground">Show the Slack context Claude used</CollapsibleTrigger>
