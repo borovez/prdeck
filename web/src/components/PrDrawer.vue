@@ -136,7 +136,7 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
           <div class="grid grid-cols-2 gap-3 text-sm">
             <div>
               <div class="text-xs text-muted-foreground">Branch</div>
-              <div class="flex items-center gap-1 font-mono text-xs"><PhGitBranch :size="14" />{{ pr.headRef }} → {{ pr.baseRef }}</div>
+              <div class="flex items-start gap-1 font-mono text-xs"><PhGitBranch :size="14" class="mt-px shrink-0" /><span class="min-w-0 break-all">{{ pr.headRef }} → {{ pr.baseRef }}</span></div>
             </div>
             <div>
               <div class="text-xs text-muted-foreground">Author</div>
@@ -153,8 +153,8 @@ const removeDep = (e: DepEdge) => e.id && deck.mutate(() => api.removeDep(e.id!)
             <div v-if="pr.mergeable === 'CONFLICTING'" class="col-span-2 text-destructive">Merge conflicts with {{ pr.baseRef }}</div>
             <div v-if="pr.release" class="col-span-2">
               <div class="text-xs text-muted-foreground">Release</div>
-              <div class="flex items-center gap-1">
-                <PhRocketLaunch :size="14" :class="pr.release.released ? 'text-success' : 'text-muted-foreground'" />
+              <div class="flex items-start gap-1">
+                <PhRocketLaunch :size="14" class="mt-0.5 shrink-0" :class="pr.release.released ? 'text-success' : 'text-muted-foreground'" />
                 {{ releaseStatus(pr.release).long }}
                 <span v-if="pr.release.error" class="text-xs text-destructive">{{ pr.release.error }}</span>
               </div>
