@@ -59,6 +59,7 @@ const openReleases = computed(() =>
 const needsBackmerge = computed(() => deck.prs.filter((p) => p.flow === 'hotfix' && p.state === 'MERGED' && p.backmerge && !p.backmerge.backmerged))
 const myUnreleased = computed(() => deck.prs.filter((p) => p.isMine && isUnreleased(p)))
 const releaseNav = useReleaseNav()
+const releasesView = layout.view('releases', { tab: 'releases' as string })
 
 function itemsFor(p: PanelConfig): number {
   if (p.type === 'prs') return prsFor(p).length
@@ -80,6 +81,8 @@ interface Tile {
   /** Opens the PR page with this quick filter, or another page */
   focus?: PrFocus
   to?: string
+  /** Releases page tab to open */
+  tab?: 'releases'
 }
 const tiles = computed<Tile[]>(() => {
   const s = stats.value
@@ -104,6 +107,8 @@ const tiles = computed<Tile[]>(() => {
       cls: needsBackmerge.value.length ? 'text-warning' : '',
       hint: needsBackmerge.value.length ? `${needsBackmerge.value.length} hotfix(es) not in dev` : next ? `next: ${next.repo.split('/')[1]}#${next.number}` : undefined,
       to: '/releases',
+      // Always the list of releases, whichever tab was used last
+      tab: 'releases',
     },
   ]
 })
@@ -114,7 +119,10 @@ function openTile(t: Tile) {
     // Show exactly what the tile counts: clear the scope tab, search and repo filter
     Object.assign(prsView, { focus: t.focus, scope: 'all', query: '', repo: '' })
     router.push('/prs')
-  } else if (t.to) router.push(t.to)
+  } else if (t.to) {
+    if (t.tab) releasesView.tab = t.tab
+    router.push(t.to)
+  }
 }
 
 function addPanel(type: PanelType) {
