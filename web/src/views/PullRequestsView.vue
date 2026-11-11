@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhKanban, PhMagnifyingGlass, PhRows } from '@phosphor-icons/vue'
-import type { Bucket, PrView } from '@shared/types'
+import { PhKanban, PhMagnifyingGlass, PhRows, PhX } from '@phosphor-icons/vue'
+import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type SortDir } from '@/stores/layout'
 import { BUCKETS } from '@/utils/format'
+import { PR_FOCUS, type PrFocus } from '@/utils/prFocus'
 import GroupCard from '@/components/GroupCard.vue'
 import PrCard from '@/components/PrCard.vue'
 import PrRow from '@/components/PrRow.vue'
@@ -31,7 +32,8 @@ const SCOPES: { value: Scope; label: string; match: (p: PrView) => boolean }[] =
 const v = layout.view('prs', {
   query: '',
   scope: 'all' as Scope,
-  bucket: '' as Bucket | '',
+  /** Quick filter from a dashboard tile */
+  focus: '' as PrFocus | '',
   repo: '',
   sort: 'urgency',
   dir: 'desc' as SortDir,
@@ -42,8 +44,8 @@ const v = layout.view('prs', {
 
 /** Every filter except the scope tab, so each tab can show its count */
 const base = computed(() =>
-  filterPrs(deck.prs, { query: v.query, repo: v.repo || undefined, buckets: v.bucket ? [v.bucket] : undefined }).filter(
-    (p) => v.showDone || p.bucket !== 'done',
+  filterPrs(deck.prs, { query: v.query, repo: v.repo || undefined }).filter(
+    (p) => (v.showDone || p.bucket !== 'done') && (!v.focus || PR_FOCUS[v.focus].match(p)),
   ),
 )
 const scopeCount = (s: (typeof SCOPES)[number]) => base.value.filter(s.match).length
@@ -84,6 +86,10 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
         <NativeSelectOption value="">All repos</NativeSelectOption>
         <NativeSelectOption v-for="r in deck.repos" :key="r" :value="r">{{ r }}</NativeSelectOption>
       </NativeSelect>
+      <Badge v-if="v.focus" variant="primary" class="h-7 gap-1 pr-1 text-xs">
+        {{ PR_FOCUS[v.focus].label }}
+        <button type="button" class="rounded p-0.5 hover:bg-primary/15" aria-label="Clear filter" @click="v.focus = ''"><PhX /></button>
+      </Badge>
       <span class="flex-1" />
       <ToggleGroup :model-value="v.display" type="single" @update:model-value="(d) => d && (v.display = d as typeof v.display)" variant="outline" size="sm" aria-label="Display">
         <ToggleGroupItem value="list" aria-label="List"><PhRows /></ToggleGroupItem>

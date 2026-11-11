@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { PhCheckCircle, PhCircle, PhCircleDashed, PhEye, PhPlus, PhSlidersHorizontal } from '@phosphor-icons/vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type PanelConfig, type PanelType } from '@/stores/layout'
 import { jiraTone, shortId, timeAgo } from '@/utils/format'
+import { type PrFocus } from '@/utils/prFocus'
 import DashPanel from '@/components/DashPanel.vue'
 import PrRow from '@/components/PrRow.vue'
 import SlackRow from '@/components/SlackRow.vue'
@@ -57,22 +59,41 @@ const visible = computed(() => layout.orderedPanels.filter((p) => p.visible))
 const hidden = computed(() => layout.prefs.panels.filter((p) => !p.visible))
 
 const stats = computed(() => deck.overview?.stats)
-const tiles = computed<{ label: string; value: number; cls: string; hint?: string }[]>(() => {
+interface Tile {
+  label: string
+  value: number
+  cls: string
+  hint?: string
+  /** Opens the PR page with this quick filter, or another page */
+  focus?: PrFocus
+  to?: string
+}
+const tiles = computed<Tile[]>(() => {
   const s = stats.value
   return [
-    { label: 'Needs action', value: s?.action ?? 0, cls: 'text-primary' },
-    { label: 'Review requests', value: s?.reviewRequests ?? 0, cls: '' },
-    { label: 'Blocked', value: s?.blocked ?? 0, cls: 'text-warning' },
-    { label: 'My open PRs', value: s?.mine ?? 0, cls: '' },
+    { label: 'Needs action', value: s?.action ?? 0, cls: 'text-primary', focus: 'action' },
+    { label: 'Review requests', value: s?.reviewRequests ?? 0, cls: '', focus: 'review' },
+    { label: 'Blocked', value: s?.blocked ?? 0, cls: 'text-warning', focus: 'blocked' },
+    { label: 'My open PRs', value: s?.mine ?? 0, cls: '', focus: 'mine' },
     {
       label: 'Unresolved conversations',
       value: s?.myThreads ?? 0,
       cls: s?.myThreads ? 'text-warning' : '',
       hint: s?.myThreads ? `on ${s.myThreadPrs} of my PRs` : undefined,
+      focus: 'threads',
     },
-    { label: 'Slack to handle', value: s?.slackNew ?? 0, cls: '' },
+    { label: 'Slack to handle', value: s?.slackNew ?? 0, cls: '', to: '/slack' },
   ]
 })
+const router = useRouter()
+const prsView = layout.view('prs', {} as { focus?: PrFocus | ''; scope?: string; query?: string; repo?: string })
+function openTile(t: Tile) {
+  if (t.focus) {
+    // Show exactly what the tile counts: clear the scope tab, search and repo filter
+    Object.assign(prsView, { focus: t.focus, scope: 'all', query: '', repo: '' })
+    router.push('/prs')
+  } else if (t.to) router.push(t.to)
+}
 
 function addPanel(type: PanelType) {
   const titles: Record<PanelType, string> = { prs: 'Custom PR list', slack: 'Slack', jira: 'Jira', chains: 'Chains' }
@@ -124,7 +145,14 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
     </div>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-      <Card v-for="t in tiles" :key="t.label" class="gap-0 py-3">
+      <button
+        v-for="t in tiles"
+        :key="t.label"
+        type="button"
+        class="group rounded-xl text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        @click="openTile(t)"
+      >
+      <Card class="h-full gap-0 py-3 transition-colors group-hover:bg-accent">
         <CardContent class="px-4">
           <div class="truncate text-xs text-muted-foreground" :title="t.label">{{ t.label }}</div>
           <div class="flex items-baseline gap-2">
@@ -133,6 +161,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
           </div>
         </CardContent>
       </Card>
+      </button>
     </div>
 
     <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
