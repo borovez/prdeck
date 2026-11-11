@@ -8,34 +8,34 @@ import dagre from '@dagrejs/dagre'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
-import { PhGraph, PhTrash, PhX } from '@phosphor-icons/vue'
+import { PhBuildings, PhGitBranch, PhGraph, PhTrash, PhX } from '@phosphor-icons/vue'
 import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
 import { api } from '@/api'
 import GraphNode, { type GraphNodeData } from '@/components/GraphNode.vue'
+import FilterChips from '@/components/FilterChips.vue'
+import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import RepoName from '@/components/RepoName.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const deck = useDeck()
 // Escape: the PR drawer closes first (its own handler), then the edge panel
 onEscape(() => !deck.selectedId && !!selectedEdge.value && ((selectedEdge.value = null), true))
 const layout = useLayout()
-const v = layout.view('graph', {
+/** View options in the View menu, and their defaults (Reset view) */
+const VIEW_DEFAULTS = {
   org: '',
   repo: '',
   hideDone: true,
   mineOnly: false,
   /** Also show open PRs that have no dependencies yet, so new links can be drawn to them */
   showUnlinked: false,
-  newKind: 'merge' as DependencyKind,
-})
+}
+const v = layout.view('graph', { ...VIEW_DEFAULTS, newKind: 'merge' as DependencyKind })
 
 const NODE_W = 264
 const NODE_H = 114
@@ -55,6 +55,21 @@ const repos = computed(() => {
   const all = new Set<string>([...deck.repos, ...allEdges.value.flatMap((e) => [repoOf(e.from), repoOf(e.to)])])
   return [...all].filter((r) => !v.org || ownerOf(r) === v.org).sort()
 })
+
+const viewSections = computed<ViewSection[]>(() => [
+  { type: 'filter', key: 'org', label: 'Org', icon: PhBuildings, allLabel: 'All orgs', options: orgs.value.map((o) => ({ value: o, label: o })), mono: true },
+  { type: 'filter', key: 'repo', label: 'Repo', icon: PhGitBranch, allLabel: 'All repos', options: repos.value.map((r) => ({ value: r, label: r })), mono: true },
+  { type: 'check', key: 'hideDone', label: 'Hide finished chains' },
+  { type: 'check', key: 'mineOnly', label: 'Only chains with my PRs' },
+  { type: 'check', key: 'showUnlinked', label: 'Show unlinked PRs (to draw links)' },
+])
+/** Active filters that aren't otherwise visible in the toolbar */
+const chips = computed(() => [
+  ...(v.org ? [{ key: 'org', label: v.org, clear: () => (v.org = '') }] : []),
+  ...(v.repo ? [{ key: 'repo', label: v.repo, clear: () => (v.repo = '') }] : []),
+])
+// A repo outside the chosen org would hide everything
+watch(() => v.org, (org) => org && v.repo && ownerOf(v.repo) !== org && (v.repo = ''))
 
 const matchesScope = (id: string) => (!v.org || ownerOf(id) === v.org) && (!v.repo || repoOf(id) === v.repo)
 
@@ -203,25 +218,14 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
 <template>
   <div class="h-page flex flex-col gap-3">
     <div class="flex flex-wrap items-center gap-2">
-      <NativeSelect v-model="v.org" size="sm" @update:model-value="v.repo = ''">
-        <NativeSelectOption value="">All orgs</NativeSelectOption>
-        <NativeSelectOption v-for="o in orgs" :key="o" :value="o">{{ o }}</NativeSelectOption>
-      </NativeSelect>
-      <NativeSelect v-model="v.repo" size="sm">
-        <NativeSelectOption value="">All repos</NativeSelectOption>
-        <NativeSelectOption v-for="r in repos" :key="r" :value="r">{{ r }}</NativeSelectOption>
-      </NativeSelect>
-      <Label class="gap-2 font-normal"><Switch v-model="v.hideDone" /> Hide finished</Label>
-      <Label class="gap-2 font-normal"><Switch v-model="v.mineOnly" /> Only mine</Label>
-      <Label class="gap-2 font-normal" title="Show open PRs without dependencies, so you can drag links to them">
-        <Switch v-model="v.showUnlinked" /> Unlinked PRs
-      </Label>
+      <FilterChips :chips="chips" />
       <span class="flex-1" />
       <span class="text-xs text-muted-foreground">New links</span>
       <ToggleGroup :model-value="v.newKind" type="single" @update:model-value="(k) => k && (v.newKind = k as DependencyKind)" variant="outline" size="sm">
         <ToggleGroupItem value="merge">Merge</ToggleGroupItem>
         <ToggleGroupItem value="release">Release</ToggleGroupItem>
       </ToggleGroup>
+      <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
     <Card class="relative min-h-0 flex-1 overflow-hidden py-0">
