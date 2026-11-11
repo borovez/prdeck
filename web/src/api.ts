@@ -42,6 +42,8 @@ export const api = {
   transitions: (key: string) =>
     call<{ id: string; name: string; to: string; toCategory: string }[]>('GET', `/jira/${key}/transitions`),
   transition: (key: string, id: string) => call('POST', `/jira/${key}/transitions`, { id }),
+  testLaunchDarkly: (cfg: { apiToken: string; baseUrl: string; projectKey: string }) =>
+    call<{ project: string; environments: string[] }>('POST', '/setup/launchdarkly/test', cfg),
   testSlack: (token: string) => call<{ userId: string; user: string; team: string; url: string }>('POST', '/setup/slack/test', { token }),
   slackAround: (id: string, before = 2, after = 2) =>
     call<SlackContext>('GET', `/slack/${encodeURIComponent(id)}/around?before=${before}&after=${after}`),

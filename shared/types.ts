@@ -265,6 +265,8 @@ export interface PrView extends Omit<PrRecord, 'body'> {
   /** Hotfixes: whether the merge reached the integration branch, and an open backmerge PR if there is one */
   backmerge: BackmergeInfo | null
   backmergePr: PrId | null
+  /** Feature flag keys from the description ("Feature flag: key" lines, LaunchDarkly links) */
+  flags: string[]
   /** The tag that shipped this PR (tag-based repos) */
   releasedIn: { tag: string; url: string } | null
 }
@@ -301,6 +303,8 @@ export interface Overview {
   releases: ReleaseContents[]
   /** Releases across repos that ship together */
   trains: ReleaseTrain[]
+  /** LaunchDarkly state of the flags PRs mention */
+  flags: FeatureFlag[]
   /** Latest tags of tag-based repos, newest first, with what each shipped */
   tags: TagRelease[]
   jira: JiraIssueView[]
@@ -314,7 +318,7 @@ export interface Overview {
     myThreadPrs: number
   }
   sync: SyncState
-  configured: { github: boolean; jira: boolean; slack: boolean; ai: boolean }
+  configured: { github: boolean; jira: boolean; slack: boolean; ai: boolean; launchdarkly: boolean }
   autoSync: { enabled: boolean; intervalMinutes: number }
   jiraBaseUrl: string | null
 }
@@ -457,12 +461,37 @@ export interface AiConfig {
   model: string
 }
 
+/** LaunchDarkly, read only: flag states for the flags PRs mention */
+export interface LaunchDarklyConfig {
+  /** API access token (a Reader role is enough); never sent to the browser */
+  apiToken: string
+  hasToken?: boolean
+  baseUrl: string
+  projectKey: string
+  /** Environment keys to show, in this order (e.g. production, staging) */
+  environments: string[]
+}
+
+/** A feature flag mentioned in a PR description, with its state per environment */
+export interface FeatureFlag {
+  key: string
+  name: string
+  url: string
+  archived: boolean
+  temporary: boolean
+  envs: { key: string; on: boolean; lastModified: string | null }[]
+  /** Not found in the project, or the request failed */
+  error?: string
+  fetchedAt: string
+}
+
 export interface Settings {
   github: { accounts: GithubAccount[] }
   /** Repos whose every open PR is pulled in (team view), "owner/name" */
   trackedRepos: string[]
   jira: JiraConfig | null
   slack: SlackConfig | null
+  launchdarkly: LaunchDarklyConfig | null
   ai: AiConfig
   /** auto: the server syncs in the background every intervalMinutes */
   sync: { auto: boolean; intervalMinutes: number; mergedLookbackDays: number }
@@ -482,6 +511,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trackedRepos: [],
   jira: null,
   slack: null,
+  launchdarkly: null,
   ai: { provider: 'claude-code', apiKey: '', model: 'claude-opus-5-5' },
   sync: { auto: true, intervalMinutes: 5, mergedLookbackDays: 14 },
   dependencies: { writeToDescription: true },

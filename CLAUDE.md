@@ -53,6 +53,10 @@ Node lives in nvm and isn't on the default PATH: `export PATH=~/.nvm/versions/no
 
 `views/GraphView.vue` + `components/GraphNode.vue` (Vue Flow + dagre LR). Edges drawn prerequisite → dependent (solid merge, dashed release; green/muted satisfied, amber waiting). Filters persist via `layout.view('graph', …)`. Drag right handle → left handle creates a dependency (kind from the "New links" toggle); click an edge to see it and delete manual ones. "Unlinked PRs" shows open PRs without deps so links can be drawn to them. Vue Flow is themed in the view's unscoped `<style>` (`.dep-graph`).
 
+### Feature flags (LaunchDarkly, read only)
+
+PRs name flags in their description: `Feature flag: key` / `Flags: a, b` lines (colon required; with backticks only the backticked keys count), qualified prose ("`key` LaunchDarkly flag", "feature flags `a` / `b`"), or LaunchDarkly flag links (`parseFeatureFlags` in refs.ts; `PrView.flags`). Sync step 4c (`launchdarkly.ts`, GET only) caches each referenced flag's on/off per configured environment (`feature_flags`, Overview `flags`). UI: `FlagStatus` (rows/cards), `FlagList` (PR panel), `settings/LaunchDarklySettings.vue` (Reader access token, project key, environments).
+
 ### Dependencies written to GitHub
 
 Adding a dependency (PR panel, graph) edits the dependent PR's description on GitHub (`bodyDeps.ts`: fetch the current body, add `Depends on: org/repo#N` / `Requires release of: …`, PATCH), so the edge's source becomes `body`. Removing a `body` edge takes the ref out of that line. If the write fails, the dependency is stored as manual and the toast says why. `settings.dependencies.writeToDescription` (Settings → Dependencies) turns this off. Web side: `composables/dependencies.ts`. The MCP `add_dependency` tool still stores manual deps.

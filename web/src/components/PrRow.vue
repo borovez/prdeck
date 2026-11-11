@@ -21,6 +21,7 @@ import JiraPill from './JiraPill.vue'
 import PrHover from './PrHover.vue'
 import RepoName from './RepoName.vue'
 import ThreadCount from './ThreadCount.vue'
+import FlagStatus from './FlagStatus.vue'
 
 /** preview: hover preview (off for rows inside side panels) */
 const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean; class?: HTMLAttributes['class'] }>(), { preview: true })
@@ -73,6 +74,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
         <TooltipContent>Part of a dependency chain</TooltipContent>
       </Tooltip>
       <ThreadCount :pr="pr" />
+      <FlagStatus :pr="pr" />
       <Tooltip v-if="pr.state === 'OPEN'">
         <TooltipTrigger as-child>
           <span>

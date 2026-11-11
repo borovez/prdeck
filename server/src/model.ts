@@ -28,10 +28,11 @@ import {
   listBackmerges,
   listReleaseContents,
   listTagContents,
+  listFeatureFlags,
   type StoredPr,
 } from './db.ts'
 import { integrationBranches, prFlow, releaseBranches, releaseRefFor } from './flow.ts'
-import { extractJiraKeys, parseBodyDependencies } from './refs.ts'
+import { extractJiraKeys, parseBodyDependencies, parseFeatureFlags } from './refs.ts'
 import { isSyncing } from './sync.ts'
 
 /** Everything the UI and MCP need, derived from the cache. Pure read – cheap enough to run per request. */
@@ -204,6 +205,7 @@ export function buildOverview(): Overview {
       backmerge: flows.get(pr.id) === 'hotfix' ? (backmerges.get(pr.id) ?? null) : null,
       backmergePr: flows.get(pr.id) === 'hotfix' && pr.state === 'MERGED' ? (openBackmerge.get(pr.repo.toLowerCase()) ?? null) : null,
       releasedIn: releasedIn.get(pr.id) ?? null,
+      flags: parseFeatureFlags(pr.body),
     }
   })
 
@@ -239,6 +241,7 @@ export function buildOverview(): Overview {
     chains: buildChains(prs, edges),
     releases,
     trains: buildTrains(prs, edges, releases),
+    flags: listFeatureFlags(),
     tags,
     jira: jiraViews,
     slack,
@@ -249,6 +252,7 @@ export function buildOverview(): Overview {
       jira: !!settings.jira?.apiToken,
       slack: !!settings.slack?.token,
       ai: aiAvailable(settings.ai),
+      launchdarkly: !!(settings.launchdarkly?.apiToken && settings.launchdarkly.projectKey),
     },
     jiraBaseUrl: settings.jira?.baseUrl ?? null,
     autoSync: { enabled: settings.sync.auto, intervalMinutes: settings.sync.intervalMinutes },

@@ -143,8 +143,8 @@ function addOverride() {
       <div>
         <h3 class="font-medium">Releases</h3>
         <p class="text-sm text-muted-foreground">
-          A “needs release” dependency is satisfied once the prerequisite's merge commit is in the repo's latest GitHub release/tag, or, with a branch set per repo
-          (e.g. <code>master</code>), once it's merged into that branch.
+          When a merge counts as released. Repos that release through PRs (dev → master/main) use that branch; other repos use their latest GitHub
+          release/tag. Set a branch per repo (e.g. <code>master</code>) to override.
         </p>
       </div>
       <div class="space-y-1.5">

@@ -1,5 +1,6 @@
 import type { GithubAccount, JiraIssue, PrId, PrRecord, Relation, SyncState } from '../../shared/types.ts'
 import {
+  replaceFeatureFlags,
   deletePrsNotSyncedAt,
   getSettings,
   getSyncState,
@@ -21,7 +22,8 @@ import { integrationBranches, releaseBranches, releaseRefFor } from './flow.ts'
 import { fetchPrsByRef, isCommitIn, resolveReleaseRef, searchPrs, whoAmI } from './github.ts'
 import { fetchIssuesByKey, searchJql } from './jira.ts'
 import { fetchSlackInbox } from './slack.ts'
-import { extractJiraKeys, parseBodyDependencies, parsePrId } from './refs.ts'
+import { extractJiraKeys, parseBodyDependencies, parseFeatureFlags, parsePrId } from './refs.ts'
+import { getFlag } from './launchdarkly.ts'
 
 let inFlight: Promise<SyncState> | null = null
 
@@ -168,6 +170,22 @@ async function doSync(): Promise<SyncState> {
       await syncTags(accounts, errors)
     } catch (e) {
       errors.push(`release contents: ${(e as Error).message}`)
+    }
+  }
+
+  // 4c. LaunchDarkly (read only): state of the flags PR descriptions mention
+  const ld = settings.launchdarkly
+  if (ld?.apiToken && ld.projectKey) {
+    try {
+      const keys = [...new Set(listPrs().flatMap(({ pr }) => parseFeatureFlags(pr.body)))]
+      const flags = []
+      // A few at a time
+      for (let i = 0; i < keys.length; i += 4) flags.push(...(await Promise.all(keys.slice(i, i + 4).map((k) => getFlag(ld, k)))))
+      replaceFeatureFlags(flags)
+      const failed = flags.filter((f) => f.error && !f.error.startsWith('Not found'))
+      if (failed.length) errors.push(`LaunchDarkly: ${failed[0].error}${failed.length > 1 ? ` (+${failed.length - 1} more)` : ''}`)
+    } catch (e) {
+      errors.push(`LaunchDarkly: ${(e as Error).message}`)
     }
   }
 

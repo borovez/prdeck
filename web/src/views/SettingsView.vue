@@ -10,6 +10,7 @@ import AiSettings from '@/components/settings/AiSettings.vue'
 import GithubSettings from '@/components/settings/GithubSettings.vue'
 import JiraSettings from '@/components/settings/JiraSettings.vue'
 import SlackSettings from '@/components/settings/SlackSettings.vue'
+import LaunchDarklySettings from '@/components/settings/LaunchDarklySettings.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -65,6 +66,7 @@ onMounted(async () => {
 
     <JiraSettings />
     <SlackSettings />
+    <LaunchDarklySettings />
     <AiSettings />
 
     <Card>

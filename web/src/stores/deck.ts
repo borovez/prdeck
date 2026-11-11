@@ -28,6 +28,8 @@ export const useDeck = defineStore('deck', () => {
   const selectedSlack = computed(() => (overview.value?.slack ?? []).find((i) => i.id === selectedSlackId.value) ?? null)
   const selected = computed<PrView | null>(() => (selectedId.value ? byId.value.get(selectedId.value) ?? null : null))
   const jiraByKey = computed(() => new Map((overview.value?.jira ?? []).map((j) => [j.key, j])))
+  /** LaunchDarkly flags by key */
+  const flagByKey = computed(() => new Map((overview.value?.flags ?? []).map((f) => [f.key, f])))
   const repos = computed(() => [...new Set(prs.value.map((p) => p.repo))].sort())
 
   async function load() {
@@ -79,5 +81,5 @@ export const useDeck = defineStore('deck', () => {
   }
 
   return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, prs, byId,
-    releaseById, selected, jiraByKey, repos, load, sync, mutate, startPolling }
+    releaseById, selected, jiraByKey, flagByKey, repos, load, sync, mutate, startPolling }
 })

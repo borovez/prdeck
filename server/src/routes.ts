@@ -1,5 +1,6 @@
 import { computeReleaseContents } from './releases.ts'
 import { setTodoDoneInSlack } from './slack.ts'
+import { testLaunchDarkly } from './launchdarkly.ts'
 import { editDescription, withDependency, withoutDependency } from './bodyDeps.ts'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
@@ -47,6 +48,7 @@ function maskSettings(s: Settings): Settings {
     github: { accounts: s.github.accounts.map((a) => ({ ...a, token: '', hasToken: !!a.token })) },
     jira: s.jira ? { ...s.jira, apiToken: '', hasToken: !!s.jira.apiToken } : null,
     slack: s.slack ? { ...s.slack, token: '', hasToken: !!s.slack.token } : null,
+    launchdarkly: s.launchdarkly ? { ...s.launchdarkly, apiToken: '', hasToken: !!s.launchdarkly.apiToken } : null,
     ai: { ...s.ai, apiKey: '', hasKey: !!s.ai.apiKey },
   }
 }
@@ -83,6 +85,14 @@ api.put('/settings', async (c) => {
   if (incoming.jira) {
     const { hasToken: _h, ...rest } = incoming.jira
     incoming.jira = { ...rest, baseUrl: rest.baseUrl.replace(/\/+$/, ''), apiToken: rest.apiToken || current.jira?.apiToken || '' }
+  }
+  if (incoming.launchdarkly) {
+    const { hasToken: _h, ...rest } = incoming.launchdarkly
+    incoming.launchdarkly = {
+      ...rest,
+      baseUrl: (rest.baseUrl || 'https://app.launchdarkly.com').replace(/\/+$/, ''),
+      apiToken: rest.apiToken || current.launchdarkly?.apiToken || '',
+    }
   }
   if (incoming.slack) {
     const { hasToken: _h, ...rest } = incoming.slack
@@ -296,6 +306,20 @@ api.post('/setup/slack/test', async (c) => {
   const t = token || getSettings().slack?.token
   if (!t) throw bad('No Slack token given')
   return c.json(await slackAuthTest(t))
+})
+
+api.post('/setup/launchdarkly/test', async (c) => {
+  const body = await c.req.json<{ apiToken?: string; baseUrl?: string; projectKey: string }>()
+  const stored = getSettings().launchdarkly
+  const cfg = {
+    apiToken: body.apiToken || stored?.apiToken || '',
+    baseUrl: (body.baseUrl || 'https://app.launchdarkly.com').replace(/\/+$/, ''),
+    projectKey: body.projectKey,
+    environments: [],
+  }
+  if (!cfg.apiToken) throw bad('No API token given')
+  if (!cfg.projectKey) throw bad('No project key given')
+  return c.json(await testLaunchDarkly(cfg))
 })
 
 // ---------- UI prefs ----------

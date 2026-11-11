@@ -15,6 +15,7 @@ import type {
   ReleaseContents,
   BackmergeInfo,
   TagRelease,
+  FeatureFlag,
   Settings,
   SyncState,
 } from '../../shared/types.ts'
@@ -60,6 +61,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS pr_meta (pr_id TEXT PRIMARY KEY, note TEXT, pinned INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE IF NOT EXISTS release_contents (pr_id TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS backmerges (pr_id TEXT PRIMARY KEY, data TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS feature_flags (key TEXT PRIMARY KEY, data TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS tag_contents (id TEXT PRIMARY KEY, repo TEXT NOT NULL, data TEXT NOT NULL);
 `)
 
@@ -83,6 +85,7 @@ export function getSettings(): Settings {
     github: { accounts: s.github?.accounts ?? [] },
     sync: { ...DEFAULT_SETTINGS.sync, ...s.sync },
     dependencies: { ...DEFAULT_SETTINGS.dependencies, ...s.dependencies },
+    launchdarkly: s.launchdarkly ?? null,
     releaseRefs: s.releaseRefs ?? {},
     // Older settings have no provider: a stored key means the API was in use
     ai: { ...DEFAULT_SETTINGS.ai, ...s.ai, provider: s.ai?.provider ?? (s.ai?.apiKey ? 'api' : 'claude-code') },
@@ -172,6 +175,23 @@ export function pruneTagContents(repo: string, keep: string[]) {
   const rows = db.prepare('SELECT id FROM tag_contents WHERE repo = ?').all(repo.toLowerCase()) as { id: string }[]
   const del = db.prepare('DELETE FROM tag_contents WHERE id = ?')
   for (const { id } of rows) if (!keep.includes(id)) del.run(id)
+}
+
+export function listFeatureFlags(): FeatureFlag[] {
+  return (db.prepare('SELECT data FROM feature_flags').all() as { data: string }[]).map((r) => JSON.parse(r.data))
+}
+/** Replace the cached flags with these (flags no PR mentions any more drop off) */
+export function replaceFeatureFlags(flags: FeatureFlag[]) {
+  db.exec('BEGIN')
+  try {
+    db.exec('DELETE FROM feature_flags')
+    const ins = db.prepare('INSERT INTO feature_flags (key, data) VALUES (?, ?)')
+    for (const f of flags) ins.run(f.key, JSON.stringify(f))
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
 }
 
 export function listBackmerges(): Map<PrId, BackmergeInfo> {

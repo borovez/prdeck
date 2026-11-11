@@ -56,6 +56,7 @@ import RepoName from './RepoName.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import SectionToggle from './SectionToggle.vue'
 import ReleaseItems from './ReleaseItems.vue'
+import FlagList from './FlagList.vue'
 import { FLOW_LABEL } from '@/utils/releaseFlow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -352,6 +353,11 @@ const removeDep = (e: DepEdge) => deps.remove(e)
             <button v-if="pr.unresolvedThreads" class="mt-1 text-xs text-warning hover:underline" @click="dv.tab = 'conversations'">
               {{ pr.unresolvedThreads }} unresolved conversation(s)
             </button>
+          </section>
+
+          <section v-if="pr.flags.length">
+            <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Feature flags</h3>
+            <FlagList :keys="pr.flags" />
           </section>
 
           <Separator />

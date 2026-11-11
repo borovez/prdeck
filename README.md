@@ -19,8 +19,11 @@ nothing is hosted.
 - **Dependencies**: "merge before" and "release before" links between PRs in different repos, from
   the PR description (`Depends on: owner/repo#12`, `Requires release of owner/repo#34`), Jira "is
   blocked by" links, or added by hand. An interactive graph shows the chains and the next step.
-- **Releases**: a "needs release" dependency is satisfied once the prerequisite's merge commit is in
-  the latest GitHub release or tag, or in a branch you choose per repo.
+- **Releases**: what each release PR (dev → master, `release/*` → master) and each tag ships,
+  merged work not in a release yet, hotfixes and whether they're back in dev, release trains across
+  repos with a suggested shipping order, and a release graph per repo.
+- **Feature flags**: flags a PR names in its description (`Feature flag: my-flag`) with their
+  LaunchDarkly state per environment (read only).
 - **Jira**: your issues and the issues referenced by PRs, with their linked PRs and status
   transitions.
 - **Slack inbox**: mentions, unanswered DMs and group DMs, saved messages, and messages you reacted to
@@ -58,7 +61,10 @@ Open <http://localhost:5317> and go to **Settings**:
 3. **Slack** (optional): create a Slack app, add these **User Token Scopes**, install it to your
    workspace and paste the `xoxp-…` user token:
    `search:read, im:history, mpim:history, im:read, mpim:read, channels:history, groups:history, users:read, channels:read, groups:read, stars:read, reactions:read, reactions:write, chat:write`
-4. **Claude** (optional, for drafting Jira issues): use your local
+4. **LaunchDarkly** (optional, read only): an access token with the Reader role
+   ([Organization settings → Authorization](https://app.launchdarkly.com/settings/authorization)),
+   the project key and the environments to show.
+5. **Claude** (optional, for drafting Jira issues): use your local
    [Claude Code](https://claude.com/claude-code) login (no API key needed), or an Anthropic API key.
 
 Then press **Sync**. With **Auto** on, the server syncs in the background (every 5 minutes by
