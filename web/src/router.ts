@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import ComingSoon from './views/ComingSoonView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -8,12 +7,7 @@ export const router = createRouter({
     { path: '/prs', name: 'prs', component: () => import('./views/PullRequestsView.vue') },
     { path: '/slack', name: 'slack', component: () => import('./views/SlackView.vue') },
     { path: '/graph', name: 'graph', component: () => import('./views/GraphView.vue') },
-    {
-      path: '/jira',
-      name: 'jira',
-      component: ComingSoon,
-      props: { title: 'Jira board', text: 'Jira tasks with their linked PRs are next. Your tasks already show in the Overview panel.' },
-    },
+    { path: '/jira', name: 'jira', component: () => import('./views/JiraView.vue') },
     { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
   ],
 })

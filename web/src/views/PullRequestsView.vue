@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhCaretDown, PhCaretRight, PhMagnifyingGlass } from '@phosphor-icons/vue'
+import { PhMagnifyingGlass } from '@phosphor-icons/vue'
 import type { Bucket, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type SortDir } from '@/stores/layout'
 import { BUCKETS } from '@/utils/format'
+import GroupCard from '@/components/GroupCard.vue'
 import PrRow from '@/components/PrRow.vue'
 import SortDirButton from '@/components/SortDirButton.vue'
-import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -101,16 +100,9 @@ const collapsed = layout.view('prs-collapsed', {} as Record<string, boolean>)
       <Label class="gap-2 font-normal"><Switch v-model="v.showDone" /> Done</Label>
     </div>
 
-    <Card v-for="g in groups" :key="g.key" class="gap-0 py-0">
-      <button class="flex items-center gap-2 px-4 py-2.5 text-left" :class="{ 'border-b': !collapsed[g.key] }" @click="collapsed[g.key] = !collapsed[g.key]">
-        <PhCaretRight v-if="collapsed[g.key]" :size="14" /><PhCaretDown v-else :size="14" />
-        <span class="text-sm font-semibold">{{ g.label }}</span>
-        <Badge variant="muted">{{ g.prs.length }}</Badge>
-      </button>
-      <div v-show="!collapsed[g.key]" class="p-1.5">
-        <PrRow v-for="p in g.prs" :key="p.id" :pr="p" :compact="layout.prefs.dense" />
-      </div>
-    </Card>
+    <GroupCard v-for="g in groups" :key="g.key" v-model:collapsed="collapsed[g.key]" :label="g.label" :count="g.prs.length">
+      <PrRow v-for="p in g.prs" :key="p.id" :pr="p" :compact="layout.prefs.dense" />
+    </GroupCard>
     <div v-if="!filtered.length" class="py-16 text-center text-muted-foreground">No pull requests match.</div>
   </div>
 </template>
