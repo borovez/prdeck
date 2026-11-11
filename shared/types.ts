@@ -261,6 +261,13 @@ export interface SlackMessage {
   isTarget: boolean
 }
 
+/** Messages around a Slack inbox item, and whether the conversation goes on either side */
+export interface SlackContext {
+  messages: SlackMessage[]
+  hasBefore: boolean
+  hasAfter: boolean
+}
+
 export interface JiraDraft {
   summary: string
   description: string // markdown

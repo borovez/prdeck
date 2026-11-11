@@ -257,7 +257,8 @@ api.get('/slack/:id/around', async (c) => {
   const s = getSettings()
   const item = getSlackItem(c.req.param('id'))
   if (!s.slack?.token || !item) throw bad('Unknown Slack item')
-  return c.json(await messagesAround(s.slack, item, Math.min(5, Number(c.req.query('n') ?? 2))))
+  const n = (q: string | undefined) => Math.min(50, Math.max(0, Number(q ?? 2) || 0))
+  return c.json(await messagesAround(s.slack, item, n(c.req.query('before')), n(c.req.query('after'))))
 })
 
 api.post('/slack/:id/draft', async (c) => {

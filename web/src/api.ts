@@ -1,4 +1,4 @@
-import type { AiConfig, JiraDraft, JiraRequiredField, Overview, Settings, SlackMessage, SlackStatus } from '@shared/types'
+import type { AiConfig, JiraDraft, JiraRequiredField, Overview, Settings, SlackContext, SlackStatus } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -39,7 +39,8 @@ export const api = {
     call<{ id: string; name: string; to: string; toCategory: string }[]>('GET', `/jira/${key}/transitions`),
   transition: (key: string, id: string) => call('POST', `/jira/${key}/transitions`, { id }),
   testSlack: (token: string) => call<{ userId: string; user: string; team: string; url: string }>('POST', '/setup/slack/test', { token }),
-  slackAround: (id: string) => call<SlackMessage[]>('GET', `/slack/${encodeURIComponent(id)}/around`),
+  slackAround: (id: string, before = 2, after = 2) =>
+    call<SlackContext>('GET', `/slack/${encodeURIComponent(id)}/around?before=${before}&after=${after}`),
   slackStatus: (id: string, status: SlackStatus) => call('PUT', `/slack/${encodeURIComponent(id)}/status`, { status }),
   slackDraft: (id: string, context: string, projectKey?: string) =>
     call<{ draft: JiraDraft; thread: string }>('POST', `/slack/${encodeURIComponent(id)}/draft`, { context, projectKey }),

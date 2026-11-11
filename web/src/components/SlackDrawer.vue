@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PhArrowSquareOut } from '@phosphor-icons/vue'
-import type { SlackMessage } from '@shared/types'
+import { PhArrowDown, PhArrowSquareOut, PhArrowUp, PhCircleNotch } from '@phosphor-icons/vue'
+import type { SlackContext } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useArrowNav } from '@/composables/prNav'
@@ -12,6 +12,7 @@ import SlackText from './SlackText.vue'
 import SlackActions from './SlackActions.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { KIND } from '@/utils/slack'
@@ -21,27 +22,45 @@ const deck = useDeck()
 const item = computed(() => deck.selectedSlack)
 useArrowNav('slack', () => deck.selectedSlackId, (id) => (deck.selectedSlackId = id))
 
-/** Fetched once per item for this page session */
-const cache = new Map<string, Promise<SlackMessage[]>>()
-const messages = ref<SlackMessage[] | null>(null)
+/** Messages around the item; "Load more" widens the window by STEP on either side */
+const STEP = 5
+const ctx = ref<SlackContext | null>(null)
+const counts = ref({ before: 2, after: 2 })
+const loading = ref<'' | 'before' | 'after'>('')
 const error = ref('')
+/** Fetched once per item and window for this page session */
+const cache = new Map<string, Promise<SlackContext>>()
+
+async function load(id: string) {
+  const { before, after } = counts.value
+  const key = `${id}|${before}|${after}`
+  if (!cache.has(key)) cache.set(key, api.slackAround(id, before, after))
+  try {
+    const c = await cache.get(key)!
+    if (item.value?.id === id) ctx.value = c
+  } catch (e) {
+    cache.delete(key)
+    if (item.value?.id === id) error.value = (e as Error).message
+  }
+}
 watch(
   () => item.value?.id,
-  async (id) => {
-    messages.value = null
+  (id) => {
+    ctx.value = null
     error.value = ''
-    if (!id) return
-    if (!cache.has(id)) cache.set(id, api.slackAround(id))
-    try {
-      const list = await cache.get(id)!
-      if (item.value?.id === id) messages.value = list
-    } catch (e) {
-      cache.delete(id)
-      if (item.value?.id === id) error.value = (e as Error).message
-    }
+    counts.value = { before: 2, after: 2 }
+    if (id) load(id)
   },
   { immediate: true },
 )
+/** Keeps what's shown while the wider window loads */
+async function more(side: 'before' | 'after') {
+  if (!item.value || loading.value) return
+  loading.value = side
+  counts.value = { ...counts.value, [side]: counts.value[side] + STEP }
+  await load(item.value.id)
+  loading.value = ''
+}
 </script>
 
 <template>
@@ -61,9 +80,21 @@ watch(
     <ScrollArea v-if="item" class="min-h-0 flex-1">
       <div class="space-y-2 p-4">
         <p class="text-xs text-muted-foreground">{{ item.threadTs ? 'In the thread' : 'In the conversation' }}</p>
-        <template v-if="messages">
+        <template v-if="ctx">
+          <!-- More conversation above: faded placeholder rows and a button to load them -->
+          <div v-if="ctx.hasBefore" class="space-y-1">
+            <div class="pointer-events-none space-y-1 [mask-image:linear-gradient(to_bottom,transparent,black)]" aria-hidden="true">
+              <div v-for="i in 2" :key="i" class="flex gap-3 px-3 py-2">
+                <Skeleton class="size-7 rounded-full" />
+                <div class="flex-1 space-y-2"><Skeleton class="h-3 w-28" /><Skeleton class="h-3" :class="i === 1 ? 'w-3/5' : 'w-4/5'" /></div>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" class="w-full text-muted-foreground" :disabled="!!loading" @click="more('before')">
+              <PhCircleNotch v-if="loading === 'before'" class="animate-spin" /><PhArrowUp v-else /> Load 5 earlier messages
+            </Button>
+          </div>
           <div
-            v-for="m in messages"
+            v-for="m in ctx.messages"
             :key="m.ts"
             :class="cn('flex gap-3 rounded-lg border p-3', m.isTarget ? 'border-primary bg-primary/10' : 'border-transparent')"
           >
@@ -78,6 +109,18 @@ watch(
                 <Badge v-if="m.isTarget" variant="primary" class="h-4 text-[10px]">{{ KIND[item.kind].label }}</Badge>
               </div>
               <SlackText :text="m.text" :rich="m.rich" class="mt-0.5 text-sm" />
+            </div>
+          </div>
+          <!-- More conversation below -->
+          <div v-if="ctx.hasAfter" class="space-y-1">
+            <Button variant="ghost" size="sm" class="w-full text-muted-foreground" :disabled="!!loading" @click="more('after')">
+              <PhCircleNotch v-if="loading === 'after'" class="animate-spin" /><PhArrowDown v-else /> Load 5 later messages
+            </Button>
+            <div class="pointer-events-none space-y-1 [mask-image:linear-gradient(to_top,transparent,black)]" aria-hidden="true">
+              <div v-for="i in 2" :key="i" class="flex gap-3 px-3 py-2">
+                <Skeleton class="size-7 rounded-full" />
+                <div class="flex-1 space-y-2"><Skeleton class="h-3 w-24" /><Skeleton class="h-3" :class="i === 1 ? 'w-4/5' : 'w-1/2'" /></div>
+              </div>
             </div>
           </div>
         </template>

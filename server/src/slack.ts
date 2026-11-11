@@ -1,4 +1,4 @@
-import type { SlackConfig, SlackItem, SlackKind, SlackMessage } from '../../shared/types.ts'
+import type { SlackConfig, SlackContext, SlackItem, SlackKind } from '../../shared/types.ts'
 import { getSlackUsers, saveSlackUsers } from './db.ts'
 
 // Slack Web API with a *user* token (xoxp-). Required user scopes:
@@ -312,24 +312,29 @@ export async function threadContext(cfg: SlackConfig, item: SlackItem): Promise<
 }
 
 /**
- * `n` messages before and after an inbox item, oldest first. A thread reply gets its neighbours in
- * the thread; anything else gets its neighbours in the channel or DM.
+ * Up to `before` / `after` messages around an inbox item, oldest first, and whether there are more.
+ * A thread reply gets its neighbours in the thread; anything else gets its neighbours in the channel
+ * or DM ("after" looks up to 30 days ahead).
  */
-export async function messagesAround(cfg: SlackConfig, item: SlackItem, n = 2): Promise<SlackMessage[]> {
+export async function messagesAround(cfg: SlackConfig, item: SlackItem, before = 2, after = 2): Promise<SlackContext> {
   const visible = (m: any) => !m.subtype || m.subtype === 'thread_broadcast' || m.subtype === 'bot_message' || m.subtype === 'file_share'
   let msgs: any[]
   if (item.threadTs) {
     const r = await call(cfg.token, 'conversations.replies', { channel: item.channelId, ts: item.threadTs, limit: 200 })
     msgs = (r.messages ?? []).filter(visible) // oldest first, parent included
   } else {
-    // History is newest first. Before: up to the item. After: a week's window from the item, keep the oldest.
-    const [before, after] = await Promise.all([
-      call(cfg.token, 'conversations.history', { channel: item.channelId, latest: item.ts, inclusive: 'true', limit: n + 6 }),
-      call(cfg.token, 'conversations.history', { channel: item.channelId, oldest: item.ts, latest: String(Number(item.ts) + 7 * 86400), limit: 200 }),
+    // History is newest first. Before: up to the item (one extra, plus slack for hidden subtypes, tells us
+    // if there's more). After: a 30-day window from the item, keeping the oldest.
+    const [older, newer] = await Promise.all([
+      call(cfg.token, 'conversations.history', { channel: item.channelId, latest: item.ts, inclusive: 'true', limit: before + 10 }),
+      call(cfg.token, 'conversations.history', { channel: item.channelId, oldest: item.ts, latest: String(Number(item.ts) + 30 * 86400), limit: 200 }),
     ])
-    const prev = (before.messages ?? []).filter(visible).reverse() // oldest first, ends with the item
-    const next = (after.messages ?? []).filter(visible).reverse().filter((m: any) => m.ts !== item.ts) // oldest first
+    const prev = (older.messages ?? []).filter(visible).reverse() // oldest first, ends with the item
+    const next = (newer.messages ?? []).filter(visible).reverse().filter((m: any) => m.ts !== item.ts) // oldest first
     msgs = [...prev, ...next]
+    // Fetched windows can end before the conversation does
+    if (older.has_more) msgs.unshift({ ts: '0', placeholder: true })
+    if (newer.has_more) msgs.push({ ts: '9', placeholder: true })
   }
   let i = msgs.findIndex((m) => m.ts === item.ts)
   if (i < 0) {
@@ -337,12 +342,16 @@ export async function messagesAround(cfg: SlackConfig, item: SlackItem, n = 2): 
     msgs = [{ ts: item.ts, user: item.user, text: item.text }]
     i = 0
   }
-  const window = msgs.slice(Math.max(0, i - n), i + n + 1)
+  const from = Math.max(0, i - before)
+  const to = i + after + 1
+  const hasBefore = from > 0
+  const hasAfter = to < msgs.length
+  const window = msgs.slice(from, to).filter((m) => !m.placeholder)
   const users = await resolveUsers(
     cfg.token,
     window.flatMap((m) => [m.user, ...[...String(m.text ?? '').matchAll(/<@([UW][A-Z0-9]+)/g)].map((x) => x[1])]),
   )
-  return window.map((m) => ({
+  const messages = window.map((m) => ({
     ts: m.ts,
     user: m.user ?? '',
     userName: users[m.user]?.name ?? m.username ?? m.user ?? 'Unknown',
@@ -352,6 +361,7 @@ export async function messagesAround(cfg: SlackConfig, item: SlackItem, n = 2): 
     postedAt: tsToIso(m.ts),
     isTarget: m.ts === item.ts,
   }))
+  return { messages, hasBefore, hasAfter }
 }
 
 export async function replyInThread(cfg: SlackConfig, item: SlackItem, text: string) {
