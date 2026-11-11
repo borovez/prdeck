@@ -284,11 +284,11 @@ const chips = computed(() => (v.repo ? [{ key: 'repo', label: v.repo, clear: () 
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col gap-3">
-    <div class="flex flex-wrap items-center gap-2">
+    <!-- Filters live in the page toolbar, next to the tabs -->
+    <Teleport defer to="#releases-toolbar">
       <FilterChips :chips="chips" />
-      <span class="flex-1" />
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
-    </div>
+    </Teleport>
     <div class="relative min-h-0 flex-1 overflow-hidden rounded-xl border">
       <VueFlow
         id="release-graph"

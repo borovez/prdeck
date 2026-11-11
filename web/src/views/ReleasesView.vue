@@ -88,6 +88,8 @@ async function refresh(id: string) {
         </TabsList>
       </Tabs>
       <span class="flex-1" />
+      <!-- The graph tab puts its filters and View menu here -->
+      <div id="releases-toolbar" class="flex items-center gap-2 empty:hidden" />
       <CollapseAllButton v-if="v.tab !== 'graph' && groupKeys.length > 1" :collapsed="allCollapsed" @toggle="toggleAll" />
     </div>
 
