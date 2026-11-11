@@ -123,6 +123,8 @@ fragment PR on PullRequest {
   reviewRequests(first: 15) { nodes { requestedReviewer {
     ... on User { login avatarUrl }
     ... on Team { slug }
+    ... on Bot { login avatarUrl }
+    ... on Mannequin { login avatarUrl }
   } } }
   latestReviews(first: 15) { nodes { state submittedAt author { login avatarUrl } } }
   comments { totalCount }
@@ -182,7 +184,8 @@ function mapPr(n: GqlPr, accountId: string): PrRecord {
     requestedReviewers: n.reviewRequests.nodes
       .map((r: any) => r.requestedReviewer)
       .filter(Boolean)
-      .map((r: any) => (r.slug ? { login: r.slug, isTeam: true } : { login: r.login, avatarUrl: r.avatarUrl, isTeam: false })),
+      .map((r: any) => (r.slug ? { login: r.slug, isTeam: true } : { login: r.login, avatarUrl: r.avatarUrl, isTeam: false }))
+      .filter((r: { login?: string }) => r.login), // a reviewer type we don't select has no login
     reviews: n.latestReviews.nodes.map((r: any) => ({
       login: r.author?.login ?? 'ghost',
       avatarUrl: r.author?.avatarUrl,

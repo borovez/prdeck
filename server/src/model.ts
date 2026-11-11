@@ -100,7 +100,7 @@ export function buildOverview(): Overview {
     const changesRequestedBy = pr.reviews.filter((r) => r.state === 'CHANGES_REQUESTED').map((r) => r.login)
     const reviewRequestedFromMe =
       relations.includes('review_requested') ||
-      pr.requestedReviewers.some((r) => !r.isTeam && meSet.has(r.login.toLowerCase()))
+      pr.requestedReviewers.some((r) => !r.isTeam && !!r.login && meSet.has(r.login.toLowerCase()))
 
     let kind: ActionKind
     let bucket: Bucket
