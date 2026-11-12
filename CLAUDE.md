@@ -69,6 +69,27 @@ Adding a dependency (PR panel, graph) edits the dependent PR's description on Gi
 
 One row per Jira key: my JQL issues plus keys found in PRs, so it works before Jira is connected (details fill in once it is). Linked PRs render as compact `PrRow`s. Scope tabs (Mine, With PRs, No PRs) with counts, project/status filters, group by status/project/parent.
 
+## Pull request dependencies, feature flags and deployment steps
+
+When opening or editing a pull request (in this repo, and in the repos PR Deck tracks), declare ordering in the description, one kind per line, always with the full `owner/repo#number` (never a bare `#12` for another repo, never only a URL). These are the formats PR Deck itself reads (`server/src/refs.ts`):
+
+- `Depends on: owner/repo#12`: this PR merges only after owner/repo#12 is merged.
+- `Requires release of: owner/repo#34`: this PR needs owner/repo#34 released (deployed), not just merged.
+- `Blocks: owner/repo#56`: owner/repo#56 waits for this PR's merge (the other side of its "Depends on").
+- `Release blocks: owner/repo#78`: owner/repo#78 waits for this PR's release.
+
+Rules:
+
+- Several PRs of the same kind go on one line, comma separated (`Depends on: owner/api#12, owner/web#40`); don't repeat the label.
+- Write both sides: `Depends on:` here and `Blocks: <this PR>` on the other PR (`Requires release of:` / `Release blocks:` for release dependencies). Fetch its body with `gh pr view <n> --repo <owner/repo> --json body --jq .body`, change only that line, write it back with `gh pr edit <n> --repo <owner/repo> --body-file <file>`. No access? Say so.
+- When a dependency goes away, remove it from both PRs and drop empty lines. Never remove or reword dependency lines someone else wrote unless asked.
+- Before opening a PR, check whether it needs another repo's or open PR's change; ask if unsure; with none, leave the lines out (no "Depends on: none").
+- Release PRs (dev → main/master, `release/*` → main/master) that must ship after another repo's release get `Depends on: <that release PR>`, and that one gets `Blocks: <this release PR>`.
+- Feature flags: `Feature flag: flag-key` (several: `Feature flags: flag-a, flag-b`), exact key; for a new flag, say its default and what turning it on does.
+- Deployment steps: every PR has a `## Deployment steps` section, an ordered `- [ ]` checklist of what shipping it takes, in order: what deploys first (matching the dependency lines), config/env to change (names only, never values), migrations (safe with the old code live?), commands or backfills, flags to turn on and where, what to verify, how to roll back (and what can't be undone). Nothing special: `None: a normal deploy.`
+
+The PR template (`.github/pull_request_template.md`) has these sections.
+
 ## Other open items
 
 - Embedded GitHub/Jira pages need a native shell (Electron); spec in `docs/tasks/electron-embedded-browser.md`. Until then "Open beside" uses a popup window.
