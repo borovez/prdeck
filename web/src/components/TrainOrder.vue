@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { PhArrowDown, PhArrowUp, PhTrash } from '@phosphor-icons/vue'
-import type { DepEdge, ReleaseTrain } from '@shared/types'
+import { PhArrowDown, PhArrowUp, PhCircleNotch, PhTrash } from '@phosphor-icons/vue'
+import type { DepEdge, PrView, ReleaseTrain } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useDependencies } from '@/composables/dependencies'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import RepoName from './RepoName.vue'
+import PrPicker from './PrPicker.vue'
 import FlagStatus from './FlagStatus.vue'
 import { useReleaseFlags } from '@/composables/flags'
 
@@ -18,7 +19,7 @@ import { useReleaseFlags } from '@/composables/flags'
 const props = defineProps<{ train: ReleaseTrain; releaseId: string }>()
 const deck = useDeck()
 const deps = useDependencies()
-const busy = ref('')
+const busy = deps.busy
 const flagsOf = useReleaseFlags()
 
 const ordered = computed(() => props.train.links.some((l) => l.kind === 'order'))
@@ -43,15 +44,18 @@ const others = computed(() =>
     }),
 )
 
-async function order(waiting: string, first: string) {
-  busy.value = waiting + first
-  await deps.add(waiting, first, 'merge')
-  busy.value = ''
-}
-async function remove(e: DepEdge) {
-  busy.value = `rm${e.from}${e.to}`
-  await deps.remove(e)
-  busy.value = ''
+const order = (waiting: string, first: string) => deps.add(waiting, first, 'merge')
+const remove = (e: DepEdge) => deps.remove(e)
+
+// Order against any open release, also outside the train
+const otherRelease = ref('')
+const isRelease = (p: PrView) => p.flow === 'release' && p.state === 'OPEN'
+const orderedReason = (p: PrView) =>
+  props.train.links.some((l) => l.kind === 'order' && [l.from, l.to].includes(p.id) && [l.from, l.to].includes(props.releaseId))
+    ? 'already ordered'
+    : null
+async function shipAfterPicked() {
+  if (otherRelease.value && (await order(props.releaseId, otherRelease.value))) otherRelease.value = ''
 }
 </script>
 
@@ -103,35 +107,51 @@ async function remove(e: DepEdge) {
             <Button
               size="xs"
               variant="outline"
-              :disabled="!!busy"
+              :disabled="busy"
               :title="`Adds “Depends on: ${o.id}” to this release's description`"
               @click="order(releaseId, o.id)"
             >
-              Ship this after it
+              <PhCircleNotch v-if="deps.isPending(releaseId, o.id)" class="animate-spin" />Ship this after it
             </Button>
             <Button
               v-if="o.pr?.state === 'OPEN'"
               size="xs"
               variant="outline"
-              :disabled="!!busy"
+              :disabled="busy"
               :title="`Adds “Depends on: ${releaseId}” to ${o.id}'s description`"
               @click="order(o.id, releaseId)"
             >
-              Ship this before it
+              <PhCircleNotch v-if="deps.isPending(o.id, releaseId)" class="animate-spin" />Ship this before it
             </Button>
           </template>
           <Button
             v-else-if="o.direct && (o.before || o.after)"
             size="xs"
             variant="ghost"
-            :disabled="!!busy"
+            :disabled="busy"
             :title="o.direct.source === 'body' ? 'Takes the line out of the PR description' : 'Removes the dependency'"
             @click="remove(o.direct)"
           >
-            <PhTrash />Remove order
+            <PhCircleNotch v-if="deps.isPending(o.direct.from, o.direct.to)" class="animate-spin" /><PhTrash v-else />Remove order
           </Button>
         </div>
       </li>
     </ul>
+
+    <!-- Order against a release that isn't in the train yet -->
+    <form v-if="deck.byId.get(releaseId)?.state === 'OPEN'" class="flex items-center gap-2" @submit.prevent="shipAfterPicked">
+      <PrPicker
+        v-model="otherRelease"
+        :exclude="releaseId"
+        :filter="isRelease"
+        :disabled-reason="orderedReason"
+        :disabled="busy"
+        placeholder="Ship this after another release… (search open releases)"
+        class="h-8 min-w-0 flex-1"
+      />
+      <Button type="submit" size="sm" variant="outline" :disabled="busy || !otherRelease">
+        <PhCircleNotch v-if="busy" class="animate-spin" /> Ship after it
+      </Button>
+    </form>
   </div>
 </template>

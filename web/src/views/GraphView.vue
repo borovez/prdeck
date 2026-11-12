@@ -9,7 +9,7 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import '@/components/flowTheme.css'
-import { PhArrowsCounterClockwise, PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from '@phosphor-icons/vue'
+import { PhArrowsCounterClockwise, PhCircleNotch, PhPlus, PhBuildings, PhGitBranch, PhGraph, PhHandGrabbing, PhTrash, PhX } from '@phosphor-icons/vue'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DepEdge, DependencyKind, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
@@ -19,6 +19,7 @@ import GraphNode, { CARD_W, cardHeight, type GraphNodeData } from '@/components/
 import FilterChips from '@/components/FilterChips.vue'
 import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import RepoName from '@/components/RepoName.vue'
+import PrPicker from '@/components/PrPicker.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -27,7 +28,12 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 const deck = useDeck()
 const deps = useDependencies()
 // Escape: the PR drawer closes first (its own handler), then the edge panel
-onEscape(() => !deck.selectedId && !!selectedEdge.value && ((selectedEdge.value = null), true))
+onEscape(() => {
+  if (deck.selectedId) return false
+  if (selectedEdge.value) return (selectedEdge.value = null), true
+  if (adding.value) return (adding.value = false), true
+  return false
+})
 const layout = useLayout()
 /** View options in the View menu, and their defaults (Reset view) */
 const VIEW_DEFAULTS = {
@@ -217,22 +223,37 @@ function onEdgeLeave() {
   tip.value = null
 }
 
-const busy = ref(false)
+/** Any dependency write running: controls are disabled until it finishes */
+const busy = deps.busy
 
 /** Drag from prerequisite (right handle) to dependent (left handle). */
 function onConnect(c: Connection) {
-  if (!c.source || !c.target || c.source === c.target) return
-  busy.value = true
-  deps.add(c.target, c.source, v.newKind).finally(() => (busy.value = false))
+  if (!c.source || !c.target || c.source === c.target || busy.value) return
+  deps.add(c.target, c.source, v.newKind)
 }
 
 async function deleteSelected() {
   const e = selectedEdge.value
-  if (!e || !deps.canRemove(e)) return
-  busy.value = true
-  const ok = await deps.remove(e)
-  busy.value = false
-  if (ok) selectedEdge.value = null
+  if (!e || !deps.canRemove(e) || busy.value) return
+  if (await deps.remove(e)) selectedEdge.value = null
+}
+
+// "Add dependency" form: pick the waiting PR and its prerequisite by title, repo or number
+const adding = ref(false)
+const addFrom = ref('')
+const addTo = ref('')
+/** Reasons a prerequisite can't be picked for the chosen waiting PR */
+const prereqReason = (p: PrView) =>
+  allEdges.value.some((e) => e.from === addFrom.value && e.to === p.id) ? 'already a prerequisite' : allEdges.value.some((e) => e.from === p.id && e.to === addFrom.value) ? 'waits on it (would loop)' : null
+// One panel in the corner at a time
+watch(adding, (a) => a && (selectedEdge.value = null))
+watch(selectedEdge, (e) => e && (adding.value = false))
+async function addFromForm() {
+  if (!addFrom.value || !addTo.value || busy.value) return
+  if (await deps.add(addFrom.value, addTo.value, v.newKind)) {
+    addTo.value = ''
+    adding.value = false
+  }
 }
 
 // Drop the selection when the edge disappears after a reload
@@ -265,6 +286,7 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
         <ToggleGroupItem value="merge">merge</ToggleGroupItem>
         <ToggleGroupItem value="release">release</ToggleGroupItem>
       </ToggleGroup>
+      <Button variant="outline" size="sm" :class="adding && 'bg-accent'" @click="adding = !adding"><PhPlus /> Add dependency</Button>
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
 
@@ -313,6 +335,35 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
           </span>
         </Panel>
 
+        <Panel v-if="adding" position="top-right" class="graph-panel w-96 space-y-2 p-3 text-sm">
+          <form class="space-y-2" @submit.prevent="addFromForm">
+            <div class="flex items-center gap-2">
+              <span class="font-medium">Add dependency</span>
+              <span class="flex-1" />
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="Close" @click="adding = false"><PhX /></Button>
+            </div>
+            <label class="block space-y-1">
+              <span class="text-xs text-muted-foreground">This PR…</span>
+              <PrPicker v-model="addFrom" placeholder="Search by title, repo, #number" class="h-8" :disabled="busy" required />
+            </label>
+            <label class="block space-y-1">
+              <span class="text-xs text-muted-foreground">…waits for the {{ v.newKind }} of</span>
+              <PrPicker v-model="addTo" :exclude="addFrom" :disabled-reason="prereqReason" placeholder="Search by title, repo, #number" class="h-8" :disabled="busy" required />
+            </label>
+            <div class="flex items-center gap-2">
+              <ToggleGroup :model-value="v.newKind" type="single" variant="outline" size="sm" @update:model-value="(k) => k && (v.newKind = k as DependencyKind)">
+                <ToggleGroupItem value="merge">merge</ToggleGroupItem>
+                <ToggleGroupItem value="release">release</ToggleGroupItem>
+              </ToggleGroup>
+              <span class="flex-1" />
+              <Button type="submit" size="sm" :disabled="busy || !addFrom || !addTo">
+                <PhCircleNotch v-if="busy" class="animate-spin" /><PhPlus v-else /> Add
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground">Written into the waiting PR's description, like dragging a link.</p>
+          </form>
+        </Panel>
+
         <Panel v-if="selectedEdge" position="top-right" class="graph-panel w-80 space-y-2 p-3 text-sm">
           <div class="flex items-center gap-2">
             <Badge :variant="selectedEdge.satisfied ? 'success' : 'warning'">{{ selectedEdge.satisfied ? 'Satisfied' : 'Waiting' }}</Badge>
@@ -338,7 +389,7 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
             <div class="text-muted-foreground">{{ SOURCE_LABEL[selectedEdge.source] }}<template v-if="selectedEdge.note"> · {{ selectedEdge.note }}</template></div>
           </div>
           <Button v-if="deps.canRemove(selectedEdge)" variant="destructive" size="sm" class="w-full" :disabled="busy" @click="deleteSelected">
-            <PhTrash />{{ selectedEdge.source === 'body' ? 'Remove from the PR description' : 'Remove dependency' }}
+            <PhCircleNotch v-if="busy" class="animate-spin" /><PhTrash v-else />{{ selectedEdge.source === 'body' ? 'Remove from the PR description' : 'Remove dependency' }}
           </Button>
           <p v-else class="text-xs text-muted-foreground">
             Remove the link in Jira to drop this one.

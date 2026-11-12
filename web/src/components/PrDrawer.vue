@@ -10,6 +10,7 @@ import { computed, ref, watch } from 'vue'
 import {
   PhArrowSquareOut,
   PhArrowsClockwise,
+  PhCircleNotch,
   PhGraph,
   PhTrain,
   PhInfo,
@@ -24,7 +25,7 @@ import {
   PhTrash,
   PhXCircle,
 } from '@phosphor-icons/vue'
-import type { DepEdge, PrDetail } from '@shared/types'
+import type { DepEdge, PrDetail, PrView } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useLayout } from '@/stores/layout'
@@ -158,7 +159,14 @@ watch(pr, (p) => (note.value = p?.note ?? ''), { immediate: true })
 const saveMeta = (pinned = pr.value!.pinned) => deck.mutate(() => api.setMeta(pr.value!.id, note.value, pinned))
 
 const depTarget = ref('')
+/** PRs already linked to this one can't be added again (either direction) */
+function linkedReason(p: PrView): string | null {
+  if (pr.value?.dependsOn.some((e) => e.to === p.id)) return 'already a prerequisite'
+  if (pr.value?.dependents.some((e) => e.from === p.id)) return 'already waits on this'
+  return null
+}
 async function addDep() {
+  if (deps.busy.value) return
   const [from, to] = dv.depDirection === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
   if (await deps.add(from, to, dv.depKind)) depTarget.value = ''
 }
@@ -414,7 +422,7 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                 <span class="flex-1" />
                 <Badge variant="outline">{{ e.kind }}</Badge>
                 <Badge variant="muted" :title="e.note ?? ''">{{ e.source }}</Badge>
-                <Button v-if="deps.canRemove(e)" variant="ghost" size="icon-xs" :title="e.id != null ? 'Remove' : 'Remove from the PR description'" @click="removeDep(e)"><PhTrash /></Button>
+                <Button v-if="deps.canRemove(e)" variant="ghost" size="icon-xs" :disabled="deps.busy.value" :title="e.id != null ? 'Remove' : 'Remove from the PR description'" @click="removeDep(e)"><PhCircleNotch v-if="deps.isPending(e.from, e.to)" class="animate-spin" /><PhTrash v-else /></Button>
               </li>
               <li v-if="!pr.dependsOn.length" class="text-sm text-muted-foreground">None</li>
             </ul>
@@ -425,23 +433,23 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                 <span class="truncate text-muted-foreground">{{ deck.byId.get(e.from)?.title }}</span>
                 <span class="flex-1" />
                 <Badge variant="outline">waits for {{ e.kind }}</Badge>
-                <Button v-if="deps.canRemove(e)" variant="ghost" size="icon-xs" :title="e.id != null ? 'Remove' : 'Remove from the PR description'" @click="removeDep(e)"><PhTrash /></Button>
+                <Button v-if="deps.canRemove(e)" variant="ghost" size="icon-xs" :disabled="deps.busy.value" :title="e.id != null ? 'Remove' : 'Remove from the PR description'" @click="removeDep(e)"><PhCircleNotch v-if="deps.isPending(e.from, e.to)" class="animate-spin" /><PhTrash v-else /></Button>
               </li>
               <li v-if="!pr.dependents.length" class="text-sm text-muted-foreground">None</li>
             </ul>
 
             <form class="mt-3 space-y-2 rounded-lg bg-muted/60 p-3" @submit.prevent="addDep">
               <div class="flex gap-2">
-                <PrPicker v-model="depTarget" :exclude="pr.id" placeholder="Search PRs by title, repo, #number, Jira key, or paste a URL" class="h-8 min-w-0 flex-1" required />
+                <PrPicker v-model="depTarget" :exclude="pr.id" :disabled-reason="linkedReason" :disabled="deps.busy.value" placeholder="Search PRs by title, repo, #number, Jira key, or paste a URL" class="h-8 min-w-0 flex-1" required />
                 <!-- Split button: add with the current choice, or switch direction / kind from the menu -->
                 <ButtonGroup class="shrink-0">
-                  <Button size="sm" type="submit">
-                    <PhPlus /> {{ dv.depDirection === 'dependsOn' ? 'Depends on' : 'Blocks' }}
+                  <Button size="sm" type="submit" :disabled="deps.busy.value">
+                    <PhCircleNotch v-if="deps.busy.value" class="animate-spin" /><PhPlus v-else /> {{ dv.depDirection === 'dependsOn' ? 'Depends on' : 'Blocks' }}
                     <span class="opacity-75">· {{ dv.depKind }}</span>
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
-                      <Button size="icon-sm" type="button" aria-label="Choose dependency type" class="border-l border-primary-foreground/20">
+                      <Button size="icon-sm" type="button" aria-label="Choose dependency type" class="border-l border-primary-foreground/20" :disabled="deps.busy.value">
                         <PhCaretDown />
                       </Button>
                     </DropdownMenuTrigger>
