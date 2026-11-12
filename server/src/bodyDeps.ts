@@ -2,12 +2,12 @@ import type { DependencyKind, GithubAccount, PrId } from '../../shared/types.ts'
 import { getPrBody, updatePrBody } from './github.ts'
 import { normaliseRef, parseBodyBlocks, parseBodyDependencies } from './refs.ts'
 
-const DEP_LINE = /^[\s>*-]*(?:\*\*)?\s*((?:requires|needs|after|waits?\s+(?:on|for))\s+release(?:\s+of)?|depends\s+on|blocked\s+by|requires|needs)\s*(?:\*\*)?\s*:?/i
+const DEP_LINE = /^[ \t>*-]*(?:\*\*)?[ \t]*((?:requires|needs|after|waits?[ \t]+(?:on|for))[ \t]+release(?:[ \t]+of)?|depends[ \t]+on|blocked[ \t]+by|requires|needs)[ \t]*(?:\*\*)?[ \t]*:?/i
 const REF = /(https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+|[\w.-]+\/[\w.-]+#\d+|#\d+)/g
 
 /** Add `ref` to the first "<label>: …" line, or append a new line when there is none */
 function appendRef(body: string, label: string, ref: string): string {
-  const lineRe = new RegExp(`^([\\s>*-]*(?:\\*\\*)?\\s*${label}\\s*(?:\\*\\*)?\\s*:\\s*)(.*)$`, 'im')
+  const lineRe = new RegExp(`^([ \\t>*-]*(?:\\*\\*)?[ \\t]*${label}[ \\t]*(?:\\*\\*)?[ \\t]*:[ \\t]*)(.*)$`, 'im')
   const m = lineRe.exec(body)
   if (m) return body.replace(lineRe, (_all, head: string, rest: string) => `${head}${rest.trim() ? `${rest.trimEnd()}, ` : ''}${ref}`)
   return `${body.replace(/\s+$/, '')}\n\n${label}: ${ref}\n`
@@ -47,7 +47,7 @@ export async function editDescription(account: GithubAccount, repo: string, numb
   return next
 }
 
-const BLOCKS_LINE = /^[\s>*-]*(?:\*\*)?\s*(release\s+blocks|blocks)\s*(?:\*\*)?\s*:?/i
+const BLOCKS_LINE = /^[ \t>*-]*(?:\*\*)?[ \t]*(release[ \t]+blocks|blocks)[ \t]*(?:\*\*)?[ \t]*:?/i
 
 /** Prerequisite's side: body with "Blocks: <dependent>" (or "Release blocks:"), unchanged if already there */
 export function withBlocks(body: string, repo: string, self: PrId, dependent: PrId, dependentRef: string, kind: DependencyKind): string {

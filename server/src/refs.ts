@@ -29,6 +29,8 @@ const REF = String.raw`(https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+|[\w.
  *   Requires release of org/api#78       (→ waits for the prerequisite to be released)
  *   After release: org/api#78
  */
+// Line patterns use [ \t] rather than \s so a value never runs onto the next line
+// (an empty "Depends on:" in a PR template must not swallow the line below it)
 export function parseBodyDependencies(
   body: string,
   currentRepo: string,
@@ -36,7 +38,7 @@ export function parseBodyDependencies(
 ): { to: PrId; kind: DependencyKind }[] {
   const out = new Map<PrId, DependencyKind>()
   // Release phrasings come first: alternation takes the first match, and plain "requires" would otherwise win
-  const lineRe = /^[\s>*-]*(?:\*\*)?\s*((?:requires|needs|after|waits?\s+(?:on|for))\s+release(?:\s+of)?|depends\s+on|blocked\s+by|requires|needs)\s*(?:\*\*)?\s*:?\s*(.+)$/gim
+  const lineRe = /^[ \t>*-]*(?:\*\*)?[ \t]*((?:requires|needs|after|waits?[ \t]+(?:on|for))[ \t]+release(?:[ \t]+of)?|depends[ \t]+on|blocked[ \t]+by|requires|needs)[ \t]*(?:\*\*)?[ \t]*:?[ \t]*(.+)$/gim
   for (const m of body.matchAll(lineRe)) {
     const kind: DependencyKind = /release/i.test(m[1]) ? 'release' : 'merge'
     for (const r of m[2].matchAll(new RegExp(REF, 'g'))) {
@@ -57,7 +59,7 @@ export function parseBodyDependencies(
  */
 export function parseBodyBlocks(body: string, currentRepo: string, selfId: PrId): { from: PrId; kind: DependencyKind }[] {
   const out = new Map<PrId, DependencyKind>()
-  const lineRe = /^[\s>*-]*(?:\*\*)?\s*(release\s+blocks|blocks)\s*(?:\*\*)?\s*:\s*(.+)$/gim
+  const lineRe = /^[ \t>*-]*(?:\*\*)?[ \t]*(release[ \t]+blocks|blocks)[ \t]*(?:\*\*)?[ \t]*:[ \t]*(.+)$/gim
   for (const m of body.matchAll(lineRe)) {
     const kind: DependencyKind = /release/i.test(m[1]) ? 'release' : 'merge'
     for (const r of m[2].matchAll(new RegExp(REF, 'g'))) {
@@ -102,7 +104,7 @@ export function parseFeatureFlags(body: string | null | undefined): string[] {
     if (KEY.test(k) && !/^(none|n\/?a|no|yes|tbd)$/i.test(k)) keys.add(k)
   }
   // The colon is required ("Flag:", "**Flag:**", "**Flag**:"), so sentences like "feature flag changes." don't match
-  const lineRe = /^[\s>*-]*(?:\*\*)?\s*(?:feature[ -]?flags?|ld[ -]?flags?|launch ?darkly(?: flags?)?|flags?)\s*(?::\s*\*\*|\*\*\s*:|:)\s*(.+)$/gim
+  const lineRe = /^[ \t>*-]*(?:\*\*)?[ \t]*(?:feature[ -]?flags?|ld[ -]?flags?|launch ?darkly(?: flags?)?|flags?)[ \t]*(?::[ \t]*\*\*|\*\*[ \t]*:|:)[ \t]*(.+)$/gim
   for (const m of body.matchAll(lineRe)) {
     const rest = m[1]
     const ticked = [...rest.matchAll(/`([^`]+)`/g)].map((t) => t[1].trim())
