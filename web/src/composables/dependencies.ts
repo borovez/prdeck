@@ -32,8 +32,10 @@ export function useDependencies() {
       let res: Awaited<ReturnType<typeof api.addDep>> | undefined
       const ok = await deck.mutate(async () => void (res = await api.addDep(from, to, kind)))
       if (!ok || !res) return false
-      if (res.written) toast.success('Dependency added to the PR description', { description: from })
-      else if (res.error) toast.warning('Dependency saved in PR Deck only', { description: `Couldn't edit the description of ${from}: ${res.error}` })
+      const where = [res.written && from, res.writtenOther && to].filter(Boolean).join(' and ')
+      if (where && !res.error) toast.success(res.written && res.writtenOther ? 'Dependency added to both PR descriptions' : 'Dependency added to the PR description', { description: where })
+      else if (where) toast.warning(`Dependency added to ${where}`, { description: `Couldn't edit the other description: ${res.error}` })
+      else if (res.error) toast.warning('Dependency saved in PR Deck only', { description: `Couldn't edit the descriptions: ${res.error}` })
       else toast.success('Dependency added')
       return true
     } finally {
@@ -49,7 +51,7 @@ export function useDependencies() {
     pending.add(key)
     try {
       if (e.id != null) return await deck.mutate(() => api.removeDep(e.id!), 'Dependency removed')
-      return await deck.mutate(() => api.removeDepFromDescription(e.from, e.to), `Removed from the description of ${e.from}`)
+      return await deck.mutate(() => api.removeDepFromDescription(e.from, e.to), 'Removed from the PR descriptions')
     } finally {
       pending.delete(key)
     }

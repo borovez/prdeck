@@ -470,7 +470,12 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                 </ButtonGroup>
               </div>
               <p class="text-xs text-muted-foreground">
-                {{ dv.depDirection === 'dependsOn' ? 'Written into this PR’s description' : 'Written into that PR’s description' }} as “{{ dv.depKind === 'release' ? 'Requires release of' : 'Depends on' }}: org/repo#12”, so it shows on GitHub too.
+                <template v-if="deck.overview?.dependencyWrites.description">
+                  Written into the waiting PR’s description as “{{ dv.depKind === 'release' ? 'Requires release of' : 'Depends on' }}: org/repo#12”{{
+                    deck.overview.dependencyWrites.bothSides ? `, and “${dv.depKind === 'release' ? 'Release blocks' : 'Blocks'}: …” into the other one` : ''
+                  }}, so it shows on GitHub too.
+                </template>
+                <template v-else>Kept in PR Deck only (Settings → Dependencies).</template>
               </p>
             </form>
           </div>

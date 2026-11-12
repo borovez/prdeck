@@ -1,6 +1,6 @@
 import type { DependencyKind, GithubAccount, PrId } from '../../shared/types.ts'
 import { getPrBody, updatePrBody } from './github.ts'
-import { normaliseRef, parseBodyDependencies } from './refs.ts'
+import { normaliseRef, parseBodyBlocks, parseBodyDependencies } from './refs.ts'
 
 /** The line written for a dependency; parseBodyDependencies reads it back */
 const lineFor = (ref: string, kind: DependencyKind) => (kind === 'release' ? `Requires release of: ${ref}` : `Depends on: ${ref}`)
@@ -39,4 +39,35 @@ export async function editDescription(account: GithubAccount, repo: string, numb
   if (next === current) return null
   await updatePrBody(account, repo, number, next)
   return next
+}
+
+const BLOCKS_LINE = /^[\s>*-]*(?:\*\*)?\s*(release\s+blocks|blocks)\s*(?:\*\*)?\s*:?/i
+
+/** Prerequisite's side: body with "Blocks: <dependent>" (or "Release blocks:"), unchanged if already there */
+export function withBlocks(body: string, repo: string, self: PrId, dependent: PrId, dependentRef: string, kind: DependencyKind): string {
+  const existing = parseBodyBlocks(body, repo, self).find((d) => d.from === dependent)
+  if (existing?.kind === kind) return body
+  const base = existing ? withoutBlocks(body, repo, dependent) : body
+  return `${base.replace(/\s+$/, '')}\n\n${kind === 'release' ? 'Release blocks' : 'Blocks'}: ${dependentRef}\n`
+}
+
+/** Prerequisite's side: every mention of `dependent` taken out of its "Blocks:" lines */
+export function withoutBlocks(body: string, repo: string, dependent: PrId): string {
+  return stripRef(body, repo, dependent, BLOCKS_LINE)
+}
+
+function stripRef(body: string, repo: string, id: PrId, lineRe: RegExp): string {
+  const out: string[] = []
+  for (const line of body.split('\n')) {
+    const m = lineRe.exec(line)
+    if (!m || !m[0].trim()) {
+      out.push(line)
+      continue
+    }
+    const refs = [...line.matchAll(REF)].map((r) => r[1])
+    const keep = refs.filter((r) => normaliseRef(r, repo) !== id)
+    if (keep.length === refs.length) out.push(line)
+    else if (keep.length) out.push(`${line.slice(0, m[0].length).trimEnd()} ${keep.join(', ')}`)
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n')
 }

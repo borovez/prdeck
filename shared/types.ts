@@ -320,6 +320,8 @@ export interface Overview {
   sync: SyncState
   configured: { github: boolean; jira: boolean; slack: boolean; ai: boolean; launchdarkly: boolean }
   autoSync: { enabled: boolean; intervalMinutes: number }
+  /** Where added dependencies are written (Settings → Dependencies) */
+  dependencyWrites: { description: boolean; bothSides: boolean }
   jiraBaseUrl: string | null
 }
 
@@ -495,8 +497,11 @@ export interface Settings {
   ai: AiConfig
   /** auto: the server syncs in the background every intervalMinutes */
   sync: { auto: boolean; intervalMinutes: number; mergedLookbackDays: number }
-  /** writeToDescription: adding/removing a dependency edits the dependent PR's description on GitHub */
-  dependencies: { writeToDescription: boolean }
+  /**
+   * writeToDescription: adding/removing a dependency edits the dependent PR's description on GitHub
+   * ("Depends on: B"); writeBothSides: also the prerequisite's ("Blocks: A")
+   */
+  dependencies: { writeToDescription: boolean; writeBothSides: boolean }
   /**
    * How "released" is decided per repo. Default: the latest GitHub release / tag
    * contains the merge commit. Override with a branch name (e.g. "master") when
@@ -514,7 +519,7 @@ export const DEFAULT_SETTINGS: Settings = {
   launchdarkly: null,
   ai: { provider: 'claude-code', apiKey: '', model: 'claude-opus-5-5' },
   sync: { auto: true, intervalMinutes: 5, mergedLookbackDays: 14 },
-  dependencies: { writeToDescription: true },
+  dependencies: { writeToDescription: true, writeBothSides: true },
   releaseRefs: {},
   defaultReleaseRef: 'latest-release',
 }

@@ -50,6 +50,24 @@ export function parseBodyDependencies(
   return [...out].map(([to, kind]) => ({ to, kind }))
 }
 
+/**
+ * The other side of a dependency, written in the prerequisite's description:
+ *   Blocks: org/web#12            (org/web#12 waits for this PR's merge)
+ *   Release blocks: org/web#12    (org/web#12 waits for this PR's release)
+ */
+export function parseBodyBlocks(body: string, currentRepo: string, selfId: PrId): { from: PrId; kind: DependencyKind }[] {
+  const out = new Map<PrId, DependencyKind>()
+  const lineRe = /^[\s>*-]*(?:\*\*)?\s*(release\s+blocks|blocks)\s*(?:\*\*)?\s*:\s*(.+)$/gim
+  for (const m of body.matchAll(lineRe)) {
+    const kind: DependencyKind = /release/i.test(m[1]) ? 'release' : 'merge'
+    for (const r of m[2].matchAll(new RegExp(REF, 'g'))) {
+      const id = normaliseRef(r[1], currentRepo)
+      if (id && id !== selfId && out.get(id) !== 'release') out.set(id, kind)
+    }
+  }
+  return [...out].map(([from, kind]) => ({ from, kind }))
+}
+
 /** Jira keys like PROJ-123 from title / branch / body. */
 export function extractJiraKeys(texts: (string | null | undefined)[], projectKeys: string[]): string[] {
   const allowed = new Set(projectKeys.map((k) => k.toUpperCase()))

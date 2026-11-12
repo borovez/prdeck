@@ -30,7 +30,7 @@ export const api = {
     call<{ model: string; source: 'key' | 'environment' | 'claude-code' }>('POST', '/setup/ai/test', ai),
   mcpInfo: () => call<{ node: string; entry: string; dbPath: string; tsxCandidates: string[] }>('GET', '/setup/mcp'),
   addDep: (from: string, to: string, kind: 'merge' | 'release', note?: string) =>
-    call<{ id?: number; written: boolean; error?: string }>('POST', '/deps', { from, to, kind, note }),
+    call<{ id?: number; written: boolean; writtenOther?: boolean; error?: string }>('POST', '/deps', { from, to, kind, note }),
   removeDepFromDescription: (from: string, to: string) => call('POST', '/deps/remove-from-description', { from, to }),
   removeDep: (id: number) => call('DELETE', `/deps/${id}`),
   prDetail: (id: string) => call<PrDetail>('GET', `/prs/detail?id=${encodeURIComponent(id)}`),

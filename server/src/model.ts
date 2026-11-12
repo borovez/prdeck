@@ -32,7 +32,7 @@ import {
   type StoredPr,
 } from './db.ts'
 import { integrationBranches, prFlow, releaseBranches, releaseRefFor } from './flow.ts'
-import { extractJiraKeys, parseBodyDependencies, parseFeatureFlags } from './refs.ts'
+import { extractJiraKeys, parseBodyBlocks, parseBodyDependencies, parseFeatureFlags } from './refs.ts'
 import { isSyncing } from './sync.ts'
 
 /** Everything the UI and MCP need, derived from the cache. Pure read – cheap enough to run per request. */
@@ -69,8 +69,13 @@ export function buildOverview(): Overview {
   }
   for (const d of listManualDeps()) put({ id: d.id, from: d.from, to: d.to, kind: d.kind, source: 'manual', note: d.note })
   for (const { pr } of stored)
+  {
     for (const d of parseBodyDependencies(pr.body, pr.repo, pr.id))
       put({ id: null, from: pr.id, to: d.to, kind: d.kind, source: 'body', note: null })
+    // "Blocks: X" in this PR's description: X waits for this one
+    for (const d of parseBodyBlocks(pr.body, pr.repo, pr.id))
+      put({ id: null, from: d.from, to: pr.id, kind: d.kind, source: 'body', note: null })
+  }
   // Jira: if issue A "is blocked by" B, PRs of A depend on PRs of B
   for (const [key, prIds] of prsByKey) {
     const issue = jira.get(key)
@@ -256,6 +261,7 @@ export function buildOverview(): Overview {
     },
     jiraBaseUrl: settings.jira?.baseUrl ?? null,
     autoSync: { enabled: settings.sync.auto, intervalMinutes: settings.sync.intervalMinutes },
+    dependencyWrites: { description: settings.dependencies.writeToDescription, bothSides: settings.dependencies.writeBothSides },
   }
 }
 

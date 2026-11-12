@@ -1,7 +1,7 @@
 import { computeReleaseContents } from './releases.ts'
 import { setTodoDoneInSlack } from './slack.ts'
 import { testLaunchDarkly } from './launchdarkly.ts'
-import { editDescription, withDependency, withoutDependency } from './bodyDeps.ts'
+import { editDescription, withBlocks, withDependency, withoutBlocks, withoutDependency } from './bodyDeps.ts'
 import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -198,47 +198,71 @@ const DepInput = z.object({
   note: z.string().nullish(),
 })
 
+/** Edit one synced PR's description on GitHub; returns false when the PR isn't synced (nothing to edit) */
+async function editPrBody(id: string, edit: (body: string, repo: string) => string): Promise<boolean> {
+  const stored = listPrs().find((s) => s.pr.id === id)
+  if (!stored) return false
+  const accounts = getSettings().github.accounts.filter((a) => a.token)
+  const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
+  if (!acc) throw new Error(`No GitHub account for ${id}`)
+  const body = await editDescription(acc, stored.pr.repo, stored.pr.number, (b) => edit(b, stored.pr.repo))
+  if (body !== null) setPrBody(id, body)
+  return true
+}
+/** "owner/Repo#12" with the repo's real casing when synced */
+const refFor = (id: string) => {
+  const p = listPrs().find((s) => s.pr.id === id)?.pr
+  return p ? `${p.repo}#${p.number}` : id
+}
+
 api.post('/deps', async (c) => {
   const d = DepInput.parse(await c.req.json())
   const from = normaliseRef(d.from)
   const to = normaliseRef(d.to)
   if (!from || !to) throw bad('Use owner/repo#123 or a GitHub PR URL')
   if (from === to) throw bad('A PR cannot depend on itself')
-  // Written into the dependent PR's description when possible, so everyone sees it on GitHub
   const settings = getSettings()
-  const stored = listPrs().find((s) => s.pr.id === from)
-  if (settings.dependencies.writeToDescription && stored) {
-    const target = listPrs().find((s) => s.pr.id === to)?.pr
-    const toRef = target ? `${target.repo}#${target.number}` : to
-    const accounts = settings.github.accounts.filter((a) => a.token)
-    const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
-    try {
-      if (!acc) throw new Error('No GitHub account for this PR')
-      const body = await editDescription(acc, stored.pr.repo, stored.pr.number, (b) => withDependency(b, stored.pr.repo, from, to, toRef, d.kind))
-      if (body !== null) setPrBody(from, body)
-      return c.json({ from, to, written: true })
-    } catch (e) {
-      const id = addManualDep(from, to, d.kind, d.note ?? null)
-      return c.json({ id, from, to, written: false, error: (e as Error).message })
-    }
+  if (!settings.dependencies.writeToDescription) {
+    const id = addManualDep(from, to, d.kind, d.note ?? null)
+    return c.json({ id, from, to, written: false })
   }
-  const id = addManualDep(from, to, d.kind, d.note ?? null)
-  return c.json({ id, from, to, written: false })
+  // The dependent PR's description gets "Depends on: <to>"; with writeBothSides the prerequisite's gets "Blocks: <from>"
+  let written = false
+  let writtenOther = false
+  const warnings: string[] = []
+  try {
+    written = await editPrBody(from, (b, repo) => withDependency(b, repo, from, to, refFor(to), d.kind))
+  } catch (e) {
+    warnings.push(`${from}: ${(e as Error).message}`)
+  }
+  if (settings.dependencies.writeBothSides)
+    try {
+      writtenOther = await editPrBody(to, (b, repo) => withBlocks(b, repo, to, from, refFor(from), d.kind))
+    } catch (e) {
+      warnings.push(`${to}: ${(e as Error).message}`)
+    }
+  // Neither description holds it: keep it in PR Deck
+  const id = written || writtenOther ? undefined : addManualDep(from, to, d.kind, d.note ?? null)
+  return c.json({ id, from, to, written, writtenOther, error: warnings.join('; ') || undefined })
 })
 
 api.delete('/deps/:id', (c) => c.json({ removed: removeManualDep(Number(c.req.param('id'))) }))
 
-/** Remove a dependency that comes from the PR description, by editing the description on GitHub */
+/** Remove a dependency that comes from PR descriptions: out of the dependent's "Depends on" and the prerequisite's "Blocks" */
 api.post('/deps/remove-from-description', async (c) => {
   const { from, to } = await c.req.json<{ from: string; to: string }>()
-  const stored = listPrs().find((s) => s.pr.id === from)
-  if (!stored) throw bad('Unknown PR')
-  const accounts = getSettings().github.accounts.filter((a) => a.token)
-  const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
-  if (!acc) throw bad('No GitHub account for this PR')
-  const body = await editDescription(acc, stored.pr.repo, stored.pr.number, (b) => withoutDependency(b, stored.pr.repo, to))
-  if (body !== null) setPrBody(from, body)
-  return c.json({ removed: body !== null })
+  const errors: string[] = []
+  for (const [id, edit] of [
+    [from, (b: string, repo: string) => withoutDependency(b, repo, to)],
+    [to, (b: string, repo: string) => withoutBlocks(b, repo, from)],
+  ] as const)
+    try {
+      await editPrBody(id, edit)
+    } catch (e) {
+      errors.push(`${id}: ${(e as Error).message}`)
+    }
+  if (errors.length) throw bad(errors.join('; '))
+  return c.json({ removed: true })
 })
 
 // ---------- PR detail (panel: description, files) ----------

@@ -53,12 +53,19 @@ onMounted(async () => {
         <CardTitle class="flex items-center gap-2"><PhGraph :size="20" /> Dependencies</CardTitle>
         <CardDescription>How dependencies you add or remove in PR Deck are stored.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent class="space-y-3">
         <Label class="cursor-pointer items-start gap-2 font-normal">
           <Switch v-model="st.s.dependencies.writeToDescription" class="mt-0.5" />
           <span>
             Write them into the PR description on GitHub
             <span class="block text-xs text-muted-foreground">Adds or removes a “Depends on: org/repo#12” line in the dependent PR, so reviewers see it too. Off: kept in PR Deck only.</span>
+          </span>
+        </Label>
+        <Label class="cursor-pointer items-start gap-2 font-normal" :class="!st.s.dependencies.writeToDescription && 'opacity-50'">
+          <Switch v-model="st.s.dependencies.writeBothSides" class="mt-0.5" :disabled="!st.s.dependencies.writeToDescription" />
+          <span>
+            Also write it into the other PR
+            <span class="block text-xs text-muted-foreground">The prerequisite gets a “Blocks: org/repo#34” line, so both PRs show the link on GitHub. Removing the dependency takes both lines out.</span>
           </span>
         </Label>
       </CardContent>
