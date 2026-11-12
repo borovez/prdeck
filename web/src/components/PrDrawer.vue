@@ -42,7 +42,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
@@ -58,6 +57,7 @@ import SectionToggle from './SectionToggle.vue'
 import ReleaseItems from './ReleaseItems.vue'
 import FlagList from './FlagList.vue'
 import TrainOrder from './TrainOrder.vue'
+import PrPicker from './PrPicker.vue'
 import { FLOW_LABEL } from '@/utils/releaseFlow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -158,7 +158,6 @@ watch(pr, (p) => (note.value = p?.note ?? ''), { immediate: true })
 const saveMeta = (pinned = pr.value!.pinned) => deck.mutate(() => api.setMeta(pr.value!.id, note.value, pinned))
 
 const depTarget = ref('')
-const candidates = computed(() => deck.prs.filter((p) => p.id !== pr.value?.id).map((p) => p.id))
 async function addDep() {
   const [from, to] = dv.depDirection === 'dependsOn' ? [pr.value!.id, depTarget.value] : [depTarget.value, pr.value!.id]
   if (await deps.add(from, to, dv.depKind)) depTarget.value = ''
@@ -433,8 +432,7 @@ const removeDep = (e: DepEdge) => deps.remove(e)
 
             <form class="mt-3 space-y-2 rounded-lg bg-muted/60 p-3" @submit.prevent="addDep">
               <div class="flex gap-2">
-                <Input v-model="depTarget" list="pr-candidates" placeholder="owner/repo#123 or PR URL" class="h-8 min-w-0 flex-1" required />
-                <datalist id="pr-candidates"><option v-for="c in candidates" :key="c" :value="c" /></datalist>
+                <PrPicker v-model="depTarget" :exclude="pr.id" placeholder="Search PRs by title, repo, #number, Jira key, or paste a URL" class="h-8 min-w-0 flex-1" required />
                 <!-- Split button: add with the current choice, or switch direction / kind from the menu -->
                 <ButtonGroup class="shrink-0">
                   <Button size="sm" type="submit">
