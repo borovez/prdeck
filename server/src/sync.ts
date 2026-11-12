@@ -1,6 +1,7 @@
 import type { GithubAccount, JiraIssue, PrId, PrRecord, Relation, SyncState } from '../../shared/types.ts'
 import {
   replaceFeatureFlags,
+  listFeatureFlags,
   deletePrsNotSyncedAt,
   getSettings,
   getSyncState,
@@ -181,8 +182,10 @@ async function doSync(): Promise<SyncState> {
       const flags = []
       // A few at a time
       for (let i = 0; i < keys.length; i += 4) flags.push(...(await Promise.all(keys.slice(i, i + 4).map((k) => getFlag(ld, k)))))
-      replaceFeatureFlags(flags)
+      // A failed request (network, rate limit) keeps the last known state instead of replacing it with an error
+      const previous = new Map(listFeatureFlags().map((f) => [f.key, f]))
       const failed = flags.filter((f) => f.error && !f.error.startsWith('Not found'))
+      replaceFeatureFlags(flags.map((f) => (f.error && !f.error.startsWith('Not found') && previous.get(f.key)?.envs.length ? previous.get(f.key)! : f)))
       if (failed.length) errors.push(`LaunchDarkly: ${failed[0].error}${failed.length > 1 ? ` (+${failed.length - 1} more)` : ''}`)
     } catch (e) {
       errors.push(`LaunchDarkly: ${(e as Error).message}`)

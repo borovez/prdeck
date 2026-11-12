@@ -50,6 +50,7 @@ import { VIA_LABEL } from '@/utils/releaseFlow'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import RepoName from './RepoName.vue'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 /**
  * A release (or a repo's merged-but-unreleased work) on the release graph: header with state and a Jira
@@ -82,10 +83,18 @@ function openRow(r: GroupRow, e: MouseEvent) {
   if (r.pr && !e.metaKey && !e.ctrlKey) deck.selectedId = r.id
   else window.open(r.url, '_blank', 'noopener')
 }
-/** Green when all its flags are on in the first environment, amber when some are off */
-function flagTone(r: GroupRow) {
-  const on = (r.pr?.flags ?? []).map((k) => deck.flagByKey.get(k)?.envs[0]?.on)
+/** Green when all flags are on in the first environment, amber when some are off, muted when unknown */
+function toneOf(keys: string[]) {
+  const on = keys.map((k) => deck.flagByKey.get(k)?.envs[0]?.on)
   return on.some((x) => x === undefined) ? 'text-muted-foreground' : on.every(Boolean) ? 'text-success' : 'text-warning'
+}
+const flagTone = (r: GroupRow) => toneOf(r.pr?.flags ?? [])
+/** Every flag the release PR and its PRs name */
+const flags = computed(() => [...new Set([...(props.data.pr?.flags ?? []), ...props.data.rows.flatMap((r) => r.pr?.flags ?? [])])])
+const flagState = (k: string) => {
+  const f = deck.flagByKey.get(k)
+  if (!f) return deck.overview?.configured.launchdarkly ? 'not synced yet' : 'LaunchDarkly not connected'
+  return f.envs.length ? f.envs.map((e) => `${e.key} ${e.on ? 'on' : 'off'}`).join(', ') : (f.error ?? '')
 }
 const stateOf = (r: GroupRow) => r.pr?.state ?? 'MERGED'
 const KIND_LABEL: Record<ReleaseGroupData['kind'], string> = {
@@ -155,6 +164,17 @@ const subtitle = computed(() => {
         <span class="min-w-0 truncate font-mono">{{ data.branch }}</span>
         <span v-if="data.pr?.mergedAt" class="shrink-0">· {{ timeAgo(data.pr.mergedAt) }}</span>
         <span class="flex-1" />
+        <Tooltip v-if="flags.length">
+          <TooltipTrigger as-child>
+            <span class="flex shrink-0 items-center gap-0.5 tabular-nums" :class="toneOf(flags)" @click.stop>
+              <PhFlag :size="12" weight="fill" />{{ flags.length }}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent class="max-w-sm">
+            <div class="mb-0.5 font-medium">Feature flags</div>
+            <div v-for="k in flags" :key="k" class="flex gap-2"><span class="font-mono">{{ k }}</span><span class="opacity-80">{{ flagState(k) }}</span></div>
+          </TooltipContent>
+        </Tooltip>
         <span
           v-if="data.jiraKeys.length"
           class="flex h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-muted"
