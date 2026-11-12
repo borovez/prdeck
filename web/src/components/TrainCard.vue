@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card'
 import PrRow from './PrRow.vue'
 import RepoName from './RepoName.vue'
 import JiraPill from './JiraPill.vue'
+import FlagChip from './FlagChip.vue'
+import { useReleaseFlags } from '@/composables/flags'
 
 /**
  * One release train: releases across repos in the suggested shipping order, why they belong together,
@@ -16,6 +18,9 @@ import JiraPill from './JiraPill.vue'
 const props = defineProps<{ train: ReleaseTrain }>()
 const deck = useDeck()
 
+const flagsOf = useReleaseFlags()
+/** Every flag the train's releases name */
+const flags = computed(() => [...new Set(props.train.releases.flatMap((id) => flagsOf(id)))])
 const repos = computed(() => new Set(props.train.releases.map((id) => id.split('#')[0])).size)
 const hasOrder = computed(() => props.train.links.some((l) => l.kind === 'order'))
 const steps = computed(() =>
@@ -44,6 +49,11 @@ const other = (l: ReleaseTrain['links'][number], id: string) => (l.from === id ?
       </span>
     </div>
 
+    <div v-if="flags.length" class="flex flex-wrap items-center gap-1.5 border-b px-4 py-2">
+      <span class="text-xs text-muted-foreground">Flags</span>
+      <FlagChip v-for="k in flags" :key="k" :flag-key="k" />
+    </div>
+
     <p v-if="!hasOrder" class="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
       No shipping order yet: these releases ship the same Jira issues. Open a release and set the order in its Release train
       section.
@@ -59,7 +69,7 @@ const other = (l: ReleaseTrain['links'][number], id: string) => (l.from === id ?
           {{ hasOrder ? s.n : '·' }}
         </span>
         <div class="min-w-0 flex-1">
-          <PrRow v-if="s.pr" :pr="s.pr" compact class="min-w-0">
+          <PrRow v-if="s.pr" :pr="s.pr" compact class="min-w-0" :flags="flagsOf(s.id)">
             <template v-if="train.next === s.id" #badges><Badge variant="primary">Ship next</Badge></template>
           </PrRow>
           <RepoName v-else :id="s.id" class="font-mono text-sm" />

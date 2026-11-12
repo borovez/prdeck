@@ -7,6 +7,8 @@ import { useDependencies } from '@/composables/dependencies'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import RepoName from './RepoName.vue'
+import FlagStatus from './FlagStatus.vue'
+import { useReleaseFlags } from '@/composables/flags'
 
 /**
  * A release's place in its release train (PR panel): the train in order, and for every other release how it
@@ -17,6 +19,7 @@ const props = defineProps<{ train: ReleaseTrain; releaseId: string }>()
 const deck = useDeck()
 const deps = useDependencies()
 const busy = ref('')
+const flagsOf = useReleaseFlags()
 
 const ordered = computed(() => props.train.links.some((l) => l.kind === 'order'))
 const others = computed(() =>
@@ -65,6 +68,7 @@ async function remove(e: DepEdge) {
         >
           <span v-if="ordered" class="font-semibold tabular-nums">{{ i + 1 }}.</span>
           <RepoName :id="id" class="max-w-48 font-mono" />
+          <FlagStatus :keys="flagsOf(id)" class="[&_svg]:size-3" />
           <Badge v-if="deck.byId.get(id)?.state === 'MERGED'" variant="merged" class="h-4 px-1 text-[10px]">merged</Badge>
           <Badge v-else-if="train.next === id" variant="primary" class="h-4 px-1 text-[10px]">ship next</Badge>
         </button>
