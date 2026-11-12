@@ -2,17 +2,23 @@ import type { DependencyKind, GithubAccount, PrId } from '../../shared/types.ts'
 import { getPrBody, updatePrBody } from './github.ts'
 import { normaliseRef, parseBodyBlocks, parseBodyDependencies } from './refs.ts'
 
-/** The line written for a dependency; parseBodyDependencies reads it back */
-const lineFor = (ref: string, kind: DependencyKind) => (kind === 'release' ? `Requires release of: ${ref}` : `Depends on: ${ref}`)
 const DEP_LINE = /^[\s>*-]*(?:\*\*)?\s*((?:requires|needs|after|waits?\s+(?:on|for))\s+release(?:\s+of)?|depends\s+on|blocked\s+by|requires|needs)\s*(?:\*\*)?\s*:?/i
 const REF = /(https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+|[\w.-]+\/[\w.-]+#\d+|#\d+)/g
+
+/** Add `ref` to the first "<label>: …" line, or append a new line when there is none */
+function appendRef(body: string, label: string, ref: string): string {
+  const lineRe = new RegExp(`^([\\s>*-]*(?:\\*\\*)?\\s*${label}\\s*(?:\\*\\*)?\\s*:\\s*)(.*)$`, 'im')
+  const m = lineRe.exec(body)
+  if (m) return body.replace(lineRe, (_all, head: string, rest: string) => `${head}${rest.trim() ? `${rest.trimEnd()}, ` : ''}${ref}`)
+  return `${body.replace(/\s+$/, '')}\n\n${label}: ${ref}\n`
+}
 
 /** Body with `to` listed as a dependency of the given kind (unchanged if it already is) */
 export function withDependency(body: string, repo: string, self: PrId, to: PrId, toRef: string, kind: DependencyKind): string {
   const existing = parseBodyDependencies(body, repo, self).find((d) => d.to === to)
   if (existing?.kind === kind) return body
   const base = existing ? withoutDependency(body, repo, to) : body
-  return `${base.replace(/\s+$/, '')}\n\n${lineFor(toRef, kind)}\n`
+  return appendRef(base, kind === 'release' ? 'Requires release of' : 'Depends on', toRef)
 }
 
 /** Body with every mention of `to` removed from dependency lines; lines left without refs go */
@@ -48,7 +54,7 @@ export function withBlocks(body: string, repo: string, self: PrId, dependent: Pr
   const existing = parseBodyBlocks(body, repo, self).find((d) => d.from === dependent)
   if (existing?.kind === kind) return body
   const base = existing ? withoutBlocks(body, repo, dependent) : body
-  return `${base.replace(/\s+$/, '')}\n\n${kind === 'release' ? 'Release blocks' : 'Blocks'}: ${dependentRef}\n`
+  return appendRef(base, kind === 'release' ? 'Release blocks' : 'Blocks', dependentRef)
 }
 
 /** Prerequisite's side: every mention of `dependent` taken out of its "Blocks:" lines */
