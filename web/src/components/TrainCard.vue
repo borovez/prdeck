@@ -1,19 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhArrowBendDownRight, PhCaretDown, PhLinkSimple, PhTrain, PhWarning } from '@phosphor-icons/vue'
+import { PhArrowBendDownRight, PhLinkSimple, PhTrain, PhWarning } from '@phosphor-icons/vue'
 import type { ReleaseTrain } from '@shared/types'
 import { useDeck } from '@/stores/deck'
-import { useDependencies } from '@/composables/dependencies'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import PrRow from './PrRow.vue'
 import RepoName from './RepoName.vue'
 import JiraPill from './JiraPill.vue'
@@ -24,7 +15,6 @@ import JiraPill from './JiraPill.vue'
  */
 const props = defineProps<{ train: ReleaseTrain }>()
 const deck = useDeck()
-const deps = useDependencies()
 
 const repos = computed(() => new Set(props.train.releases.map((id) => id.split('#')[0])).size)
 const hasOrder = computed(() => props.train.links.some((l) => l.kind === 'order'))
@@ -37,11 +27,6 @@ const steps = computed(() =>
     shares: props.train.links.filter((l) => l.kind === 'jira' && (l.from === id || l.to === id)),
   })),
 )
-/** Releases this one could be set to ship after (not already ordered either way) */
-const candidates = (id: string) =>
-  props.train.releases.filter(
-    (o) => o !== id && !props.train.links.some((l) => l.kind === 'order' && ((l.from === o && l.to === id) || (l.from === id && l.to === o))),
-  )
 const other = (l: ReleaseTrain['links'][number], id: string) => (l.from === id ? l.to : l.from)
 </script>
 
@@ -60,8 +45,8 @@ const other = (l: ReleaseTrain['links'][number], id: string) => (l.from === id ?
     </div>
 
     <p v-if="!hasOrder" class="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
-      No shipping order known yet: these releases are linked by shared Jira issues only. Use “Ships after” to set one; it adds a
-      dependency between the release PRs.
+      No shipping order yet: these releases ship the same Jira issues. Open a release and set the order in its Release train
+      section.
     </p>
 
     <ol class="divide-y">
@@ -91,17 +76,6 @@ const other = (l: ReleaseTrain['links'][number], id: string) => (l.from === id ?
             </li>
           </ul>
         </div>
-        <DropdownMenu v-if="s.pr?.state === 'OPEN' && candidates(s.id).length">
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm" class="mt-1.5 shrink-0">Ships after <PhCaretDown /></Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-72">
-            <DropdownMenuLabel class="text-xs text-muted-foreground">This release waits for the merge of…</DropdownMenuLabel>
-            <DropdownMenuItem v-for="o in candidates(s.id)" :key="o" @select="deps.add(s.id, o, 'merge')">
-              <RepoName :id="o" class="font-mono text-xs" />
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </li>
     </ol>
   </Card>

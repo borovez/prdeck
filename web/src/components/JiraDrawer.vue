@@ -12,6 +12,7 @@ import AdfView from './AdfView.vue'
 import JiraLinks from './JiraLinks.vue'
 import JiraTransition from './JiraTransition.vue'
 import PrRow from './PrRow.vue'
+import FlagList from './FlagList.vue'
 import SidePanel from './SidePanel.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +28,8 @@ const nav = useReleaseNav()
 const releaseId = computed(() => (key.value ? nav.releaseForIssue(key.value) : null))
 const issue = computed(() => (key.value ? (deck.jiraByKey.get(key.value) ?? null) : null))
 const prs = computed(() => (key.value ? deck.prs.filter((p) => p.jiraKeys.includes(key.value!)) : []))
+/** Flags named by this issue's PRs */
+const flags = computed(() => [...new Set(prs.value.flatMap((p) => p.flags))])
 const url = computed(() => issue.value?.url ?? (deck.overview?.jiraBaseUrl && key.value ? `${deck.overview.jiraBaseUrl}/browse/${key.value}` : undefined))
 useArrowNav('jira', () => deck.selectedJiraKey, (k) => (deck.selectedJiraKey = k))
 
@@ -111,6 +114,11 @@ const details = computed(() => {
           <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Pull requests</h3>
           <div v-if="prs.length" class="-mx-3"><PrRow v-for="p in prs" :key="p.id" :pr="p" compact :preview="false" /></div>
           <p v-else class="text-sm text-muted-foreground">No linked pull requests</p>
+        </section>
+
+        <section v-if="flags.length">
+          <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Feature flags</h3>
+          <FlagList :keys="flags" />
         </section>
 
         <section v-if="issue?.links.length">

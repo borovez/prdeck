@@ -57,6 +57,7 @@ import MarkdownEditor from './MarkdownEditor.vue'
 import SectionToggle from './SectionToggle.vue'
 import ReleaseItems from './ReleaseItems.vue'
 import FlagList from './FlagList.vue'
+import TrainOrder from './TrainOrder.vue'
 import { FLOW_LABEL } from '@/utils/releaseFlow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -88,6 +89,8 @@ const tab = computed(() => (dv.tab === 'contents' && pr.value?.flow !== 'release
 const contents = computed(() => (pr.value ? deck.releaseById.get(pr.value.id) : undefined))
 const ALERT_ICON = { default: PhInfo, info: PhInfo, success: PhCheckCircle, warning: PhWarning, destructive: PhXCircle } as const
 /** The release train this release PR is part of, and its place in it */
+/** The train this release PR is in */
+const trainData = computed(() => (pr.value ? deck.overview?.trains.find((t) => t.releases.includes(pr.value!.id)) : undefined))
 const train = computed(() => {
   const id = pr.value?.id
   const t = id ? deck.overview?.trains.find((t) => t.releases.includes(id)) : undefined
@@ -353,6 +356,11 @@ const removeDep = (e: DepEdge) => deps.remove(e)
             <button v-if="pr.unresolvedThreads" class="mt-1 text-xs text-warning hover:underline" @click="dv.tab = 'conversations'">
               {{ pr.unresolvedThreads }} unresolved conversation(s)
             </button>
+          </section>
+
+          <section v-if="trainData">
+            <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Release train</h3>
+            <TrainOrder :train="trainData" :release-id="pr.id" />
           </section>
 
           <section v-if="pr.flags.length">
