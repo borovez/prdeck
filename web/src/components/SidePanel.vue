@@ -29,10 +29,18 @@ useEventListener(
   { capture: true },
 )
 
+const MIN_W = 380
+/** Widest the panel can be: 1100px, or the window minus a strip of the page */
+const maxW = () => Math.max(MIN_W, Math.min(1100, window.innerWidth - 80))
+/** Double-click the edge: snap to the widest size, or back to the narrowest when it's already wide */
+function toggleWidth() {
+  const w = layout.prefs.drawerWidth
+  layout.prefs.drawerWidth = w < (MIN_W + maxW()) / 2 ? maxW() : MIN_W
+}
 function startResize(ev: MouseEvent) {
   const startX = ev.clientX
   const startW = layout.prefs.drawerWidth
-  const onMove = (e: MouseEvent) => (layout.prefs.drawerWidth = Math.min(1100, Math.max(380, startW + startX - e.clientX)))
+  const onMove = (e: MouseEvent) => (layout.prefs.drawerWidth = Math.min(maxW(), Math.max(MIN_W, startW + startX - e.clientX)))
   const onUp = () => (window.removeEventListener('mousemove', onMove), window.removeEventListener('mouseup', onUp))
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
@@ -51,8 +59,9 @@ function startResize(ev: MouseEvent) {
       <!-- z-30: the body's scroll area is positioned and would otherwise cover the handle below the header -->
       <div
         class="absolute inset-y-0 -left-1 z-30 w-2.5 cursor-col-resize transition-colors hover:bg-primary/30"
-        title="Drag to resize"
+        title="Drag to resize · double-click for widest / narrowest"
         @mousedown="startResize"
+        @dblclick="toggleWidth"
       />
       <header class="flex items-start gap-2 border-b p-4">
         <div class="min-w-0 flex-1"><slot name="header" /></div>
