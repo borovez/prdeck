@@ -59,6 +59,8 @@ const openReleases = computed(() =>
 const needsBackmerge = computed(() => deck.prs.filter((p) => p.flow === 'hotfix' && p.state === 'MERGED' && p.backmerge && !p.backmerge.backmerged))
 const myUnreleased = computed(() => deck.prs.filter((p) => p.isMine && isUnreleased(p)))
 const releaseNav = useReleaseNav()
+/** A release's flags: its own and those of the synced PRs it ships */
+const releaseFlags = (r: PrView) => [...new Set([...r.flags, ...(deck.releaseById.get(r.id)?.items ?? []).flatMap((i) => deck.byId.get(i.id)?.flags ?? [])])]
 const releasesView = layout.view('releases', { tab: 'releases' as string })
 
 function itemsFor(p: PanelConfig): number {
@@ -260,7 +262,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
             </div>
             <section v-if="openReleases.length">
               <h4 class="px-3 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Open releases</h4>
-              <PrRow v-for="r in openReleases.slice(0, p.limit)" :key="r.id" :pr="r" compact>
+              <PrRow v-for="r in openReleases.slice(0, p.limit)" :key="r.id" :pr="r" compact :flags="releaseFlags(r)">
                 <template #badges>
                   <Badge v-if="shipNextIds.has(r.id)" variant="primary">Ship next</Badge>
                   <Badge variant="count" :title="`${deck.releaseById.get(r.id)?.items.length ?? 0} PR(s) in this release`">{{ deck.releaseById.get(r.id)?.items.length ?? 0 }}</Badge>

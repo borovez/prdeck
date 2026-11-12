@@ -55,7 +55,7 @@ const jira = computed(() => {
         <Badge v-if="isNext" variant="primary" class="h-4 gap-0.5 px-1.5 text-[10px]"><PhArrowRight />Next</Badge>
         <template v-if="pr">
           <ThreadCount :pr="pr" />
-      <FlagStatus :pr="pr" />
+      <FlagStatus :keys="pr.flags" />
           <span v-if="pr.state === 'OPEN' && check" :title="check.label" class="flex shrink-0">
             <PhCheckCircle v-if="pr.checks.state === 'SUCCESS'" :size="15" weight="fill" :class="check.cls" />
             <PhXCircle v-else-if="pr.checks.state === 'FAILURE' || pr.checks.state === 'ERROR'" :size="15" weight="fill" :class="check.cls" />

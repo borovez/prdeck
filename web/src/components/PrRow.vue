@@ -24,7 +24,7 @@ import ThreadCount from './ThreadCount.vue'
 import FlagStatus from './FlagStatus.vue'
 
 /** preview: hover preview (off for rows inside side panels) */
-const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean; class?: HTMLAttributes['class'] }>(), { preview: true })
+const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean; class?: HTMLAttributes['class']; /** Flags to show instead of the PR's own (e.g. a release's roll-up) */ flags?: string[] }>(), { preview: true })
 const deck = useDeck()
 const check = computed(() => CHECK_STYLE[props.pr.checks.state])
 const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).length)
@@ -74,7 +74,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
         <TooltipContent>Part of a dependency chain</TooltipContent>
       </Tooltip>
       <ThreadCount :pr="pr" />
-      <FlagStatus :pr="pr" />
+      <FlagStatus :keys="flags ?? pr.flags" />
       <Tooltip v-if="pr.state === 'OPEN'">
         <TooltipTrigger as-child>
           <span>
