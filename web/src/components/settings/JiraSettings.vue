@@ -12,6 +12,7 @@ import MultiPicker from '@/components/MultiPicker.vue'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +43,9 @@ const details = computed(() => {
       label: 'New issues',
       value: [j.create.projectKey || 'No default project', j.create.issueType, j.create.assignToMe && 'assigned to me'].filter(Boolean).join(' · '),
     },
+    ...(Object.entries(j.guides ?? {}).some(([, g]) => g.trim())
+      ? [{ label: 'Writing guides', value: Object.entries(j.guides ?? {}).filter(([, g]) => g.trim()).map(([k]) => k).join(', ') }]
+      : []),
   ]
 })
 
@@ -98,6 +102,24 @@ const typeNames = computed(() => {
   const current = draft.value?.create.issueType
   return current && !names.includes(current) ? [current, ...names] : names
 })
+
+// ---- Writing guides: per project, for Claude when it drafts issues
+const guideProjects = computed(() => {
+  const d = draft.value
+  if (!d) return []
+  const keys = d.projectKeys.length ? d.projectKeys : d.create.projectKey ? [d.create.projectKey] : []
+  return [...new Set([...keys, ...Object.keys(d.guides ?? {}).filter((k) => d.guides![k]?.trim())])]
+})
+const guideTab = ref('')
+watch(guideProjects, (keys) => {
+  if (!keys.includes(guideTab.value)) guideTab.value = keys[0] ?? ''
+}, { immediate: true })
+function guideModel(key: string) {
+  return {
+    get: () => draft.value?.guides?.[key] ?? '',
+    set: (v: string) => draft.value && (draft.value.guides = { ...draft.value.guides, [key]: v }),
+  }
+}
 
 const check = () => api.testJira(draft.value!.baseUrl, draft.value!.email, draft.value!.apiToken)
 const test = () => st.run('', async () => `Connected as ${(await check()).displayName}`)
@@ -173,6 +195,27 @@ async function submit() {
           </Select>
         </Field>
         <Label class="h-9 cursor-pointer gap-2 font-normal"><Checkbox v-model="draft.create.assignToMe" /> Assign to me</Label>
+        <Field
+          v-if="guideProjects.length"
+          label="Writing guide"
+          hint="How this project writes issues: sections, acceptance criteria, naming. Claude follows it when drafting, over a repo's CLAUDE.md."
+          class="col-span-3"
+        >
+          <Tabs v-model="guideTab" class="gap-1.5">
+            <TabsList v-if="guideProjects.length > 1" class="h-8">
+              <TabsTrigger v-for="k in guideProjects" :key="k" :value="k" class="px-2.5 text-xs">{{ k }}</TabsTrigger>
+            </TabsList>
+            <TabsContent v-for="k in guideProjects" :key="k" :value="k">
+              <Textarea
+                :model-value="guideModel(k).get()"
+                rows="5"
+                class="min-h-0 resize-y text-sm"
+                :placeholder="`e.g. Start with a one-line user story. Sections: Context, Acceptance criteria (checklist), Out of scope. Bugs: steps to reproduce, expected vs actual.`"
+                @update:model-value="(v) => guideModel(k).set(String(v))"
+              />
+            </TabsContent>
+          </Tabs>
+        </Field>
       </div>
     </template>
   </ConnectionCard>

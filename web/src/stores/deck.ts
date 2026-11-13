@@ -1,10 +1,19 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import type { JiraFieldValue, Overview, PrView, SlackItem, SyncState } from '@shared/types'
+import type { JiraFieldValue, Overview, PrView, SyncState } from '@shared/types'
 
 /** What the Jira composer opens on */
 export type ComposerTarget =
-  | { mode: 'create'; projectKey?: string; summary?: string; description?: string; values?: Record<string, JiraFieldValue> }
+  | {
+      mode: 'create'
+      projectKey?: string
+      summary?: string
+      description?: string
+      values?: Record<string, JiraFieldValue>
+      /** Context for Claude: a PR, a Slack message (also marked done on create) */
+      prId?: string
+      slackItemId?: string
+    }
   | { mode: 'edit'; key: string }
 import { toast } from 'vue-sonner'
 import { api } from '@/api'
@@ -25,8 +34,6 @@ export const useDeck = defineStore('deck', () => {
   for (const p of panels) watch(p, (v) => v && panels.forEach((o) => o !== p && (o.value = null)))
   /** Jira issue composer: a new issue (optionally pre-filled) or an existing one to edit */
   const composer = ref<ComposerTarget | null>(null)
-  /** Slack item being turned into a Jira task (opens the modal) */
-  const slackToJira = ref<SlackItem | null>(null)
 
   const prs = computed(() => overview.value?.prs ?? [])
   const byId = computed(() => new Map(prs.value.map((p) => [p.id, p])))
@@ -119,6 +126,6 @@ export const useDeck = defineStore('deck', () => {
     timer = window.setInterval(() => !syncRunning.value && load(), 60_000)
   }
 
-  return { overview, loading, syncing, syncStatus, syncRunning, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, composer, prs, byId,
+  return { overview, loading, syncing, syncStatus, syncRunning, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, composer, prs, byId,
     releaseById, selected, jiraByKey, flagByKey, repos, load, sync, mutate, startPolling }
 })

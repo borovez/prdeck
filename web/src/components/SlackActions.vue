@@ -31,7 +31,16 @@ async function status(s: SlackItem['status']) {
   else toast.success(label)
   if (props.labelled && s !== 'new') deck.selectedSlackId = next
 }
-const jira = () => (deck.slackToJira = props.item)
+/** New Jira issue with this message as context: Claude reads the thread; created issues mark it done */
+const jira = () =>
+  (deck.composer = {
+    mode: 'create',
+    slackItemId: props.item.id,
+    description: props.item.text
+      .split('\n')
+      .map((l) => `> ${l}`)
+      .join('\n'),
+  })
 
 // Shortcuts while the panel is open and nothing else has the keyboard
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {

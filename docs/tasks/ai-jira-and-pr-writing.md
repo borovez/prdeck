@@ -95,7 +95,7 @@ can do the same from the terminal.
 
 1. ✅ Metadata endpoints and edit / create writes in `jira.ts` + routes.
 2. ✅ `JiraComposer` (manual create and edit), ⋯ More fields, entry points, cache refresh.
-3. Claude drafting for create (generalise `draftJiraFromSlack` into `draftIssue(context, meta)`), writing
+3. ✅ Claude drafting for create (generalise `draftJiraFromSlack` into `draftIssue(context, meta)`), writing
    guides (Settings + repo CLAUDE.md), replace `SlackToJiraModal` (reply in thread and mark done move
    into the composer when it's opened from Slack).
 4. Claude updates for edit, with the diff review.

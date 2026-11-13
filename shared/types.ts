@@ -504,6 +504,40 @@ export interface JiraEditable {
   labels: JiraValueLabels
 }
 
+/** Ask Claude to write (or rework) the issue in the composer */
+export interface JiraDraftRequest {
+  projectKey: string
+  issueTypeId: string
+  /** Fields shown as chips: Claude only fills these */
+  fieldKeys: string[]
+  /** What you want, in your words */
+  prompt: string
+  /** What's in the composer now, so a prompt like "make it a bug" refines it */
+  current: { summary: string; description: string; values: Record<string, JiraFieldValue> }
+  context: { prId?: string | null; slackItemId?: string | null; repo?: string | null }
+  /** Pasted or dropped images, for Claude to look at */
+  images?: ImageAttachment[]
+}
+
+/** An image pasted or dropped into the composer: base64 without the data: prefix */
+export interface ImageAttachment {
+  name: string
+  type: string
+  data: string
+}
+
+export interface JiraAiDraft {
+  summary: string
+  description: string
+  issueTypeId: string
+  /** Only the fields Claude set (option ids, labels, a parent key, numbers, text, dates) */
+  values: Record<string, JiraFieldValue>
+  labels: JiraValueLabels
+  rationale: string
+  /** What Claude was given, shown under the bar */
+  used: { guide: boolean; claudeMd: string | null; pr: string | null; slack: boolean }
+}
+
 export interface JiraWriteInput {
   projectKey: string
   issueTypeId: string
@@ -511,16 +545,11 @@ export interface JiraWriteInput {
   /** Markdown */
   description: string
   values: Record<string, JiraFieldValue>
-}
-
-export interface JiraDraft {
-  summary: string
-  description: string // markdown
-  issueType: 'Task' | 'Bug' | 'Story' | 'Improvement'
-  labels: string[]
-  rationale: string
-  /** Claude's picks for the project's required fields: option id (selects) or text, by field key */
-  fields?: Record<string, string>
+  /** Created from a Slack message: mark it done (and reply in its thread) */
+  slackItemId?: string | null
+  replyInThread?: boolean
+  /** Uploaded to the issue as attachments */
+  attachments?: ImageAttachment[]
 }
 
 // ---------- Settings ----------
@@ -552,6 +581,8 @@ export interface JiraConfig {
     issueType: string
     assignToMe: boolean
   }
+  /** How each project writes issues (sections, acceptance criteria, naming), by project key; Claude follows it */
+  guides?: Record<string, string>
 }
 
 export interface SlackConfig {

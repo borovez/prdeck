@@ -25,15 +25,25 @@ interface CliResult {
   modelUsage?: Record<string, unknown>
 }
 
-export async function claudeCodeJson<T>(opts: { system: string; prompt: string; schema: object; model: string; timeoutMs?: number }) {
+export async function claudeCodeJson<T>(opts: {
+  system: string
+  prompt: string
+  schema: object
+  model: string
+  timeoutMs?: number
+  signal?: AbortSignal
+  /** Images Claude looks at with the prompt (sent as a stream-json message) */
+  images?: { type: string; data: string }[]
+}) {
   const bin = claudeBin()
   if (!bin) throw new Error('Claude Code (`claude`) not found. Install it, or set CLAUDE_BIN to its path.')
   // The CLI's validator doesn't know the draft-2020 meta-schema zod stamps on; the schema itself is fine
   const { $schema: _meta, ...schema } = opts.schema as Record<string, unknown>
+  const withImages = !!opts.images?.length
   const args = [
     '-p',
     '--safe-mode',
-    '--output-format', 'json',
+    ...(withImages ? ['--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'] : ['--output-format', 'json']),
     '--json-schema', JSON.stringify(schema),
     '--model', opts.model,
     '--system-prompt', opts.system,
@@ -48,18 +58,44 @@ export async function claudeCodeJson<T>(opts: { system: string; prompt: string; 
     const timer = setTimeout(() => (child.kill('SIGTERM'), reject(new Error('Claude Code timed out'))), opts.timeoutMs ?? 180_000)
     child.stdout.on('data', (d) => (stdout += d))
     child.stderr.on('data', (d) => (stderr += d))
+    // Stopped by the user (the request was aborted): end the CLI too
+    const stop = () => (child.kill('SIGTERM'), clearTimeout(timer), reject(new Error('Stopped')))
+    if (opts.signal?.aborted) stop()
+    opts.signal?.addEventListener('abort', stop, { once: true })
     child.on('error', (e) => (clearTimeout(timer), reject(e)))
     child.on('close', (code) => {
       clearTimeout(timer)
       if (stdout.trim()) resolve(stdout)
       else reject(new Error(`Claude Code exited with ${code}: ${stderr.trim().slice(0, 300) || 'no output'}`))
     })
-    child.stdin.end(opts.prompt)
+    // Images go in a user message with content blocks; plain prompts as text
+    child.stdin.end(
+      withImages
+        ? JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content: [
+                ...opts.images!.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.type, data: i.data } })),
+                { type: 'text', text: opts.prompt },
+              ],
+            },
+          }) + '\n'
+        : opts.prompt,
+    )
   })
 
   let res: CliResult
   try {
-    res = JSON.parse(out) as CliResult
+    // stream-json: one event per line, the last "result" event has the answer
+    res = withImages
+      ? (out
+          .trim()
+          .split('\n')
+          .map((l) => JSON.parse(l) as CliResult & { type?: string })
+          .findLast((e) => e.type === 'result') as CliResult)
+      : (JSON.parse(out) as CliResult)
+    if (!res) throw new Error('no result')
   } catch {
     throw new Error(`Claude Code returned unexpected output: ${out.trim().slice(0, 300)}`)
   }

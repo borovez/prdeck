@@ -28,7 +28,6 @@ import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
 import JiraDrawer from '@/components/JiraDrawer.vue'
-import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
 import JiraComposer from '@/components/JiraComposer.vue'
 import { onKeyStroke } from '@vueuse/core'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -218,7 +217,6 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
     <PrDrawer />
     <SlackDrawer />
     <JiraDrawer />
-    <SlackToJiraModal />
     <JiraComposer />
     <Toaster :theme="theme === 'auto' ? 'system' : theme" position="bottom-right" close-button />
   </TooltipProvider>

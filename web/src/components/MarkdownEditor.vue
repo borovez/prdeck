@@ -31,6 +31,10 @@ const props = withDefaults(
     height?: number
     /** Remembers Write / Preview separately per use, e.g. 'jira-description', 'pr-note' */
     stateKey?: string
+    /** Fill the parent's height (a flex column) instead of a fixed height */
+    fill?: boolean
+    /** Previews for attachment:name images in the text */
+    images?: Record<string, string>
   }>(),
   { height: 288, stateKey: 'default' },
 )
@@ -93,7 +97,7 @@ useResizeObserver(
 </script>
 
 <template>
-  <Tabs v-model="v.tab" class="gap-1.5">
+  <Tabs v-model="v.tab" :class="['gap-1.5', fill && 'min-h-0 flex-1']">
     <!-- Label and tabs keep their size; the formatting buttons scroll sideways when space runs out -->
     <div class="flex items-center gap-2">
       <div class="shrink-0 whitespace-nowrap"><slot name="label"><Label>{{ label }}</Label></slot></div>
@@ -119,12 +123,21 @@ useResizeObserver(
         <TabsTrigger value="preview" class="px-2.5 text-xs"><PhEye /> Preview</TabsTrigger>
       </TabsList>
     </div>
-    <TabsContent value="write">
-      <Textarea ref="textarea" v-model="model" :placeholder="placeholder" @paste="onPaste" @keydown="onKeydown" @blur="emit('blur')" class="field-sizing-fixed resize-y font-mono text-xs" :style="{ height: `${height}px` }" />
+    <TabsContent value="write" :class="fill && 'min-h-0'">
+      <Textarea
+        ref="textarea"
+        v-model="model"
+        :placeholder="placeholder"
+        :class="['field-sizing-fixed font-mono text-xs', fill ? 'h-full resize-none' : 'resize-y']"
+        :style="fill ? undefined : { height: `${height}px` }"
+        @paste="onPaste"
+        @keydown="onKeydown"
+        @blur="emit('blur')"
+      />
     </TabsContent>
-    <TabsContent value="preview">
-      <div class="overflow-y-auto rounded-md border bg-background px-4 py-3" :style="{ height: `${height}px` }">
-        <AdfView v-if="doc.content.length" :doc="doc" />
+    <TabsContent value="preview" :class="fill && 'min-h-0'">
+      <div class="overflow-y-auto rounded-md border bg-background px-4 py-3" :class="fill && 'h-full'" :style="fill ? undefined : { height: `${height}px` }">
+        <AdfView v-if="doc.content.length" :doc="doc" :images="images" />
         <p v-else class="text-sm text-muted-foreground">Nothing to preview.</p>
       </div>
     </TabsContent>

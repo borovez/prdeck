@@ -6,7 +6,8 @@ import type { AdfDoc, AdfNode } from '@shared/adf'
  * Renders an Atlassian Document Format doc with Vue elements, never HTML strings: what we send to
  * Jira, and Jira's own descriptions/comments (tables, mentions, cards, rules; images as a placeholder).
  */
-const props = defineProps<{ doc: AdfDoc }>()
+/** images: local previews for attachment:name images not uploaded yet */
+const props = defineProps<{ doc: AdfDoc; images?: Record<string, string> }>()
 const SAFE_URL = /^(https?:|mailto:)/i
 
 function text(n: AdfNode): VNode | string {
@@ -60,8 +61,15 @@ function node(n: AdfNode): VNode | string {
         : ''
     }
     case 'mediaSingle':
-    case 'mediaGroup':
+    case 'mediaGroup': {
+      // External images (and attachments pasted in the composer) show; Jira's own uploads need a Jira login
+      const media = (n.content ?? []).find((c) => c.type === 'media')
+      const url = media?.attrs?.type === 'external' ? String(media.attrs.url ?? '') : ''
+      const local = url.startsWith('attachment:') ? props.images?.[url.slice('attachment:'.length)] : undefined
+      const src = local ?? (/^https?:/i.test(url) ? url : '')
+      if (src) return h('img', { src, alt: String(media?.attrs?.alt ?? ''), class: 'my-2 max-h-80 rounded-md border' })
       return h('div', { class: 'my-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground' }, 'Image or attachment: open in Jira to view')
+    }
     case 'panel':
       return h('div', { class: 'my-2 rounded-md border bg-muted/50 px-3 py-1' }, kids())
     case 'table':

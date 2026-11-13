@@ -526,6 +526,44 @@ export async function fieldOptions(
   return []
 }
 
+/** Upload files to an issue (images pasted into the composer) */
+export async function addAttachments(
+  cfg: JiraConfig,
+  key: string,
+  files: { name: string; type: string; data: string }[],
+): Promise<{ filename: string; content: string }[]> {
+  if (!files.length) return []
+  const form = new FormData()
+  for (const f of files) form.append('file', new Blob([Buffer.from(f.data, 'base64')], { type: f.type }), f.name)
+  const res = await fetch(`${base(cfg)}/rest/api/3/issue/${encodeURIComponent(key)}/attachments`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${cfg.email}:${cfg.apiToken}`).toString('base64'),
+      Accept: 'application/json',
+      'X-Atlassian-Token': 'no-check',
+    },
+    body: form,
+  })
+  if (!res.ok) throw new JiraError(`Jira ${res.status} attachments: ${(await res.text()).slice(0, 300)}`, res.status)
+  return ((await res.json()) as { filename: string; content: string }[]).map((a) => ({ filename: a.filename, content: a.content }))
+}
+
+const ATTACHMENT_REF = /!\[([^\]]*)\]\(attachment:([^)\s]+)\)/g
+/** Whether a Markdown description refers to images pasted in the composer */
+export const hasAttachmentRefs = (md: string) => /\]\(attachment:/.test(md)
+/**
+ * attachment:name images → the uploaded attachment's URL (Jira shows it inline to anyone who can see
+ * the issue); images that weren't uploaded are dropped.
+ */
+export function resolveAttachmentRefs(md: string, uploaded: { filename: string; content: string }[]) {
+  return md
+    .replace(ATTACHMENT_REF, (_, alt: string, name: string) => {
+      const file = uploaded.find((u) => u.filename === decodeURIComponent(name))
+      return file ? `![${alt}](${file.content})` : ''
+    })
+    .replace(/\n{3,}/g, '\n\n')
+}
+
 /** Fetch one issue in the list shape (to refresh the cache after a write) */
 export async function getIssue(cfg: JiraConfig, key: string): Promise<JiraIssue> {
   const raw = await request<any>(cfg, `/rest/api/3/issue/${encodeURIComponent(key)}?fields=${FIELDS.join(',')}`)

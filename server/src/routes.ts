@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
-import type { AiProvider, GithubAccount, JiraFieldKind, Settings } from '../../shared/types.ts'
+import type { AiProvider, GithubAccount, JiraFieldKind, JiraFieldOption, Settings } from '../../shared/types.ts'
 import {
   listPrs,
   addManualDep,
@@ -25,14 +25,17 @@ import {
   setSlackStatus,
   upsertJira,
 } from './db.ts'
-import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
+import { draftJiraIssue, envCredentials, testAi } from './ai.ts'
+import { claudeMdGuide } from './guides.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
-import { ghCliToken, listRepos, prDetail, whoAmI } from './github.ts'
+import { ghCliToken, listRepos, prDetail, prFileNames, whoAmI } from './github.ts'
 import {
+  addAttachments,
+  hasAttachmentRefs,
+  resolveAttachmentRefs,
   composeCreate,
   composeUpdate,
-  createIssue,
   createMeta,
   editable,
   fieldOptions,
@@ -41,7 +44,6 @@ import {
   jiraMyself,
   listProjects,
   projectIssueTypes,
-  requiredFields,
   transition,
 } from './jira.ts'
 import { buildOverview } from './model.ts'
@@ -410,42 +412,6 @@ api.get('/slack/:id/around', async (c) => {
   return c.json(await messagesAround(s.slack, item, n(c.req.query('before')), n(c.req.query('after'))))
 })
 
-api.post('/slack/:id/draft', async (c) => {
-  const s = getSettings()
-  const item = getSlackItem(c.req.param('id'))
-  if (!s.slack?.token || !item) throw bad('Unknown Slack item')
-  const { context, projectKey } = await c.req.json<{ context?: string; projectKey?: string }>()
-  const project = projectKey || s.jira?.create.projectKey || ''
-  // Let Claude fill the project's required fields too; drafting still works if Jira can't be asked
-  const required =
-    s.jira?.apiToken && project ? await requiredFields(s.jira, project, s.jira.create.issueType || 'Task').catch(() => []) : []
-  const thread = await threadContext(s.slack, item)
-  const draft = await draftJiraFromSlack(s.ai, item, thread, context ?? '', project, required)
-  return c.json({ draft, thread })
-})
-
-const CreateInput = z.object({
-  projectKey: z.string().min(1),
-  issueType: z.string().min(1),
-  summary: z.string().min(1),
-  description: z.string(),
-  labels: z.array(z.string()).default([]),
-  slackItemId: z.string().nullish(),
-  replyInThread: z.boolean().default(false),
-  /** Values for the project's required fields, already in Jira's shape ({id}, [{id}] or text) */
-  fields: z.record(z.string(), z.unknown()).default({}),
-})
-
-/** Create a Jira issue (optionally linked to a Slack item, optionally replying in its thread). */
-api.get('/jira/required-fields', async (c) => {
-  const s = getSettings()
-  if (!s.jira?.apiToken) throw bad('Jira not configured')
-  const project = c.req.query('project')
-  const type = c.req.query('type')
-  if (!project || !type) throw bad('project and type are required')
-  return c.json(await requiredFields(s.jira, project, type))
-})
-
 // ---------- Jira composer ----------
 
 const jiraCfg = () => {
@@ -454,6 +420,11 @@ const jiraCfg = () => {
   return s.jira
 }
 const FieldValue = z.union([z.string(), z.array(z.string()), z.number(), z.null()])
+/** Pasted images: up to 10, ~10 MB each (base64) */
+const Images = z
+  .array(z.object({ name: z.string().max(200), type: z.string().regex(/^image\//), data: z.string().max(14_000_000) }))
+  .max(10)
+  .default([])
 
 /** The projects chosen in Settings → Jira (all when none are chosen) */
 api.get('/jira/projects', async (c) => c.json(await listProjects(jiraCfg())))
@@ -480,11 +451,101 @@ api.post('/jira/issues', async (c) => {
       summary: z.string().trim().min(1),
       description: z.string().default(''),
       values: z.record(z.string(), FieldValue).default({}),
+      slackItemId: z.string().nullish(),
+      replyInThread: z.boolean().default(false),
+      attachments: Images,
     })
     .parse(await c.req.json())
-  const issue = await composeCreate(jiraCfg(), input)
+  const s = getSettings()
+  const item = input.slackItemId ? getSlackItem(input.slackItemId) : null
+  // Created from Slack: a link back to the message at the end of the description
+  const description = item?.permalink ? `${input.description.trim()}\n\n---\nSource: [Slack message from ${item.userName}](${item.permalink})` : input.description
+  // Images in the description are uploaded after the issue exists, then linked into it
+  const inline = hasAttachmentRefs(description)
+  let issue = await composeCreate(jiraCfg(), { ...input, description: inline ? resolveAttachmentRefs(description, []) : description })
+  // The issue exists even if an upload fails: report it instead of failing the create
+  let attachError: string | null = null
+  try {
+    const uploaded = await addAttachments(jiraCfg(), issue.key, input.attachments)
+    if (inline && uploaded.length) issue = await composeUpdate(jiraCfg(), issue.key, { description: resolveAttachmentRefs(description, uploaded) })
+  } catch (e) {
+    attachError = (e as Error).message
+  }
   upsertJira({ ...issue, isMine: issue.assignee?.accountId === (await jiraMyself(jiraCfg()).catch(() => null))?.accountId })
-  return c.json(issue)
+  let replied = false
+  if (item) {
+    setSlackStatus(item.id, 'done', issue.key)
+    if (input.replyInThread && s.slack?.token) {
+      await replyInThread(s.slack, item, `Tracked in Jira: <${issue.url}|${issue.key}> – ${issue.summary}`)
+      replied = true
+    }
+  }
+  return c.json({ ...issue, replied, attachError })
+})
+
+/** Claude writes (or reworks) the issue in the composer, from your request, the context and the writing guides */
+api.post('/jira/draft', async (c) => {
+  const s = getSettings()
+  const cfg = jiraCfg()
+  const input = z
+    .object({
+      projectKey: z.string().min(1),
+      issueTypeId: z.string(),
+      fieldKeys: z.array(z.string()).default([]),
+      prompt: z.string().default(''),
+      current: z.object({ summary: z.string(), description: z.string(), values: z.record(z.string(), FieldValue) }),
+      context: z.object({ prId: z.string().nullish(), slackItemId: z.string().nullish(), repo: z.string().nullish() }).default({}),
+      images: Images,
+    })
+    .parse(await c.req.json())
+  if (!input.prompt.trim()) throw bad('Tell Claude what to write or change')
+  // Stop Claude when the browser cancels (Stop button) or goes away
+  const stop = new AbortController()
+  const out = (c.env as { outgoing?: import('node:http').ServerResponse } | undefined)?.outgoing
+  out?.on('close', () => !out.writableFinished && stop.abort())
+  c.req.raw.signal?.addEventListener('abort', () => stop.abort(), { once: true })
+  const meta = await createMeta(cfg, input.projectKey, input.issueTypeId || undefined)
+  const fields = meta.fields.filter((f) => input.fieldKeys.includes(f.key))
+  const choices: Record<string, JiraFieldOption[]> = fields.some((f) => f.kind === 'parent')
+    ? { parent: await fieldOptions(cfg, 'parent', { project: input.projectKey }).catch(() => []) }
+    : {}
+
+  // Context: a PR (description and changed files), a Slack thread, the repo's CLAUDE.md
+  const accounts = s.github.accounts.filter((a) => a.token)
+  const stored = input.context.prId ? listPrs().find((p) => p.pr.id === input.context.prId)?.pr : undefined
+  const pr = stored
+    ? {
+        id: stored.id,
+        title: stored.title,
+        branch: stored.headRef,
+        body: stored.body,
+        files: await (async () => {
+          const acc = accounts.find((a) => a.id === stored.accountId) ?? accountForOwner(accounts, stored.owner)
+          return acc ? prFileNames(acc, stored.repo, stored.number).catch(() => []) : []
+        })(),
+      }
+    : null
+  const item = input.context.slackItemId ? getSlackItem(input.context.slackItemId) : null
+  const slack = item && s.slack?.token ? { channel: item.channelName, permalink: item.permalink, thread: await threadContext(s.slack, item) } : null
+  const repo = input.context.repo || stored?.repo || null
+  const claudeMd = repo ? await claudeMdGuide(repo).catch(() => null) : null
+  const guide = cfg.guides?.[input.projectKey]?.trim() || null
+
+  const draft = await draftJiraIssue(s.ai, {
+    projectKey: input.projectKey,
+    issueTypes: meta.issueTypes.filter((t) => !t.subtask),
+    issueTypeId: meta.issueTypeId,
+    fields,
+    choices,
+    prompt: input.prompt,
+    current: input.current,
+    guide,
+    claudeMd: repo && claudeMd ? { repo, text: claudeMd } : null,
+    pr,
+    slack,
+    images: input.images,
+  }, stop.signal)
+  return c.json({ ...draft, used: { guide: !!guide, claudeMd: claudeMd ? repo : null, pr: pr?.id ?? null, slack: !!slack } })
 })
 
 api.put('/jira/issues/:key', async (c) => {
@@ -494,28 +555,16 @@ api.put('/jira/issues/:key', async (c) => {
       description: z.string().optional(),
       issueTypeId: z.string().optional(),
       values: z.record(z.string(), FieldValue).optional(),
+      attachments: Images,
     })
     .parse(await c.req.json())
-  const issue = await composeUpdate(jiraCfg(), c.req.param('key'), changes)
+  const { attachments, ...fieldChanges } = changes
+  // Upload first, so images in the new description can point at them
+  const uploaded = await addAttachments(jiraCfg(), c.req.param('key'), attachments)
+  if (fieldChanges.description !== undefined && hasAttachmentRefs(fieldChanges.description))
+    fieldChanges.description = resolveAttachmentRefs(fieldChanges.description, uploaded)
+  const issue = await composeUpdate(jiraCfg(), c.req.param('key'), fieldChanges)
   upsertJira(issue)
   return c.json(issue)
 })
 
-api.post('/jira/create', async (c) => {
-  const s = getSettings()
-  if (!s.jira?.apiToken) throw bad('Jira not configured')
-  const input = CreateInput.parse(await c.req.json())
-  const created = await createIssue(s.jira, input)
-  let replied = false
-  if (input.slackItemId) {
-    const item = getSlackItem(input.slackItemId)
-    if (item) {
-      setSlackStatus(item.id, 'done', created.key)
-      if (input.replyInThread && s.slack?.token) {
-        await replyInThread(s.slack, item, `Tracked in Jira: <${created.url}|${created.key}> – ${input.summary}`)
-        replied = true
-      }
-    }
-  }
-  return c.json({ ...created, replied })
-})

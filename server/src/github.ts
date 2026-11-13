@@ -495,6 +495,23 @@ export async function releaseContents(
 
 // ---------- PR description edits ----------
 
+/** A text file from a repo's default branch, or null when it isn't there */
+export async function repoFile(account: GithubAccount, repo: string, path: string): Promise<string | null> {
+  try {
+    const r = await request<{ content?: string; encoding?: string }>(account.token, `/repos/${repo}/contents/${path}`)
+    return r.content && r.encoding === 'base64' ? Buffer.from(r.content, 'base64').toString('utf8') : null
+  } catch (e) {
+    if (e instanceof GithubError && e.status === 404) return null
+    throw e
+  }
+}
+
+/** Changed file paths of a PR (first 100), for context */
+export async function prFileNames(account: GithubAccount, repo: string, number: number): Promise<string[]> {
+  const files = await request<{ filename: string }[]>(account.token, `/repos/${repo}/pulls/${number}/files?per_page=100`)
+  return files.map((f) => f.filename)
+}
+
 export async function getPrBody(account: GithubAccount, repo: string, number: number): Promise<string> {
   const pr = await request<{ body: string | null }>(account.token, `/repos/${repo}/pulls/${number}`)
   return pr.body ?? ''

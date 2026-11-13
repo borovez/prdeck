@@ -243,3 +243,58 @@ html, body, #app { height: 100%; }
     box-shadow: 0 0 0 0 transparent;
   }
 }
+
+/*
+ * Claude is writing: a light runs around the card's border (two purple arcs on a rotating conic
+ * gradient, masked to a 1.5px ring) and the glow breathes. Reduced motion: the border just pulses.
+ */
+@property --ai-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.ai-writing {
+  position: relative;
+  animation: ai-glow 1.6s ease-in-out infinite;
+}
+.ai-writing::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--ai-angle),
+    transparent 0deg,
+    var(--primary) 40deg,
+    var(--merged) 80deg,
+    transparent 120deg,
+    transparent 180deg,
+    var(--primary) 220deg,
+    var(--merged) 260deg,
+    transparent 300deg
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: ai-orbit 2.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes ai-orbit {
+  to {
+    --ai-angle: 360deg;
+  }
+}
+@keyframes ai-glow {
+  50% {
+    box-shadow: 0 0 32px -6px var(--primary);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-writing::before {
+    animation: none;
+    background: var(--primary);
+    opacity: 0.6;
+  }
+}

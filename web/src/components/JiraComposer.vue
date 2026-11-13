@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { PhArrowSquareOut, PhArrowsIn, PhArrowsOut, PhCaretRight, PhCheck, PhCircleNotch, PhDotsThree, PhKanban, PhX } from '@phosphor-icons/vue'
-import type { JiraFieldMeta, JiraFieldOption, JiraFieldValue, JiraIssueTypeMeta, JiraProjectMeta, JiraValueLabels } from '@shared/types'
+import { PhArrowCounterClockwise, PhArrowSquareOut, PhArrowsIn, PhArrowsOut, PhCaretRight, PhCheck, PhGitBranch, PhGitPullRequest, PhMagicWand, PhSlackLogo, PhSparkle, PhStop, PhCircleNotch, PhDotsThree, PhKanban, PhX } from '@phosphor-icons/vue'
+import type { JiraAiDraft, JiraFieldMeta, JiraFieldOption, JiraFieldValue, JiraIssueTypeMeta, JiraProjectMeta, JiraValueLabels } from '@shared/types'
 import { api } from '@/api'
 import { cn } from '@/lib/utils'
 import { useDeck } from '@/stores/deck'
@@ -14,6 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import JiraFieldChip from './JiraFieldChip.vue'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { fileSize, uniqueForDraft, useImageAttachments, type PendingImage } from '@/composables/imageAttachments'
 import MarkdownEditor from './MarkdownEditor.vue'
 
 /**
@@ -52,11 +54,64 @@ const url = ref('')
 const initial = ref<{ summary: string; description: string; issueTypeId: string; values: Record<string, JiraFieldValue> } | null>(null)
 const titleInput = ref<HTMLTextAreaElement | null>(null)
 const moreOpen = ref(false)
+/** Pasted / dropped images: Claude sees them, and they're attached to the issue */
+const attach = useImageAttachments((m) => toast.error(m))
+/** Images pasted or dropped on the Claude box: context for Claude only, not attached to the issue */
+const aiImages = useImageAttachments(
+  (m) => toast.error(m),
+  // Already attached to the issue: Claude sees it from there
+  (hash) => attach.images.value.find((i) => i.hash === hash)?.name ?? null,
+)
+const inClaudeBox = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.('[data-ai-images]')
+/** attachment:name → local preview, for the description's Preview tab */
+const imagePreviews = computed(() => Object.fromEntries(attach.images.value.map((i) => [encodeURIComponent(i.name), i.url])))
+const imageRef = (name: string) => `![${name}](attachment:${encodeURIComponent(name)})`
+/** Images pasted or dropped into the description go in at the cursor, as attachment:name images */
+function insertImages(el: HTMLTextAreaElement, added: PendingImage[]) {
+  if (!added.length) return
+  const before = el.value.slice(0, el.selectionStart)
+  const text = `${before && !before.endsWith('\n') ? '\n' : ''}${added.map((i) => imageRef(i.name)).join('\n')}\n`
+  el.focus()
+  // insertText keeps undo history and updates v-model
+  if (!document.execCommand('insertText', false, text)) description.value = before + text + el.value.slice(el.selectionEnd)
+}
+const descriptionTextarea = (target: EventTarget | null) => {
+  const box = (target as HTMLElement | null)?.closest?.('[data-inline-images]')
+  return (box?.querySelector('textarea') as HTMLTextAreaElement | null) ?? null
+}
+async function onPaste(e: ClipboardEvent) {
+  if (inClaudeBox(e.target)) return void aiImages.onPaste(e)
+  const el = descriptionTextarea(e.target)
+  const inDescription = !!el && e.target === el
+  // In the description, the same image again is another reference to the one upload
+  const added = await attach.onPaste(e, { reuse: inDescription })
+  if (inDescription) insertImages(el, added)
+}
+attach.whenDropped(async (files, e) => {
+  if (inClaudeBox(e.target)) return void aiImages.add(files)
+  const el = descriptionTextarea(e.target)
+  const added = await attach.add(files, { reuse: !!el })
+  if (el) insertImages(el, added)
+})
+function removeImage(img: PendingImage) {
+  attach.remove(img.id)
+  const ref = imageRef(img.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  description.value = description.value.replace(new RegExp(`\\n?${ref}`, 'g'), '')
+}
+const aiPrompt = ref('')
+const drafting = ref(false)
+const drafted = ref<JiraAiDraft | null>(null)
+/** What was there before Claude's draft, for Undo */
+const undo = ref<{ summary: string; description: string; issueTypeId: string; values: Record<string, JiraFieldValue> } | null>(null)
+/** Context Claude reads: a PR, a Slack message, a repo whose CLAUDE.md guides the writing */
+const ctx = ref<{ prId: string | null; slackItemId: string | null; repo: string | null }>({ prId: null, slackItemId: null, repo: null })
 
 function close() {
   deck.composer = null
 }
 
+/** A plain copy of reactive state (structuredClone can't copy Vue's proxies) */
+const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
 const isEmpty = (v: JiraFieldValue | undefined) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)
 
 async function loadCreate(projectKey: string, typeId?: string, keepValues = false) {
@@ -109,6 +164,8 @@ watch(
   async (t) => {
     if (!t) return
     moreOpen.value = false
+    attach.clear()
+    aiImages.clear()
     project.value = null
     fields.value = []
     values.value = {}
@@ -118,6 +175,10 @@ watch(
     if (t.mode === 'edit') return loadEdit(t.key)
     summary.value = t.summary ?? ''
     description.value = t.description ?? ''
+    ctx.value = { prId: t.prId ?? null, slackItemId: t.slackItemId ?? null, repo: t.prId ? (deck.byId.get(t.prId)?.repo ?? null) : null }
+    aiPrompt.value = ''
+    drafted.value = null
+    undo.value = null
     if (!projects.value.length) api.jiraProjects().then((p) => (projects.value = p), () => {})
     const fallback = t.projectKey || prefs.project || (await api.settings().catch(() => null))?.jira?.create.projectKey || ''
     if (fallback) await loadCreate(fallback)
@@ -190,6 +251,95 @@ const projectModel = computed({
   set: (k) => k && k !== project.value?.key && loadCreate(String(k)),
 })
 
+// ---------- Claude ----------
+
+const aiReady = computed(() => !!deck.overview?.configured.ai)
+const slackItem = computed(() => (ctx.value.slackItemId ? (deck.overview?.slack ?? []).find((i) => i.id === ctx.value.slackItemId) : null))
+const replyInThread = ref(true)
+
+const prField = computed<JiraFieldMeta>(() => ({
+  key: 'ctx-pr',
+  name: 'Pull request',
+  kind: 'option',
+  required: false,
+  options: deck.prs.map((p) => ({ id: p.id, label: `${p.repo.split('/')[1]}#${p.number} ${p.title}`, detail: p.repo })),
+}))
+const repoField = computed<JiraFieldMeta>(() => ({
+  key: 'ctx-repo',
+  name: 'Repo CLAUDE.md',
+  kind: 'option',
+  required: false,
+  options: deck.repos.map((r) => ({ id: r, label: r.split('/')[1], detail: r })),
+}))
+const prModel = computed({
+  get: () => ctx.value.prId,
+  set: (id) => {
+    ctx.value.prId = id ? String(id) : null
+    // The PR's repo guides the writing unless one was picked
+    if (id && !ctx.value.repo) ctx.value.repo = deck.byId.get(String(id))?.repo ?? null
+  },
+})
+const repoModel = computed({ get: () => ctx.value.repo, set: (r) => (ctx.value.repo = r ? String(r) : null) })
+
+/** The running draft request, so Stop can cancel it (the server stops Claude too) */
+let abort: AbortController | null = null
+const canDraft = computed(() => aiReady.value && !!project.value && !!aiPrompt.value.trim())
+function stopDrafting() {
+  abort?.abort()
+}
+async function draftWithClaude() {
+  if (!canDraft.value || drafting.value || !project.value) return
+  drafting.value = true
+  abort = new AbortController()
+  try {
+    const d = await api.jiraDraft({
+      projectKey: project.value.key,
+      issueTypeId: issueTypeId.value,
+      fieldKeys: visible.value.map((f) => f.key),
+      prompt: aiPrompt.value,
+      current: { summary: summary.value, description: description.value, values: values.value },
+      context: ctx.value,
+      images: await uniqueForDraft(aiImages, attach),
+    }, abort.signal)
+    undo.value = { summary: summary.value, description: description.value, issueTypeId: issueTypeId.value, values: plain(values.value) }
+    if (d.issueTypeId !== issueTypeId.value && !editKey.value) {
+      issueTypeId.value = d.issueTypeId
+      await loadCreate(project.value.key, d.issueTypeId, true)
+    }
+    summary.value = d.summary
+    description.value = d.description
+    values.value = { ...values.value, ...d.values }
+    for (const [k, l] of Object.entries(d.labels)) learn(k, Object.values(l))
+    drafted.value = d
+    aiPrompt.value = ''
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') toast('Stopped Claude', { description: 'Nothing was changed.' })
+    else toast.error((e as Error).message)
+  } finally {
+    drafting.value = false
+    abort = null
+  }
+}
+async function undoDraft() {
+  const u = undo.value
+  if (!u || !project.value) return
+  if (u.issueTypeId !== issueTypeId.value && !editKey.value) {
+    issueTypeId.value = u.issueTypeId
+    await loadCreate(project.value.key, u.issueTypeId, true)
+  }
+  summary.value = u.summary
+  description.value = u.description
+  values.value = u.values
+  undo.value = null
+  drafted.value = null
+}
+function onPromptKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault()
+    draftWithClaude()
+  }
+}
+
 // ---------- Submit ----------
 
 const missing = computed(() => fields.value.filter((f) => f.required && isEmpty(values.value[f.key])))
@@ -205,7 +355,11 @@ const changes = computed(() => {
     ...(Object.keys(changed).length ? { values: changed } : {}),
   }
 })
-const changeCount = computed(() => (changes.value ? Object.keys(changes.value).length - (changes.value.values ? 1 : 0) + Object.keys(changes.value.values ?? {}).length : 0))
+const changeCount = computed(
+  () =>
+    (changes.value ? Object.keys(changes.value).length - (changes.value.values ? 1 : 0) + Object.keys(changes.value.values ?? {}).length : 0) +
+    attach.images.value.length,
+)
 const canSubmit = computed(
   () => !loading.value && !busy.value && !!summary.value.trim() && !!project.value && !missing.value.length && (!editKey.value || changeCount.value > 0),
 )
@@ -218,7 +372,7 @@ async function submit() {
   busy.value = true
   try {
     if (editKey.value) {
-      const issue = await api.jiraUpdateIssue(editKey.value, changes.value!)
+      const issue = await api.jiraUpdateIssue(editKey.value, { ...changes.value!, attachments: attach.forUpload() })
       toast.success(`Updated ${issue.key}`)
       await deck.load()
       close()
@@ -230,16 +384,23 @@ async function submit() {
       summary: summary.value.trim(),
       description: description.value,
       values: Object.fromEntries(Object.entries(values.value).filter(([, v]) => !isEmpty(v))),
+      slackItemId: ctx.value.slackItemId,
+      replyInThread: !!ctx.value.slackItemId && replyInThread.value,
+      attachments: attach.forUpload(),
     })
+    if (issue.attachError) toast.warning(`${issue.key} was created, but the images weren't attached`, { description: issue.attachError })
     prefs.last = {
       ...prefs.last,
       [project.value.key]: Object.fromEntries(fields.value.filter((f) => f.required).map((f) => [f.key, values.value[f.key] ?? null])),
     }
-    toast.success(`Created ${issue.key}`, { description: issue.summary, action: { label: 'Open', onClick: () => (deck.selectedJiraKey = issue.key) } })
+    toast.success(`Created ${issue.key}${issue.replied ? ' and replied in Slack' : ''}`, { description: issue.summary, action: { label: 'Open', onClick: () => (deck.selectedJiraKey = issue.key) } })
     await deck.load()
+    attach.clear()
     if (prefs.createMore) {
       summary.value = ''
       description.value = ''
+      drafted.value = null
+      undo.value = null
       titleInput.value?.focus()
     } else {
       close()
@@ -260,7 +421,16 @@ async function submit() {
       :class="cn('flex flex-col gap-0 p-0 sm:max-w-3xl', prefs.expanded && 'h-[90vh] sm:max-w-5xl')"
       @keydown.meta.enter.prevent="submit"
       @keydown.ctrl.enter.prevent="submit"
+      @paste="onPaste"
+      v-on="attach.dragHandlers"
     >
+      <!-- Drop images anywhere on the dialog -->
+      <div
+        v-if="attach.dragging.value"
+        class="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/10 text-sm font-medium text-primary backdrop-blur-[1px]"
+      >
+        Drop on the Claude box for context only, or anywhere else to attach to the issue
+      </div>
       <!-- Header: project › New issue / key -->
       <div class="flex items-center gap-2 px-4 pt-3">
         <JiraFieldChip v-if="!editKey && project" v-model="projectModel" :field="projectField" :project="project.key" :icon="PhKanban" />
@@ -281,7 +451,90 @@ async function submit() {
         <Button variant="ghost" size="icon-sm" class="text-muted-foreground" title="Close (Esc)" @click="close"><PhX /></Button>
       </div>
 
-      <ScrollArea class="min-h-0 flex-1">
+      <!-- Ask Claude: writes or reworks the issue from your request and the context chips -->
+      <div
+        v-if="!editKey"
+        data-ai-images
+        :class="{ 'ai-writing': drafting }"
+        class="mx-4 mt-3 rounded-lg border border-primary/30 bg-linear-to-br from-primary/12 via-primary/6 to-merged/12 shadow-[0_0_24px_-12px_var(--primary)] transition-[border-color,box-shadow] focus-within:border-primary/60 focus-within:shadow-[0_0_28px_-10px_var(--primary)]"
+      >
+        <div class="flex items-start gap-2 px-3 pt-2.5">
+          <PhSparkle class="mt-1 size-4 shrink-0 text-primary" :class="{ 'animate-pulse': drafting }" weight="fill" />
+          <textarea
+            v-model="aiPrompt"
+            rows="1"
+            :readonly="drafting"
+            :disabled="!aiReady"
+            :placeholder="aiReady ? (summary || description ? 'Ask Claude to change it: “make it a bug”, “add acceptance criteria”… (paste screenshots here too)' : 'Ask Claude to write it: describe the issue, paste notes, an error or a screenshot…') : 'Set up Claude in Settings to draft issues'"
+            class="field-sizing-content max-h-40 min-h-6 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-primary/60 disabled:opacity-60"
+            @keydown="onPromptKey"
+          />
+          <Button v-if="drafting" size="sm" variant="outline" class="h-8 shrink-0 gap-1.5 border-primary/40 px-3" title="Stop Claude" @click="stopDrafting">
+            <PhCircleNotch class="animate-spin text-primary" /> Writing… <PhStop weight="fill" class="text-destructive" /> Stop
+          </Button>
+          <Button
+            v-else
+            size="sm"
+            class="h-8 shrink-0 gap-1.5 bg-linear-to-r from-primary to-merged px-3.5 font-semibold text-white shadow-[0_2px_12px_-2px_var(--primary)] hover:brightness-110 disabled:opacity-50 disabled:shadow-none"
+            :disabled="!canDraft"
+            :title="!aiPrompt.trim() ? 'Type what Claude should write or change' : 'Enter'"
+            @click="draftWithClaude"
+          >
+            <PhMagicWand weight="fill" />
+            {{ drafted || summary || description ? 'Rewrite with Claude' : 'Draft with Claude' }}
+          </Button>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 px-3 pt-2 pb-2.5">
+          <span class="text-xs font-medium text-primary/80">Context</span>
+          <JiraFieldChip v-if="project" v-model="prModel" :field="prField" :project="project.key" :icon="PhGitPullRequest" />
+          <JiraFieldChip v-if="project" v-model="repoModel" :field="repoField" :project="project.key" :icon="PhGitBranch" />
+          <span
+            v-for="img in aiImages.images.value"
+            :key="img.id"
+            class="inline-flex h-7 max-w-48 items-center gap-1.5 rounded-md border bg-background pr-1 pl-1 text-xs"
+            :title="`${img.name} · ${fileSize(img.size)}: for Claude only`"
+          >
+            <img :src="img.url" alt="" class="size-5 rounded-sm object-cover" />
+            <span class="min-w-0 truncate">{{ img.name }}</span>
+            <button type="button" class="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground" :aria-label="`Remove ${img.name}`" @click="aiImages.remove(img.id)">
+              <PhX class="size-3" />
+            </button>
+          </span>
+          <span v-if="ctx.slackItemId" class="inline-flex h-7 max-w-64 items-center gap-1.5 rounded-md border bg-background px-2 text-xs">
+            <PhSlackLogo class="size-3.5" />
+            <span class="truncate">{{ slackItem ? `${slackItem.userName} in ${slackItem.channelName}` : 'Slack message' }}</span>
+          </span>
+        </div>
+        <div v-if="drafted" class="flex items-start gap-2 border-t border-primary/20 px-3 py-2 text-xs text-muted-foreground">
+          <PhSparkle class="mt-0.5 size-3.5 shrink-0 text-primary" />
+          <p class="min-w-0 flex-1">
+            {{ drafted.rationale }}
+            <span class="opacity-70">
+              (Read: {{ [drafted.used.pr, drafted.used.slack && 'the Slack thread', drafted.used.claudeMd && `${drafted.used.claudeMd} CLAUDE.md`, drafted.used.guide && `the ${project?.key} guide`].filter(Boolean).join(', ') || 'your request' }})
+            </span>
+          </p>
+          <button v-if="undo" type="button" class="flex shrink-0 items-center gap-1 hover:text-foreground" @click="undoDraft"><PhArrowCounterClockwise /> Undo</button>
+        </div>
+      </div>
+
+      <div v-if="!editKey" class="mx-4 mt-3 h-px bg-border" />
+
+      <!-- Expanded: the description fills the window; otherwise the body scrolls -->
+      <div v-if="prefs.expanded" class="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-3">
+        <textarea
+          ref="titleInput"
+          v-model="summary"
+          rows="1"
+          placeholder="Issue title"
+          maxlength="254"
+          class="field-sizing-content resize-none bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground/60"
+          @keydown.enter.exact.prevent
+        />
+        <div data-inline-images class="flex min-h-0 flex-1 flex-col">
+          <MarkdownEditor v-model="description" placeholder="Add description… (paste or drop images)" state-key="jira-composer" fill :images="imagePreviews" />
+        </div>
+      </div>
+      <ScrollArea v-else class="min-h-0 flex-1">
         <div class="flex flex-col gap-2 px-4 pt-3">
           <textarea
             ref="titleInput"
@@ -292,9 +545,31 @@ async function submit() {
             class="field-sizing-content resize-none bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground/60"
             @keydown.enter.exact.prevent
           />
-          <MarkdownEditor v-model="description" placeholder="Add description…" state-key="jira-composer" :height="prefs.expanded ? 420 : 200" />
+          <div data-inline-images>
+            <MarkdownEditor v-model="description" placeholder="Add description… (paste or drop images)" state-key="jira-composer" :height="200" :images="imagePreviews" />
+          </div>
         </div>
       </ScrollArea>
+
+      <!-- Attachments: pasted or dropped images -->
+      <div v-if="attach.images.value.length" class="flex flex-wrap items-center gap-1.5 px-4 pt-3">
+        <HoverCard v-for="img in attach.images.value" :key="img.id" :open-delay="150">
+          <HoverCardTrigger as-child>
+            <span class="inline-flex h-7 max-w-64 items-center gap-1.5 rounded-md border bg-background pr-1 pl-1 text-xs">
+              <img :src="img.url" alt="" class="size-5 rounded-sm object-cover" />
+              <span class="min-w-0 truncate">{{ img.name }}</span>
+              <span class="shrink-0 whitespace-nowrap text-muted-foreground">{{ fileSize(img.size) }}</span>
+              <button type="button" class="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground" :aria-label="`Remove ${img.name}`" @click="removeImage(img)">
+                <PhX class="size-3" />
+              </button>
+            </span>
+          </HoverCardTrigger>
+          <HoverCardContent side="top" class="w-auto max-w-md p-1.5">
+            <img :src="img.url" :alt="img.name" class="max-h-72 rounded" />
+          </HoverCardContent>
+        </HoverCard>
+        <span class="text-xs text-muted-foreground">Attached to the issue{{ !editKey ? ' (Claude sees them too)' : '' }}</span>
+      </div>
 
       <!-- Properties -->
       <div class="flex flex-wrap items-center gap-1.5 px-4 py-3">
@@ -346,6 +621,9 @@ async function submit() {
           <PhArrowSquareOut /> Open in Jira
         </a>
         <span class="flex-1" />
+        <label v-if="ctx.slackItemId && !editKey" class="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <Switch v-model="replyInThread" /> Reply in the Slack thread
+        </label>
         <label v-if="!editKey" class="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <Switch v-model="prefs.createMore" /> Create more
         </label>

@@ -69,6 +69,13 @@ export function markdownToAdf(md: string): AdfDoc {
       })
       continue
     }
+    // An image on its own line: ![alt](url). attachment:name refers to a file uploaded with the issue
+    // (the server swaps in its Jira URL); http(s) images are shown from their URL
+    const img = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(line.trim())
+    if (img) {
+      content.push({ type: 'mediaSingle', attrs: { layout: 'center' }, content: [{ type: 'media', attrs: { type: 'external', url: img[2], alt: img[1] } }] })
+      continue
+    }
     const h = /^(#{1,6})\s+(.*)$/.exec(line)
     if (h) {
       content.push({ type: 'heading', attrs: { level: h[1].length }, content: inline(h[2]) })
@@ -87,7 +94,7 @@ export function markdownToAdf(md: string): AdfDoc {
       continue
     }
     const para = [line]
-    while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|```|\s*>|\s*([-*]|\d+\.)\s)/.test(lines[i + 1])) para.push(lines[++i])
+    while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|```|\s*>|\s*([-*]|\d+\.)\s|\s*!\[[^\]]*\]\([^)\s]+\)\s*$)/.test(lines[i + 1])) para.push(lines[++i])
     content.push({ type: 'paragraph', content: inline(para.join(' ')) })
   }
   return { type: 'doc', version: 1, content }
@@ -158,8 +165,11 @@ export function adfToMarkdown(doc: AdfDoc | null | undefined): string {
           })
           .join('\n')
       case 'mediaSingle':
-      case 'mediaGroup':
-        return '[attachment]'
+      case 'mediaGroup': {
+        // External images keep their URL; Jira's own uploads (media ids) can't round-trip
+        const media = (n.content ?? []).find((c) => c.type === 'media')
+        return media?.attrs?.type === 'external' && media.attrs.url ? `![${String(media.attrs.alt ?? '')}](${String(media.attrs.url)})` : '[attachment]'
+      }
       case 'expand':
       case 'nestedExpand':
         return [n.attrs?.title ? `**${n.attrs.title}**` : '', ...(n.content ?? []).map((c) => block(c, indent))].filter(Boolean).join('\n\n')
