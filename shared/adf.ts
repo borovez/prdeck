@@ -20,6 +20,26 @@ export interface AdfDoc {
   content: AdfNode[]
 }
 
+/** A Jira-hosted file in Markdown: jira-media:<id>?collection=…&width=…&height=… (kept as is when saved back) */
+function jiraMediaUrl(attrs: Record<string, unknown>) {
+  const q = new URLSearchParams()
+  for (const k of ['collection', 'width', 'height']) if (attrs[k] !== undefined && attrs[k] !== '') q.set(k, String(attrs[k]))
+  return `jira-media:${String(attrs.id)}${q.size ? `?${q}` : ''}`
+}
+
+/** An image's media attributes: a Jira file (jira-media:) or an external / not-yet-uploaded image */
+function mediaAttrs(alt: string, url: string): Record<string, unknown> {
+  if (!url.startsWith('jira-media:')) return { type: 'external', url, alt }
+  const [id, query = ''] = url.slice('jira-media:'.length).split('?')
+  const q = new URLSearchParams(query)
+  const num = (k: string) => (q.has(k) ? Number(q.get(k)) : undefined)
+  return Object.fromEntries(
+    Object.entries({ type: 'file', id, collection: q.get('collection') ?? '', alt: alt === 'attachment' ? undefined : alt, width: num('width'), height: num('height') }).filter(
+      ([, v]) => v !== undefined,
+    ),
+  )
+}
+
 export function markdownToAdf(md: string): AdfDoc {
   const inline = (text: string): AdfNode[] => {
     const out: AdfNode[] = []
@@ -73,7 +93,7 @@ export function markdownToAdf(md: string): AdfDoc {
     // (the server swaps in its Jira URL); http(s) images are shown from their URL
     const img = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(line.trim())
     if (img) {
-      content.push({ type: 'mediaSingle', attrs: { layout: 'center' }, content: [{ type: 'media', attrs: { type: 'external', url: img[2], alt: img[1] } }] })
+      content.push({ type: 'mediaSingle', attrs: { layout: 'center' }, content: [{ type: 'media', attrs: mediaAttrs(img[1], img[2]) }] })
       continue
     }
     const h = /^(#{1,6})\s+(.*)$/.exec(line)
@@ -165,11 +185,17 @@ export function adfToMarkdown(doc: AdfDoc | null | undefined): string {
           })
           .join('\n')
       case 'mediaSingle':
-      case 'mediaGroup': {
-        // External images keep their URL; Jira's own uploads (media ids) can't round-trip
-        const media = (n.content ?? []).find((c) => c.type === 'media')
-        return media?.attrs?.type === 'external' && media.attrs.url ? `![${String(media.attrs.alt ?? '')}](${String(media.attrs.url)})` : '[attachment]'
-      }
+      case 'mediaGroup':
+        // Each image on its own line; Jira's own files keep their media id (jira-media:), so saving keeps them
+        return (n.content ?? [])
+          .filter((c) => c.type === 'media')
+          .map((m) => {
+            const alt = String(m.attrs?.alt ?? '').replace(/[\[\]]/g, '')
+            if (m.attrs?.type === 'external' && m.attrs.url) return `${indent}![${alt}](${String(m.attrs.url)})`
+            if (m.attrs?.type === 'file' && m.attrs.id) return `${indent}![${alt || 'attachment'}](${jiraMediaUrl(m.attrs)})`
+            return `${indent}[attachment]`
+          })
+          .join('\n')
       case 'expand':
       case 'nestedExpand':
         return [n.attrs?.title ? `**${n.attrs.title}**` : '', ...(n.content ?? []).map((c) => block(c, indent))].filter(Boolean).join('\n\n')

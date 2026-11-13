@@ -517,6 +517,8 @@ export interface JiraDraftRequest {
   context: { prId?: string | null; slackItemId?: string | null; repo?: string | null }
   /** Pasted or dropped images, for Claude to look at */
   images?: ImageAttachment[]
+  /** Editing this issue: Claude also reads its latest comments and linked PRs, and changes only what's asked */
+  issueKey?: string | null
 }
 
 /** An image pasted or dropped into the composer: base64 without the data: prefix */
@@ -534,8 +536,10 @@ export interface JiraAiDraft {
   values: Record<string, JiraFieldValue>
   labels: JiraValueLabels
   rationale: string
+  /** Edits: what changed, in a few bullets (for an optional Jira comment) */
+  changeSummary: string
   /** What Claude was given, shown under the bar */
-  used: { guide: boolean; claudeMd: string | null; pr: string | null; slack: boolean }
+  used: { guide: boolean; claudeMd: string | null; pr: string | null; slack: boolean; comments: number; linkedPrs: number }
 }
 
 export interface JiraWriteInput {

@@ -10,6 +10,7 @@ import {
   PhHash,
   PhListChecks,
   PhPlus,
+  PhSparkle,
   PhTag,
   PhTextAlignLeft,
   PhTreeStructure,
@@ -39,9 +40,11 @@ const props = defineProps<{
   icon?: Component
   /** Highlights a required field without a value */
   invalid?: boolean
+  /** Set by Claude (until you change it) */
+  suggested?: boolean
 }>()
 const model = defineModel<JiraFieldValue>()
-const emit = defineEmits<{ learn: [options: JiraFieldOption[]] }>()
+const emit = defineEmits<{ learn: [options: JiraFieldOption[]]; touched: [] }>()
 
 const open = ref(false)
 const query = ref('')
@@ -127,6 +130,7 @@ watch(query, () => (active.value = 0))
 
 function pick(o: JiraFieldOption) {
   emit('learn', [o])
+  emit('touched')
   if (multi.value) {
     model.value = selected.value.includes(o.id) ? selected.value.filter((x) => x !== o.id) : [...selected.value, o.id]
     if (kind.value === 'labels') query.value = ''
@@ -136,10 +140,12 @@ function pick(o: JiraFieldOption) {
   open.value = false
 }
 function clear() {
+  emit('touched')
   model.value = multi.value ? [] : null
   open.value = false
 }
 function applyDraft() {
+  emit('touched')
   const v = draft.value.trim()
   model.value = !v ? null : kind.value === 'number' ? Number(v) : draft.value
   open.value = false
@@ -165,6 +171,7 @@ function onKey(e: KeyboardEvent) {
             'inline-flex h-7 max-w-64 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors hover:bg-accent',
             empty ? 'border-dashed text-muted-foreground' : 'bg-background text-foreground',
             invalid && 'border-destructive/60 text-destructive',
+            suggested && !empty && 'border-primary/50 bg-primary/8',
           )
         "
         :title="empty ? `Set ${field.name}` : `${field.name}: ${text}`"
@@ -173,6 +180,7 @@ function onKey(e: KeyboardEvent) {
         <component :is="iconOf" v-else class="size-3.5" />
         <span class="truncate">{{ text }}</span>
         <span v-if="field.required && empty" class="text-destructive">*</span>
+        <PhSparkle v-if="suggested && !empty" weight="fill" class="size-3 text-primary" aria-label="Suggested by Claude" />
       </button>
     </PopoverTrigger>
     <PopoverContent align="start" class="w-72 gap-0 p-0">

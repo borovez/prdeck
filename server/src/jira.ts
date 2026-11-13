@@ -564,6 +564,11 @@ export function resolveAttachmentRefs(md: string, uploaded: { filename: string; 
     .replace(/\n{3,}/g, '\n\n')
 }
 
+/** Add a comment (Markdown) to an issue */
+export async function addComment(cfg: JiraConfig, key: string, markdown: string) {
+  await request(cfg, `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { method: 'POST', body: JSON.stringify({ body: markdownToAdf(markdown) }) })
+}
+
 /** Fetch one issue in the list shape (to refresh the cache after a write) */
 export async function getIssue(cfg: JiraConfig, key: string): Promise<JiraIssue> {
   const raw = await request<any>(cfg, `/rest/api/3/issue/${encodeURIComponent(key)}?fields=${FIELDS.join(',')}`)

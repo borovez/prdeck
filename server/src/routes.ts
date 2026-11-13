@@ -3,6 +3,7 @@ import { setTodoDoneInSlack } from './slack.ts'
 import { testLaunchDarkly } from './launchdarkly.ts'
 import { editDescription, withBlocks, withDependency, withoutBlocks, withoutDependency } from './bodyDeps.ts'
 import { Hono } from 'hono'
+import { adfToMarkdown } from '../../shared/adf.ts'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
@@ -32,6 +33,7 @@ import { messagesAround, replyInThread, slackAuthTest, threadContext } from './s
 import { ghCliToken, listRepos, prDetail, prFileNames, whoAmI } from './github.ts'
 import {
   addAttachments,
+  addComment,
   hasAttachmentRefs,
   resolveAttachmentRefs,
   composeCreate,
@@ -496,6 +498,7 @@ api.post('/jira/draft', async (c) => {
       current: z.object({ summary: z.string(), description: z.string(), values: z.record(z.string(), FieldValue) }),
       context: z.object({ prId: z.string().nullish(), slackItemId: z.string().nullish(), repo: z.string().nullish() }).default({}),
       images: Images,
+      issueKey: z.string().nullish(),
     })
     .parse(await c.req.json())
   if (!input.prompt.trim()) throw bad('Tell Claude what to write or change')
@@ -504,11 +507,19 @@ api.post('/jira/draft', async (c) => {
   const out = (c.env as { outgoing?: import('node:http').ServerResponse } | undefined)?.outgoing
   out?.on('close', () => !out.writableFinished && stop.abort())
   c.req.raw.signal?.addEventListener('abort', () => stop.abort(), { once: true })
-  const meta = await createMeta(cfg, input.projectKey, input.issueTypeId || undefined)
+  // Editing: the issue's own editable fields and types; creating: the project's create fields
+  const meta = input.issueKey
+    ? await editable(cfg, input.issueKey).then((e) => ({ fields: e.fields, issueTypes: e.issueTypes, issueTypeId: input.issueTypeId || e.issueTypeId }))
+    : await createMeta(cfg, input.projectKey, input.issueTypeId || undefined)
   const fields = meta.fields.filter((f) => input.fieldKeys.includes(f.key))
-  const choices: Record<string, JiraFieldOption[]> = fields.some((f) => f.kind === 'parent')
-    ? { parent: await fieldOptions(cfg, 'parent', { project: input.projectKey }).catch(() => []) }
-    : {}
+  // Choices for fields searched on Jira: open epics for parent, the board's active and future sprints
+  const choices: Record<string, JiraFieldOption[]> = Object.fromEntries(
+    await Promise.all(
+      fields
+        .filter((f) => f.kind === 'parent' || f.kind === 'sprint')
+        .map(async (f) => [f.key, await fieldOptions(cfg, f.kind, { project: input.projectKey }).catch(() => [])] as const),
+    ),
+  )
 
   // Context: a PR (description and changed files), a Slack thread, the repo's CLAUDE.md
   const accounts = s.github.accounts.filter((a) => a.token)
@@ -530,6 +541,24 @@ api.post('/jira/draft', async (c) => {
   const repo = input.context.repo || stored?.repo || null
   const claudeMd = repo ? await claudeMdGuide(repo).catch(() => null) : null
   const guide = cfg.guides?.[input.projectKey]?.trim() || null
+  // Editing: the latest comments and the PRs that name this issue
+  const issue = input.issueKey
+    ? await (async () => {
+        const key = input.issueKey!
+        const detail = await getIssueDetail(cfg, key, 8).catch(() => null)
+        const named = new RegExp(`\\b${key.replace('-', '\\-')}\\b`, 'i')
+        const prs = listPrs()
+          .map((p) => p.pr)
+          .filter((p) => named.test(`${p.title} ${p.headRef} ${p.body}`))
+          .slice(0, 4)
+          .map((p) => ({ id: p.id, title: p.title, body: p.body }))
+        return {
+          key,
+          comments: (detail?.comments ?? []).map((c) => ({ author: c.author, created: c.created, body: adfToMarkdown(c.body) })),
+          prs,
+        }
+      })()
+    : null
 
   const draft = await draftJiraIssue(s.ai, {
     projectKey: input.projectKey,
@@ -544,8 +573,12 @@ api.post('/jira/draft', async (c) => {
     pr,
     slack,
     images: input.images,
+    issue,
   }, stop.signal)
-  return c.json({ ...draft, used: { guide: !!guide, claudeMd: claudeMd ? repo : null, pr: pr?.id ?? null, slack: !!slack } })
+  return c.json({
+    ...draft,
+    used: { guide: !!guide, claudeMd: claudeMd ? repo : null, pr: pr?.id ?? null, slack: !!slack, comments: issue?.comments.length ?? 0, linkedPrs: issue?.prs.length ?? 0 },
+  })
 })
 
 api.put('/jira/issues/:key', async (c) => {
@@ -556,14 +589,17 @@ api.put('/jira/issues/:key', async (c) => {
       issueTypeId: z.string().optional(),
       values: z.record(z.string(), FieldValue).optional(),
       attachments: Images,
+      /** Markdown comment posted with the change (e.g. what Claude changed) */
+      comment: z.string().optional(),
     })
     .parse(await c.req.json())
-  const { attachments, ...fieldChanges } = changes
+  const { attachments, comment, ...fieldChanges } = changes
   // Upload first, so images in the new description can point at them
   const uploaded = await addAttachments(jiraCfg(), c.req.param('key'), attachments)
   if (fieldChanges.description !== undefined && hasAttachmentRefs(fieldChanges.description))
     fieldChanges.description = resolveAttachmentRefs(fieldChanges.description, uploaded)
   const issue = await composeUpdate(jiraCfg(), c.req.param('key'), fieldChanges)
+  if (comment?.trim()) await addComment(jiraCfg(), c.req.param('key'), comment)
   upsertJira(issue)
   return c.json(issue)
 })

@@ -46,7 +46,13 @@ Use only facts from the request and the context given; where something needed is
 "## Open questions" instead of guessing. No filler, no restating the summary.
 Follow the team's writing guide when one is given (sections, naming, tone); the project's own guide wins over a
 repo's CLAUDE.md where they differ. When the request asks to change the current draft, keep what it doesn't
-mention. Field values must be one of the listed options; use null for a field you have no grounds to set.`
+mention (and when editing an existing issue, keep fields as they are unless the request is about them).
+Keep image lines (![…](…)) exactly as they are: they are the issue's attachments.
+Fields: when writing a new issue, suggest a value for every listed field - the person reviews your picks. Use the
+listed options exactly. Priority from impact and urgency; story points as an estimate on 1, 2, 3, 5, 8, 13;
+parent: the epic the work belongs to, if one fits; sprint: the active sprint unless the work is clearly for later;
+labels: 1-3 short ones that help find the issue; required fields always. Use null only when a field truly doesn't
+apply. Mention uncertain picks in the rationale.`
 
 export interface IssueDraftInput {
   projectKey: string
@@ -64,6 +70,8 @@ export interface IssueDraftInput {
   slack: { channel: string; permalink: string | null; thread: string } | null
   /** Screenshots and other images pasted into the composer */
   images: { name: string; type: string; data: string }[]
+  /** Editing an existing issue: its key, latest comments and linked PRs */
+  issue: { key: string; comments: { author: string; created: string; body: string }[]; prs: { id: string; title: string; body: string }[] } | null
 }
 
 /** Field → zod schema of what Claude may answer (labels, not ids) */
@@ -73,6 +81,7 @@ function fieldSchema(f: JiraFieldMeta, choices: JiraFieldOption[] | undefined): 
   switch (f.kind) {
     case 'option':
     case 'parent':
+    case 'sprint':
       return opts.length ? z.enum(labels).nullable() : null
     case 'options':
       return opts.length ? z.array(z.enum(labels)) : null
@@ -86,7 +95,7 @@ function fieldSchema(f: JiraFieldMeta, choices: JiraFieldOption[] | undefined): 
     case 'date':
       return z.string().nullable().describe('YYYY-MM-DD')
     default:
-      return null // users, sprints: you pick those
+      return null // users: you pick those
   }
 }
 
@@ -99,8 +108,9 @@ export async function draftJiraIssue(cfg: AiConfig, input: IssueDraftInput, sign
     issueType: z.enum(typeNames),
     fields: z.object(Object.fromEntries(writable.map(([f, s]) => [f.key, s!.describe(f.name)]))),
     rationale: z.string().describe('One sentence: the choices you made, and anything the user should check'),
+    changeSummary: z.string().describe(input.issue ? 'What you changed, as 1-4 short Markdown bullets (for a Jira comment)' : 'Empty string'),
   })
-  type Raw = { summary: string; description: string; issueType: string; fields: Record<string, unknown>; rationale: string }
+  type Raw = { summary: string; description: string; issueType: string; fields: Record<string, unknown>; rationale: string; changeSummary: string }
 
   const optionsOf = (f: JiraFieldMeta) => (f.options.length ? f.options : (input.choices[f.key] ?? []))
   const describeValue = (f: JiraFieldMeta, v: JiraFieldValue | undefined) => {
@@ -116,12 +126,19 @@ export async function draftJiraIssue(cfg: AiConfig, input: IssueDraftInput, sign
     input.guide ? `<project_writing_guide>\n${input.guide}\n</project_writing_guide>` : '',
     input.claudeMd ? `<repo_claude_md repo="${input.claudeMd.repo}">\n${input.claudeMd.text}\n</repo_claude_md>` : '',
     `<fields>\n${writable
-      .map(([f]) => `- ${f.name}${f.required ? ' (required)' : ''}${optionsOf(f).length ? `: ${optionsOf(f).map((o) => o.label).join(' | ')}` : ''}`)
+      .map(([f]) => `- ${f.name}${f.required ? ' (required)' : ''}${optionsOf(f).length ? `: ${optionsOf(f).map((o) => (o.detail ? `${o.label} [${o.detail}]` : o.label)).join(' | ')}` : ''}`)
       .join('\n')}\n</fields>`,
     input.pr
       ? `<pull_request id="${input.pr.id}" branch="${input.pr.branch}">\nTitle: ${input.pr.title}\n\n${input.pr.body.slice(0, 6000)}\n\nChanged files:\n${input.pr.files.slice(0, 60).join('\n')}\n</pull_request>`
       : '',
     input.images.length ? `${input.images.length} image(s) are attached above (${input.images.map((i) => i.name).join(', ')}): use what they show.` : '',
+    input.issue
+      ? `<existing_issue key="${input.issue.key}">\nYou are editing this issue: change only what the request asks; keep every other part of the summary, description and fields exactly as it is.\n${
+          input.issue.comments.length
+            ? `\n<latest_comments>\n${input.issue.comments.map((c) => `${c.author} (${c.created.slice(0, 10)}):\n${c.body.slice(0, 2000)}`).join('\n\n')}\n</latest_comments>`
+            : ''
+        }${input.issue.prs.length ? `\n<linked_pull_requests>\n${input.issue.prs.map((p) => `${p.id}: ${p.title}\n${p.body.slice(0, 1500)}`).join('\n\n')}\n</linked_pull_requests>` : ''}\n</existing_issue>`
+      : '',
     input.slack ? `<slack_conversation channel="${input.slack.channel}">\n${input.slack.thread}\n</slack_conversation>` : '',
     hasDraft
       ? `<current_draft type="${currentType}">\nSummary: ${input.current.summary}\n\n${input.current.description}\n\n${writable
@@ -170,16 +187,24 @@ export async function draftJiraIssue(cfg: AiConfig, input: IssueDraftInput, sign
     const v = raw.fields[f.key]
     if (v === null || v === undefined || (Array.isArray(v) && !v.length) || v === '') continue
     const byLabel = (l: string) => optionsOf(f).find((o) => o.label === l)
-    if (f.kind === 'option' || f.kind === 'parent') {
+    if (f.kind === 'option' || f.kind === 'parent' || f.kind === 'sprint') {
       const o = byLabel(String(v))
       if (!o) continue
       values[f.key] = o.id
-      if (f.kind === 'parent') labels[f.key] = { [o.id]: o }
+      if (f.kind !== 'option') labels[f.key] = { [o.id]: o }
     } else if (f.kind === 'options') values[f.key] = (v as string[]).map((l) => byLabel(l)?.id).filter((x): x is string => !!x)
     else if (f.kind === 'labels') values[f.key] = (v as string[]).map((l) => l.trim().replace(/\s+/g, '-')).filter(Boolean)
     else if (f.kind === 'number') values[f.key] = Number(v)
     else values[f.key] = String(v)
   }
   const type = input.issueTypes.find((t) => t.name === raw.issueType)
-  return { summary: raw.summary, description: raw.description, issueTypeId: type?.id ?? input.issueTypeId, values, labels, rationale: raw.rationale }
+  return {
+    summary: raw.summary,
+    description: raw.description,
+    issueTypeId: type?.id ?? input.issueTypeId,
+    values,
+    labels,
+    rationale: raw.rationale,
+    changeSummary: input.issue ? raw.changeSummary : '',
+  }
 }

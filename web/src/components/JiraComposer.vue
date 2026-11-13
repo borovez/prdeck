@@ -14,6 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import JiraFieldChip from './JiraFieldChip.vue'
+import { Checkbox } from '@/components/ui/checkbox'
+import { lineDiff } from '@/utils/lineDiff'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { fileSize, uniqueForDraft, useImageAttachments, type PendingImage } from '@/composables/imageAttachments'
 import MarkdownEditor from './MarkdownEditor.vue'
@@ -54,6 +56,14 @@ const url = ref('')
 const initial = ref<{ summary: string; description: string; issueTypeId: string; values: Record<string, JiraFieldValue> } | null>(null)
 const titleInput = ref<HTMLTextAreaElement | null>(null)
 const moreOpen = ref(false)
+/** Edit mode: Claude's answer waits here for review; ticked changes are applied to the form */
+const proposal = ref<JiraAiDraft | null>(null)
+/** Chips Claude filled, marked until you change them */
+const suggested = ref<Set<string>>(new Set())
+const picked = ref<Set<string>>(new Set())
+/** Posted as a Jira comment with the save, when switched on */
+const commentText = ref('')
+const postComment = ref(false)
 /** Pasted / dropped images: Claude sees them, and they're attached to the issue */
 const attach = useImageAttachments((m) => toast.error(m))
 /** Images pasted or dropped on the Claude box: context for Claude only, not attached to the issue */
@@ -164,6 +174,10 @@ watch(
   async (t) => {
     if (!t) return
     moreOpen.value = false
+    proposal.value = null
+    suggested.value = new Set()
+    commentText.value = ''
+    postComment.value = false
     attach.clear()
     aiImages.clear()
     project.value = null
@@ -300,7 +314,16 @@ async function draftWithClaude() {
       current: { summary: summary.value, description: description.value, values: values.value },
       context: ctx.value,
       images: await uniqueForDraft(aiImages, attach),
+      issueKey: editKey.value,
     }, abort.signal)
+    if (editKey.value) {
+      // Edits are reviewed first: every change starts ticked
+      for (const [k, l] of Object.entries(d.labels)) learn(k, Object.values(l))
+      proposal.value = d
+      picked.value = new Set(proposalChanges.value.map((c) => c.id))
+      aiPrompt.value = ''
+      return
+    }
     undo.value = { summary: summary.value, description: description.value, issueTypeId: issueTypeId.value, values: plain(values.value) }
     if (d.issueTypeId !== issueTypeId.value && !editKey.value) {
       issueTypeId.value = d.issueTypeId
@@ -309,6 +332,7 @@ async function draftWithClaude() {
     summary.value = d.summary
     description.value = d.description
     values.value = { ...values.value, ...d.values }
+    suggested.value = new Set([...Object.keys(d.values), ...(undo.value.issueTypeId !== d.issueTypeId ? ['issuetype'] : [])])
     for (const [k, l] of Object.entries(d.labels)) learn(k, Object.values(l))
     drafted.value = d
     aiPrompt.value = ''
@@ -332,7 +356,62 @@ async function undoDraft() {
   values.value = u.values
   undo.value = null
   drafted.value = null
+  suggested.value = new Set()
 }
+/** How a value reads in the review: option labels, names, or "None" */
+function valueLabel(f: JiraFieldMeta | undefined, v: JiraFieldValue | undefined): string {
+  if (isEmpty(v)) return 'None'
+  const list = Array.isArray(v) ? v : [String(v)]
+  return list.map((x) => f?.options.find((o) => o.id === x)?.label ?? (f && known.value[f.key]?.[x]?.label) ?? x).join(', ')
+}
+/** Claude's proposal as reviewable changes against what the form has now */
+const proposalChanges = computed(() => {
+  const d = proposal.value
+  if (!d) return []
+  const out: { id: string; label: string; before: string; after: string; diff?: ReturnType<typeof lineDiff> }[] = []
+  if (d.summary.trim() && d.summary !== summary.value) out.push({ id: 'summary', label: 'Title', before: summary.value, after: d.summary })
+  if (d.issueTypeId !== issueTypeId.value) {
+    const name = (id: string) => issueTypes.value.find((t) => t.id === id)?.name ?? id
+    out.push({ id: 'issuetype', label: 'Type', before: name(issueTypeId.value), after: name(d.issueTypeId) })
+  }
+  if (d.description.trim() && d.description.trim() !== description.value.trim())
+    out.push({ id: 'description', label: 'Description', before: '', after: '', diff: lineDiff(description.value, d.description) })
+  for (const [k, v] of Object.entries(d.values)) {
+    if (same(v, values.value[k])) continue
+    const f = fields.value.find((x) => x.key === k)
+    out.push({ id: `field:${k}`, label: f?.name ?? k, before: valueLabel(f, values.value[k]), after: valueLabel(f, v) })
+  }
+  return out
+})
+function untouch(key: string) {
+  if (!suggested.value.has(key)) return
+  const next = new Set(suggested.value)
+  next.delete(key)
+  suggested.value = next
+}
+function togglePick(id: string) {
+  const next = new Set(picked.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  picked.value = next
+}
+function applyProposal() {
+  const d = proposal.value
+  if (!d) return
+  undo.value = { summary: summary.value, description: description.value, issueTypeId: issueTypeId.value, values: plain(values.value) }
+  for (const c of proposalChanges.value) {
+    if (!picked.value.has(c.id)) continue
+    if (c.id === 'summary') summary.value = d.summary
+    else if (c.id === 'description') description.value = d.description
+    else if (c.id === 'issuetype') issueTypeId.value = d.issueTypeId
+    else values.value = { ...values.value, [c.id.slice('field:'.length)]: d.values[c.id.slice('field:'.length)] }
+  }
+  suggested.value = new Set([...proposalChanges.value.filter((c) => picked.value.has(c.id)).map((c) => (c.id.startsWith('field:') ? c.id.slice(6) : c.id))])
+  commentText.value = d.changeSummary
+  drafted.value = d
+  proposal.value = null
+}
+
 function onPromptKey(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault()
@@ -372,7 +451,11 @@ async function submit() {
   busy.value = true
   try {
     if (editKey.value) {
-      const issue = await api.jiraUpdateIssue(editKey.value, { ...changes.value!, attachments: attach.forUpload() })
+      const issue = await api.jiraUpdateIssue(editKey.value, {
+        ...changes.value!,
+        attachments: attach.forUpload(),
+        comment: postComment.value && commentText.value.trim() ? `Updated with Claude:\n\n${commentText.value}` : undefined,
+      })
       toast.success(`Updated ${issue.key}`)
       await deck.load()
       close()
@@ -453,7 +536,6 @@ async function submit() {
 
       <!-- Ask Claude: writes or reworks the issue from your request and the context chips -->
       <div
-        v-if="!editKey"
         data-ai-images
         :class="{ 'ai-writing': drafting }"
         class="mx-4 mt-3 rounded-lg border border-primary/30 bg-linear-to-br from-primary/12 via-primary/6 to-merged/12 shadow-[0_0_24px_-12px_var(--primary)] transition-[border-color,box-shadow] focus-within:border-primary/60 focus-within:shadow-[0_0_28px_-10px_var(--primary)]"
@@ -465,7 +547,7 @@ async function submit() {
             rows="1"
             :readonly="drafting"
             :disabled="!aiReady"
-            :placeholder="aiReady ? (summary || description ? 'Ask Claude to change it: “make it a bug”, “add acceptance criteria”… (paste screenshots here too)' : 'Ask Claude to write it: describe the issue, paste notes, an error or a screenshot…') : 'Set up Claude in Settings to draft issues'"
+            :placeholder="aiReady ? (editKey ? 'What should change? “add acceptance criteria from the comments”, “it’s a bug, priority high”…' : summary || description ? 'Ask Claude to change it: “make it a bug”, “add acceptance criteria”… (paste screenshots here too)' : 'Ask Claude to write it: describe the issue, paste notes, an error or a screenshot…') : 'Set up Claude in Settings to draft issues'"
             class="field-sizing-content max-h-40 min-h-6 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-primary/60 disabled:opacity-60"
             @keydown="onPromptKey"
           />
@@ -481,7 +563,7 @@ async function submit() {
             @click="draftWithClaude"
           >
             <PhMagicWand weight="fill" />
-            {{ drafted || summary || description ? 'Rewrite with Claude' : 'Draft with Claude' }}
+            {{ editKey ? 'Suggest changes' : drafted || summary || description ? 'Rewrite with Claude' : 'Draft with Claude' }}
           </Button>
         </div>
         <div class="flex flex-wrap items-center gap-1.5 px-3 pt-2 pb-2.5">
@@ -505,7 +587,47 @@ async function submit() {
             <span class="truncate">{{ slackItem ? `${slackItem.userName} in ${slackItem.channelName}` : 'Slack message' }}</span>
           </span>
         </div>
-        <div v-if="drafted" class="flex items-start gap-2 border-t border-primary/20 px-3 py-2 text-xs text-muted-foreground">
+        <!-- Edit mode: review Claude's changes before they touch the form -->
+        <div v-if="proposal" class="border-t border-primary/20 px-3 py-2.5">
+          <p class="flex items-start gap-2 text-xs text-muted-foreground">
+            <PhSparkle class="mt-0.5 size-3.5 shrink-0 text-primary" />
+            <span>
+              <span class="font-medium text-foreground">{{ proposalChanges.length ? `Claude suggests ${proposalChanges.length} change${proposalChanges.length === 1 ? '' : 's'}` : 'Claude suggests no changes' }}.</span>
+              {{ proposal.rationale }}
+              <span v-if="proposal.used.comments || proposal.used.linkedPrs" class="opacity-70">
+                (Read {{ [proposal.used.comments && `${proposal.used.comments} comments`, proposal.used.linkedPrs && `${proposal.used.linkedPrs} linked PRs`].filter(Boolean).join(', ') }})
+              </span>
+            </span>
+          </p>
+          <ScrollArea v-if="proposalChanges.length" class="mt-2 [&>[data-slot=scroll-area-viewport]]:max-h-80">
+            <ul class="space-y-1.5 pr-2">
+              <li v-for="c in proposalChanges" :key="c.id" class="rounded-md border bg-background/70 p-2">
+                <label class="flex cursor-pointer items-start gap-2 text-sm">
+                  <Checkbox :model-value="picked.has(c.id)" class="mt-0.5" @update:model-value="togglePick(c.id)" />
+                  <span class="w-24 shrink-0 font-medium">{{ c.label }}</span>
+                  <span v-if="!c.diff" class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                    <span class="text-muted-foreground line-through decoration-destructive/60">{{ c.before || 'None' }}</span>
+                    <span class="text-muted-foreground">→</span>
+                    <span class="text-success">{{ c.after }}</span>
+                  </span>
+                  <span v-else class="text-xs text-muted-foreground">
+                    +{{ c.diff.filter((l) => l.kind === 'add').length }} −{{ c.diff.filter((l) => l.kind === 'del').length }} lines
+                  </span>
+                </label>
+                <pre v-if="c.diff" class="mt-1.5 max-h-60 overflow-auto rounded bg-muted/60 py-1 font-mono text-[11px] leading-relaxed"><template v-for="(l, i) in c.diff" :key="i"><span
+                  v-if="l.kind === 'gap'" class="block px-2 text-muted-foreground/60">⋯</span><span
+                  v-else :class="['block px-2 whitespace-pre-wrap', l.kind === 'add' && 'bg-success/15 text-success', l.kind === 'del' && 'bg-destructive/12 text-destructive line-through decoration-destructive/40', l.kind === 'same' && 'text-muted-foreground']">{{ l.kind === 'add' ? '+ ' : l.kind === 'del' ? '− ' : '  ' }}{{ l.text }}</span></template></pre>
+              </li>
+            </ul>
+          </ScrollArea>
+          <div class="mt-2 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" class="h-7" @click="proposal = null">Discard</Button>
+            <Button v-if="proposalChanges.length" size="sm" class="h-7" :disabled="!picked.size" @click="applyProposal">
+              Apply {{ picked.size }} change{{ picked.size === 1 ? '' : 's' }}
+            </Button>
+          </div>
+        </div>
+        <div v-else-if="drafted" class="flex items-start gap-2 border-t border-primary/20 px-3 py-2 text-xs text-muted-foreground">
           <PhSparkle class="mt-0.5 size-3.5 shrink-0 text-primary" />
           <p class="min-w-0 flex-1">
             {{ drafted.rationale }}
@@ -517,7 +639,7 @@ async function submit() {
         </div>
       </div>
 
-      <div v-if="!editKey" class="mx-4 mt-3 h-px bg-border" />
+      <div class="mx-4 mt-3 h-px bg-border" />
 
       <!-- Expanded: the description fills the window; otherwise the body scrolls -->
       <div v-if="prefs.expanded" class="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-3">
@@ -577,7 +699,7 @@ async function submit() {
           <Skeleton v-for="i in 6" :key="i" class="h-7 w-20" />
         </template>
         <template v-else-if="project">
-          <JiraFieldChip v-model="typeModel" :field="typeField" :project="project.key" />
+          <JiraFieldChip v-model="typeModel" :field="typeField" :project="project.key" :suggested="suggested.has('issuetype')" @touched="untouch('issuetype')" />
           <JiraFieldChip
             v-for="f in visible"
             :key="f.key"
@@ -587,7 +709,9 @@ async function submit() {
             :project="project.key"
             :issue-key="editKey ?? undefined"
             :invalid="f.required && isEmpty(values[f.key]) && !!summary"
+            :suggested="suggested.has(f.key)"
             @learn="(o) => learn(f.key, o)"
+            @touched="untouch(f.key)"
           />
           <Popover v-if="more.length" v-model:open="moreOpen">
             <PopoverTrigger as-child>
@@ -626,6 +750,9 @@ async function submit() {
         </label>
         <label v-if="!editKey" class="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <Switch v-model="prefs.createMore" /> Create more
+        </label>
+        <label v-if="editKey && commentText" class="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground" :title="commentText">
+          <Switch v-model="postComment" /> Comment what Claude changed
         </label>
         <span v-if="editKey && changeCount" class="text-xs text-muted-foreground">{{ changeCount }} change{{ changeCount === 1 ? '' : 's' }}</span>
         <Button size="sm" :disabled="!canSubmit" :title="blockedReason ? blockedReason : '⌘↵'" @click="submit">

@@ -80,7 +80,17 @@ const details = computed(() => {
     <template v-if="key" #header>
       <div class="flex flex-wrap items-center gap-1.5">
         <img v-if="issue?.typeIconUrl" :src="issue.typeIconUrl" :title="issue.type" class="size-4" alt="" />
-        <span class="font-mono text-sm font-medium">{{ key }}</span>
+        <a
+          v-if="url"
+          :href="url"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center gap-1 font-mono text-sm font-medium text-primary hover:underline"
+          title="Open in Jira"
+        >
+          {{ key }}<PhArrowSquareOut :size="14" class="shrink-0" />
+        </a>
+        <span v-else class="font-mono text-sm font-medium">{{ key }}</span>
         <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)">{{ issue.status }}</Badge>
         <span class="flex-1" />
         <Button v-if="deck.overview?.configured.jira" variant="outline" size="sm" class="h-7" @click="deck.composer = { mode: 'edit', key: key! }">

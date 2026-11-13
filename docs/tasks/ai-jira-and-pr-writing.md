@@ -98,7 +98,7 @@ can do the same from the terminal.
 3. ✅ Claude drafting for create (generalise `draftJiraFromSlack` into `draftIssue(context, meta)`), writing
    guides (Settings + repo CLAUDE.md), replace `SlackToJiraModal` (reply in thread and mark done move
    into the composer when it's opened from Slack).
-4. Claude updates for edit, with the diff review.
+4. ✅ Claude updates for edit, with the diff review.
 5. MCP tools, CLAUDE.md, README.
 
 ---

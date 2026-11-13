@@ -49,7 +49,7 @@ export const api = {
   jiraEditable: (key: string) => call<JiraEditable>('GET', `/jira/${encodeURIComponent(key)}/editable`),
   jiraCreateIssue: (input: JiraWriteInput) => call<JiraIssue & { replied: boolean; attachError: string | null }>('POST', '/jira/issues', input),
   jiraDraft: (input: JiraDraftRequest, signal?: AbortSignal) => call<JiraAiDraft>('POST', '/jira/draft', input, signal),
-  jiraUpdateIssue: (key: string, changes: { summary?: string; description?: string; issueTypeId?: string; values?: Record<string, JiraFieldValue>; attachments?: ImageAttachment[] }) =>
+  jiraUpdateIssue: (key: string, changes: { summary?: string; description?: string; issueTypeId?: string; values?: Record<string, JiraFieldValue>; attachments?: ImageAttachment[]; comment?: string }) =>
     call<JiraIssue>('PUT', `/jira/issues/${encodeURIComponent(key)}`, changes),
   jiraDetail: (key: string) => call<JiraIssueDetail>('GET', `/jira/${encodeURIComponent(key)}/detail`),
   transitions: (key: string) =>
