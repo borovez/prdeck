@@ -24,6 +24,7 @@ import { timeAgo } from '@/utils/format'
 import GlobalSearch from '@/components/GlobalSearch.vue'
 import SyncErrors from '@/components/SyncErrors.vue'
 import SyncButton from '@/components/SyncButton.vue'
+import UpdateButton from '@/components/UpdateButton.vue'
 import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
@@ -160,6 +161,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
           <GlobalSearch />
 
           <div class="flex min-w-0 items-center justify-end gap-2">
+          <UpdateButton />
           <SyncErrors />
           <Tooltip v-if="deck.overview?.configured.jira">
             <TooltipTrigger as-child>

@@ -32,6 +32,7 @@ import {
 import { draftJiraIssue, draftPrText, envCredentials, testAi } from './ai.ts'
 import { keepDeclarations } from './prWriter.ts'
 import { buildAgentPrompt } from './agentPrompt.ts'
+import { startUpdate, updateStatus, VERSION } from './updates.ts'
 import { claudeMdGuide } from './guides.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
@@ -80,7 +81,15 @@ function maskSettings(s: Settings): Settings {
   }
 }
 
-api.get('/health', (c) => c.json({ ok: true }))
+api.get('/health', (c) => c.json({ ok: true, version: VERSION }))
+
+/** Whether a newer release is out, and whether this install can update itself (`?refresh=1` checks GitHub now) */
+api.get('/update', async (c) => c.json(await updateStatus(c.req.query('refresh') === '1')))
+/** Pull, install, rebuild and restart in the background; the app reloads when /health reports the new version */
+api.post('/update', async (c) => {
+  await startUpdate()
+  return c.json({ started: true })
+})
 
 api.get('/overview', (c) => c.json(buildOverview()))
 

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { DB_PATH, getSettings, getSyncState, saveSyncState } from './db.ts'
 import { api } from './routes.ts'
 import { runSync } from './sync.ts'
+import { updateStatus } from './updates.ts'
 
 const PORT = Number(process.env.PRDECK_PORT ?? 4317)
 // Bound to loopback only: this process holds your GitHub and Jira tokens.
@@ -36,6 +37,11 @@ if (stale.running) {
     steps: stale.steps?.map((s) => (s.status === 'running' ? { ...s, status: 'error', detail: 'Interrupted (server restarted)' } : s)),
   })
 }
+
+// Look for a new release at start and every six hours (cached; the app reads it from /api/update)
+const checkUpdates = () => updateStatus().catch(() => {})
+checkUpdates()
+setInterval(checkUpdates, 60 * 60_000)
 
 // Background sync loop – re-reads the interval every tick so settings changes apply.
 let last = 0

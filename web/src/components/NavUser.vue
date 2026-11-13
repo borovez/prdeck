@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { PhArrowsClockwise, PhCaretUpDown, PhGear } from '@phosphor-icons/vue'
+import { PhArrowCircleUp, PhArrowsClockwise, PhCaretUpDown, PhGear } from '@phosphor-icons/vue'
 import { useDeck } from '@/stores/deck'
+import { useUpdates } from '@/composables/updates'
 import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -20,6 +21,7 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/c
 /** Sidebar footer: who's signed in, last sync, connection status, quick actions. */
 const deck = useDeck()
 const router = useRouter()
+const updates = useUpdates()
 const { isMobile } = useSidebar()
 
 const login = computed(() => deck.overview?.me[0] ?? null)
@@ -83,6 +85,11 @@ const errors = computed(() => deck.overview?.sync.errors.length ?? 0)
             <PhArrowsClockwise :class="{ 'animate-spin': deck.syncRunning }" /> Sync now
           </DropdownMenuItem>
           <DropdownMenuItem @select="router.push('/settings')"><PhGear /> Settings</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem :disabled="updates.checking.value" @select.prevent="updates.load(true)">
+            <PhArrowCircleUp /> {{ updates.status.value?.available ? `Update to ${updates.status.value.latest}` : 'Check for updates' }}
+            <span class="ml-auto text-xs text-muted-foreground">v{{ updates.status.value?.current ?? '…' }}</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>

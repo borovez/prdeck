@@ -1,4 +1,4 @@
-import type { PrRewrite, PrRewriteRequest, AiConfig, ImageAttachment, JiraAiDraft, JiraDraftRequest, RepoCatalog, JiraIssueTypeMeta, JiraCreateMeta, JiraEditable, JiraFieldKind, JiraFieldOption, JiraIssue, JiraProjectMeta, JiraWriteInput, JiraFieldValue, JiraIssueDetail, PrDetail, Overview, Settings, SlackContext, SlackStatus, SyncState } from '@shared/types'
+import type { UpdateStatus, PrRewrite, PrRewriteRequest, AiConfig, ImageAttachment, JiraAiDraft, JiraDraftRequest, RepoCatalog, JiraIssueTypeMeta, JiraCreateMeta, JiraEditable, JiraFieldKind, JiraFieldOption, JiraIssue, JiraProjectMeta, JiraWriteInput, JiraFieldValue, JiraIssueDetail, PrDetail, Overview, Settings, SlackContext, SlackStatus, SyncState } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -46,6 +46,9 @@ export const api = {
   prRewrite: (input: PrRewriteRequest, signal?: AbortSignal) => call<PrRewrite>('POST', '/prs/rewrite', input, signal),
   savePrText: (input: { prId: string; title?: string; body?: string }) => call<{ ok: boolean }>('PUT', '/prs/text', input),
   jiraAgentPrompt: (key: string) => call<{ prompt: string }>('GET', `/jira/${encodeURIComponent(key)}/agent-prompt`),
+  updateStatus: (refresh = false) => call<UpdateStatus>('GET', `/update${refresh ? '?refresh=1' : ''}`),
+  startUpdate: () => call<{ started: boolean }>('POST', '/update'),
+  health: () => call<{ ok: boolean; version: string }>('GET', '/health'),
   jiraProjects: () => call<JiraProjectMeta[]>('GET', '/jira/projects'),
   jiraMeta: (project: string, type?: string) =>
     call<JiraCreateMeta>('GET', `/jira/meta?project=${encodeURIComponent(project)}${type ? `&type=${encodeURIComponent(type)}` : ''}`),

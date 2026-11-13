@@ -99,8 +99,18 @@ with its menu, extensions and uninstall buttons is replaced by PR Deck's header,
 drags the window. A small toggle in the top corner brings the browser's bar back. Safari web apps
 always get a plain macOS title bar.
 
-Updating: pull, then run `npm run app:install` again (it rebuilds and restarts; the installed app
-picks up the new version on its next load).
+Updating: the app checks this repo's GitHub releases every few hours and shows **Update available**
+in the header, with the release notes and **Update and restart** (it pulls, installs, rebuilds and
+restarts the background server, then reloads). By hand: `npm run app:update`. The user menu shows the
+version and **Check for updates**.
+
+### On an Android phone (USB-C)
+
+With the phone connected by cable and USB debugging on (Settings → About phone → Software information
+→ tap Build number 7 times; then Developer options → USB debugging), run `npm run phone` (needs
+`brew install android-platform-tools`). It forwards the phone's `localhost:4317` to your Mac and opens
+PR Deck in Chrome; Chrome menu → Add to home screen → Install. It works while the cable is connected
+(run it again after reconnecting); the server and your tokens stay on the Mac.
 
 Removing: `npm run app:uninstall` stops the server and removes it from login. Remove the app itself
 like any other app (in Chrome, its window menu → *Uninstall*; for Safari web apps, drag it out of
@@ -127,6 +137,9 @@ Settings → MCP shows the exact `claude mcp add` command for your machine. It r
 | `npm run app:install` | Build and run the server in the background at login (macOS), for the installed app |
 | `npm run app:uninstall` | Stop the background server and remove it from login |
 | `npm run app:logs` | Follow the background server's log |
+| `npm run app:update` | Pull the latest version, rebuild and restart (what **Update and restart** runs) |
+| `npm run phone` | Open PR Deck on an Android phone connected by USB (adb reverse) |
+| `npm run release -- patch\|minor\|major` | Bump the version, tag, push and create a GitHub Release (installed apps offer the update) |
 
 ## Configuration
 

@@ -110,6 +110,10 @@ Rules:
 
 The PR template (`.github/pull_request_template.md`) has these sections.
 
+## Releases and updates
+
+Version in the root `package.json` (`VERSION` in `server/src/updates.ts`; `/api/health` reports it). `npm run release -- patch|minor|major` (scripts/release.sh, from a clean `main`) bumps, tags, pushes and creates a GitHub Release with `gh`. The server checks `releases/latest` of the repo at start and every 6 h (cached in kv `updateCheck`); `GET /api/update` adds whether this install can update itself (a git checkout, no local changes, `NODE_ENV=production`, i.e. the LaunchAgent). `POST /api/update` runs `scripts/app-update.sh` detached (pull --ff-only, npm install, build, `launchctl kickstart -k`; log `~/Library/Logs/PRDeck-update.log`); the web app polls `/api/health` for the new version and reloads (`composables/updates.ts`, `UpdateButton.vue` in the header, version and Check for updates in `NavUser`). Android over USB: `npm run phone` (scripts/phone.sh: `adb reverse` + open Chrome). Next: an Electron `.dmg` (unsigned for now) per `docs/tasks/electron-embedded-browser.md`.
+
 ## Other open items
 
 - Embedded GitHub/Jira pages need a native shell (Electron); spec in `docs/tasks/electron-embedded-browser.md`. Until then "Open beside" uses a popup window.

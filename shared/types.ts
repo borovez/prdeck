@@ -418,6 +418,29 @@ export interface RepoCatalog {
   errors: string[]
 }
 
+// ---------- Updates ----------
+
+export interface UpdateStatus {
+  /** This install's version */
+  current: string
+  /** The newest GitHub release, null when it couldn't be checked */
+  latest: string | null
+  available: boolean
+  url: string
+  /** Release notes (Markdown) */
+  notes: string
+  publishedAt: string | null
+  checkedAt: string
+  error: string | null
+  /** A git checkout running as the background service, without local changes */
+  canSelfUpdate: boolean
+  /** Why it can't update itself */
+  reason: string | null
+  updating: boolean
+  /** Where the update script writes */
+  log: string
+}
+
 // ---------- PR writer: Claude rewrites a PR's title and description ----------
 
 export interface PrRewriteRequest {

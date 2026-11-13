@@ -1,6 +1,8 @@
 {
   "name": "prdeck",
+  "version": "0.1.0",
   "private": true,
+  "repository": "github:borovez/prdeck",
   "license": "MIT",
   "type": "module",
   "workspaces": [
@@ -15,7 +17,10 @@
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
     "app:install": "sh scripts/app-install.sh",
     "app:uninstall": "sh scripts/app-uninstall.sh",
-    "app:logs": "tail -f ~/Library/Logs/PRDeck.log"
+    "app:logs": "tail -f ~/Library/Logs/PRDeck.log",
+    "app:update": "sh scripts/app-update.sh",
+    "release": "sh scripts/release.sh",
+    "phone": "sh scripts/phone.sh"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"
