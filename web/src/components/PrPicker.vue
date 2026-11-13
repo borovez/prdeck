@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { computed, nextTick, ref, watch } from 'vue'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
@@ -108,10 +109,12 @@ const listStyle = computed(() => {
     <div
       v-if="open && matches.length"
       role="listbox"
-      class="fixed z-[60] max-h-80 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
+      class="fixed z-[60] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg"
       :style="listStyle"
       @mousedown.prevent
     >
+      <ScrollArea class="[&>[data-slot=scroll-area-viewport]]:max-h-80">
+      <div class="p-1">
       <button
         v-for="(p, i) in matches"
         :key="p.id"
@@ -131,6 +134,8 @@ const listStyle = computed(() => {
         </span>
         <RepoName :id="p.id" class="max-w-full font-mono text-xs text-muted-foreground" />
       </button>
+      </div>
+      </ScrollArea>
     </div>
   </Teleport>
 </template>

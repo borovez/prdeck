@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PhArrowSquareOut, PhChatCircle, PhGraph, PhRocketLaunch } from '@phosphor-icons/vue'
+import { PhArrowSquareOut, PhChatCircle, PhGraph, PhPencilSimple, PhRocketLaunch } from '@phosphor-icons/vue'
 import type { JiraIssueDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
@@ -82,6 +82,10 @@ const details = computed(() => {
         <img v-if="issue?.typeIconUrl" :src="issue.typeIconUrl" :title="issue.type" class="size-4" alt="" />
         <span class="font-mono text-sm font-medium">{{ key }}</span>
         <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)">{{ issue.status }}</Badge>
+        <span class="flex-1" />
+        <Button v-if="deck.overview?.configured.jira" variant="outline" size="sm" class="h-7" @click="deck.composer = { mode: 'edit', key: key! }">
+          <PhPencilSimple /> Edit
+        </Button>
       </div>
       <h2 class="mt-1.5 leading-snug font-semibold">{{ issue?.summary ?? 'Not loaded from Jira' }}</h2>
     </template>

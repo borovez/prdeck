@@ -105,7 +105,7 @@ const summaries = computed(() => {
             <PhCheck v-if="copied && copiedOne === null" class="text-success" /><PhCopy v-else /> {{ copied && copiedOne === null ? 'Copied' : 'Copy all' }}
           </Button>
           <Button variant="ghost" @click="open = false">Close</Button>
-          <Button :disabled="deck.syncing" @click="deck.sync()"><PhArrowsClockwise :class="{ 'animate-spin': deck.syncing }" /> Sync now</Button>
+          <Button :disabled="deck.syncRunning" @click="deck.sync()"><PhArrowsClockwise :class="{ 'animate-spin': deck.syncRunning }" /> Sync now</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

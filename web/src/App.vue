@@ -2,7 +2,6 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  PhArrowsClockwise,
   PhDesktop,
   PhGauge,
   PhGear,
@@ -15,6 +14,7 @@ import {
   PhSun,
   PhTimer,
   PhWarning,
+  PhNotePencil,
 } from '@phosphor-icons/vue'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
@@ -23,11 +23,14 @@ import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
 import GlobalSearch from '@/components/GlobalSearch.vue'
 import SyncErrors from '@/components/SyncErrors.vue'
+import SyncButton from '@/components/SyncButton.vue'
 import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
 import JiraDrawer from '@/components/JiraDrawer.vue'
 import SlackToJiraModal from '@/components/SlackToJiraModal.vue'
+import JiraComposer from '@/components/JiraComposer.vue'
+import { onKeyStroke } from '@vueuse/core'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
@@ -63,6 +66,15 @@ const deck = useDeck()
 const layout = useLayout()
 const route = useRoute()
 const theme = useTheme()
+
+// C opens a new Jira issue, unless typing or a dialog is open
+onKeyStroke('c', (e) => {
+  const t = e.target as HTMLElement
+  if (e.metaKey || e.ctrlKey || e.altKey || !deck.overview?.configured.jira || deck.composer) return
+  if (t.closest('input, textarea, select, [contenteditable=true], [role=dialog], [role=menu], [role=listbox]')) return
+  e.preventDefault()
+  deck.composer = { mode: 'create' }
+})
 
 onMounted(async () => {
   await Promise.all([deck.load(), layout.load()])
@@ -148,12 +160,15 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
 
           <div class="flex min-w-0 items-center justify-end gap-2">
           <SyncErrors />
+          <Tooltip v-if="deck.overview?.configured.jira">
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon-sm" aria-label="New Jira issue" @click="deck.composer = { mode: 'create' }"><PhNotePencil /></Button>
+            </TooltipTrigger>
+            <TooltipContent>New Jira issue <kbd class="ml-1 font-mono">C</kbd></TooltipContent>
+          </Tooltip>
 
           <ButtonGroup>
-            <Button size="sm" variant="outline" :disabled="deck.syncing || needsSetup" @click="deck.sync()">
-              <PhArrowsClockwise :class="{ 'animate-spin': deck.syncing }" />
-              {{ deck.syncing ? 'Syncing…' : 'Sync' }}
-            </Button>
+            <SyncButton :disabled="needsSetup" />
             <Tooltip v-if="autoSync">
               <TooltipTrigger as-child>
                 <Toggle size="sm" variant="outline" :model-value="autoSync.enabled" :disabled="needsSetup" aria-label="Auto-sync" @update:model-value="setAutoSync">
@@ -204,6 +219,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
     <SlackDrawer />
     <JiraDrawer />
     <SlackToJiraModal />
+    <JiraComposer />
     <Toaster :theme="theme === 'auto' ? 'system' : theme" position="bottom-right" close-button />
   </TooltipProvider>
 </template>

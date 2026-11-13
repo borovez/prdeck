@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhCircleHalf, PhKanban, PhMagnifyingGlass } from '@phosphor-icons/vue'
+import { PhCircleHalf, PhKanban, PhMagnifyingGlass, PhNotePencil } from '@phosphor-icons/vue'
 import type { JiraIssueView, PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { useLayout, type SortDir } from '@/stores/layout'
@@ -196,6 +196,7 @@ const DOT: Record<string, string> = { new: 'bg-muted-foreground', indeterminate:
       <span class="flex-1" />
       <CollapseAllButton v-if="groups.length > 1" :collapsed="allCollapsed" @toggle="toggleAll" />
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
+      <Button v-if="deck.overview?.configured.jira" size="sm" @click="deck.composer = { mode: 'create' }"><PhNotePencil /> New issue</Button>
     </div>
 
     <ScrollArea type="auto" class="min-h-0 flex-1 max-w-none!">

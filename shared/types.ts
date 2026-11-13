@@ -332,6 +332,20 @@ export interface SyncState {
   lastDurationMs: number | null
   errors: string[]
   counts: { prs: number; jira: number; slack: number } | null
+  /** Each stage of the current (or last) sync, in run order */
+  steps?: SyncStep[]
+}
+
+export type SyncStepStatus = 'queued' | 'running' | 'done' | 'error' | 'skipped'
+
+export interface SyncStep {
+  id: string
+  label: string
+  status: SyncStepStatus
+  startedAt?: string
+  finishedAt?: string
+  /** Short result ("42 PRs") or the reason it was skipped or failed */
+  detail?: string
 }
 
 // ---------- Slack ----------
@@ -392,6 +406,113 @@ export interface SlackContext {
   hasAfter: boolean
 }
 
+// ---------- Repo catalog (Settings → tracked repos) ----------
+
+export interface RepoCatalogEntry {
+  nameWithOwner: string
+  owner: string
+  ownerAvatarUrl: string | null
+  pushedAt: string
+  isPrivate: boolean
+  description: string | null
+}
+
+/** Every repo the GitHub accounts can see, across their orgs; cached on the server for an hour */
+export interface RepoCatalog {
+  repos: RepoCatalogEntry[]
+  fetchedAt: string | null
+  /** Orgs or accounts that couldn't be listed (e.g. SSO not authorised) */
+  errors: string[]
+}
+
+// ---------- Jira issue composer (create and edit) ----------
+
+/**
+ * How the composer edits a field, from Jira's create / edit metadata (schema type, system, custom):
+ * option(s) for selects, priority, components and versions; user for assignee; labels; parent;
+ * sprint (Jira Software); number (story points); string / text (rich text, sent as ADF); date.
+ */
+export type JiraFieldKind = 'option' | 'options' | 'user' | 'users' | 'labels' | 'parent' | 'sprint' | 'number' | 'string' | 'text' | 'date'
+
+export interface JiraFieldOption {
+  id: string
+  label: string
+  iconUrl?: string | null
+  /** Muted second line (an epic's status, a sprint's state) */
+  detail?: string
+}
+
+export interface JiraFieldMeta {
+  key: string // "priority", "customfield_10016"
+  name: string
+  kind: JiraFieldKind
+  required: boolean
+  /** Fixed choices; empty for fields searched on the fly (users, parent, sprint, labels) */
+  options: JiraFieldOption[]
+  /** Jira's custom type, e.g. "…:float", "…:gh-sprint", "jsw-story-points" (to recognise story points, sprint) */
+  custom?: string
+  /** Jira's schema type ("datetime" vs "date", "version"…), used when writing the value */
+  schemaType?: string
+}
+
+export interface JiraIssueTypeMeta {
+  id: string
+  name: string
+  iconUrl: string | null
+  subtask: boolean
+}
+
+export interface JiraProjectMeta {
+  key: string
+  name: string
+  avatarUrl: string | null
+}
+
+/** Create metadata for one project and issue type */
+export interface JiraCreateMeta {
+  project: JiraProjectMeta
+  issueTypes: JiraIssueTypeMeta[]
+  issueTypeId: string
+  fields: JiraFieldMeta[]
+  /** Starting values from Settings → Jira (assign to me, default fields) */
+  defaults: Record<string, JiraFieldValue>
+  /** Labels for the defaults (me as assignee) */
+  labels: JiraValueLabels
+}
+
+/**
+ * A field value in the composer: option id(s), account id(s), labels, a parent key, a sprint id,
+ * a number, text (Markdown for rich text) or a date (YYYY-MM-DD). null clears it.
+ */
+export type JiraFieldValue = string | string[] | number | null
+
+/** Labels for values that aren't in a field's options (users, parent, sprint), by field key then value */
+export type JiraValueLabels = Record<string, Record<string, JiraFieldOption>>
+
+/** An issue opened for editing */
+export interface JiraEditable {
+  key: string
+  url: string
+  project: JiraProjectMeta
+  issueTypeId: string
+  issueTypes: JiraIssueTypeMeta[]
+  summary: string
+  /** Markdown converted from the issue's ADF description (only sent back if changed) */
+  description: string
+  fields: JiraFieldMeta[]
+  values: Record<string, JiraFieldValue>
+  labels: JiraValueLabels
+}
+
+export interface JiraWriteInput {
+  projectKey: string
+  issueTypeId: string
+  summary: string
+  /** Markdown */
+  description: string
+  values: Record<string, JiraFieldValue>
+}
+
 export interface JiraDraft {
   summary: string
   description: string // markdown
@@ -429,8 +550,6 @@ export interface JiraConfig {
   create: {
     projectKey: string
     issueType: string
-    /** Extra fields JSON merged into the create payload, e.g. {"customfield_12345":{"id":"10001"}} */
-    extraFieldsJson: string
     assignToMe: boolean
   }
 }

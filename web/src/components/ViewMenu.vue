@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { computed, type Component } from 'vue'
 import { PhArrowCounterClockwise, PhSlidersHorizontal, PhSortAscending, PhSortDescending } from '@phosphor-icons/vue'
 import { cn } from '@/lib/utils'
@@ -64,14 +65,16 @@ const labelOf = (s: Extract<ViewSection, { type: 'filter' }>) => s.options.find(
             <component :is="s.icon" v-if="s.icon" /> {{ s.label }}
             <span class="ml-auto max-w-28 truncate pl-2 text-xs text-muted-foreground">{{ labelOf(s) }}</span>
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent class="max-h-80 w-72 overflow-y-auto">
-            <DropdownMenuRadioGroup :model-value="model(s.key).get()" @update:model-value="model(s.key).set">
+          <DropdownMenuSubContent class="w-72 p-0">
+            <ScrollArea class="[&>[data-slot=scroll-area-viewport]]:max-h-80">
+            <DropdownMenuRadioGroup class="p-1" :model-value="model(s.key).get()" @update:model-value="model(s.key).set">
               <DropdownMenuRadioItem value="">{{ s.allLabel }}</DropdownMenuRadioItem>
               <DropdownMenuSeparator />
               <DropdownMenuRadioItem v-for="o in s.options" :key="o.value" :value="o.value" :class="cn(s.mono && 'font-mono text-xs')">
                 {{ o.label }}
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
+            </ScrollArea>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
 

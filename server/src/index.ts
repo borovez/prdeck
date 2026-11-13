@@ -4,7 +4,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { DB_PATH, getSettings } from './db.ts'
+import { DB_PATH, getSettings, getSyncState, saveSyncState } from './db.ts'
 import { api } from './routes.ts'
 import { runSync } from './sync.ts'
 
@@ -26,6 +26,16 @@ if (existsSync(dist)) {
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, () => {
   console.log(`prdeck API on http://${HOST}:${PORT}  (db: ${DB_PATH})`)
 })
+
+// A sync cut short by a restart left "running" behind; mark it stopped, with unfinished steps as queued
+const stale = getSyncState()
+if (stale.running) {
+  saveSyncState({
+    ...stale,
+    running: false,
+    steps: stale.steps?.map((s) => (s.status === 'running' ? { ...s, status: 'error', detail: 'Interrupted (server restarted)' } : s)),
+  })
+}
 
 // Background sync loop – re-reads the interval every tick so settings changes apply.
 let last = 0

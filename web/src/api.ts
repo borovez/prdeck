@@ -1,4 +1,4 @@
-import type { AiConfig, JiraDraft, JiraIssueDetail, PrDetail, JiraRequiredField, Overview, Settings, SlackContext, SlackStatus } from '@shared/types'
+import type { AiConfig, RepoCatalog, JiraIssueTypeMeta, JiraCreateMeta, JiraEditable, JiraFieldKind, JiraFieldOption, JiraIssue, JiraProjectMeta, JiraWriteInput, JiraFieldValue, JiraDraft, JiraIssueDetail, PrDetail, JiraRequiredField, Overview, Settings, SlackContext, SlackStatus, SyncState } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -14,15 +14,19 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   overview: () => call<Overview>('GET', '/overview'),
   sync: () => call<Overview>('POST', '/sync'),
+  syncStatus: () => call<SyncState>('GET', '/sync/status'),
   setAutoSync: (enabled: boolean) => call<{ enabled: boolean }>('PUT', '/sync/auto', { enabled }),
   settings: () => call<Settings>('GET', '/settings'),
   saveSettings: (s: Settings) => call<Settings>('PUT', '/settings', s),
   testGithub: (token: string, accountId?: string) =>
     call<{ login: string; avatarUrl: string; orgs: string[] }>('POST', '/setup/github/test', { token, accountId }),
   importGhCli: () => call<{ login: string; orgs: string[]; settings: Settings }>('POST', '/setup/github/gh-cli'),
-  owners: (accountId: string) => call<string[]>('GET', `/setup/github/${accountId}/owners`),
-  repos: (accountId: string, owner: string) =>
-    call<{ nameWithOwner: string; pushedAt: string }[]>('GET', `/setup/github/${accountId}/repos?owner=${encodeURIComponent(owner)}`),
+  /** Settings form: every Jira project, and a project's issue types, with the credentials being edited */
+  jiraAllProjects: (baseUrl: string, email: string, apiToken: string) =>
+    call<JiraProjectMeta[]>('POST', '/setup/jira/projects', { baseUrl, email, apiToken }),
+  jiraIssueTypes: (baseUrl: string, email: string, apiToken: string, project: string) =>
+    call<JiraIssueTypeMeta[]>('POST', '/setup/jira/issue-types', { baseUrl, email, apiToken, project }),
+  repoCatalog: (refresh = false) => call<RepoCatalog>('GET', `/setup/github/repo-catalog${refresh ? '?refresh=1' : ''}`),
   testJira: (baseUrl: string, email: string, apiToken: string) =>
     call<{ displayName: string; accountId: string }>('POST', '/setup/jira/test', { baseUrl, email, apiToken }),
   aiInfo: () => call<{ env: boolean; claudeCode: string | null }>('GET', '/setup/ai'),
@@ -38,6 +42,15 @@ export const api = {
   setMeta: (id: string, note: string | null, pinned: boolean) => call('PUT', '/prs/meta', { id, note, pinned }),
   jiraRequiredFields: (project: string, type: string) =>
     call<JiraRequiredField[]>('GET', `/jira/required-fields?project=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}`),
+  jiraProjects: () => call<JiraProjectMeta[]>('GET', '/jira/projects'),
+  jiraMeta: (project: string, type?: string) =>
+    call<JiraCreateMeta>('GET', `/jira/meta?project=${encodeURIComponent(project)}${type ? `&type=${encodeURIComponent(type)}` : ''}`),
+  jiraOptions: (q: { kind: JiraFieldKind; project: string; q?: string; issue?: string; field?: string }) =>
+    call<JiraFieldOption[]>('GET', `/jira/options?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])}`),
+  jiraEditable: (key: string) => call<JiraEditable>('GET', `/jira/${encodeURIComponent(key)}/editable`),
+  jiraCreateIssue: (input: JiraWriteInput) => call<JiraIssue>('POST', '/jira/issues', input),
+  jiraUpdateIssue: (key: string, changes: { summary?: string; description?: string; issueTypeId?: string; values?: Record<string, JiraFieldValue> }) =>
+    call<JiraIssue>('PUT', `/jira/issues/${encodeURIComponent(key)}`, changes),
   jiraDetail: (key: string) => call<JiraIssueDetail>('GET', `/jira/${encodeURIComponent(key)}/detail`),
   transitions: (key: string) =>
     call<{ id: string; name: string; to: string; toCategory: string }[]>('GET', `/jira/${key}/transitions`),

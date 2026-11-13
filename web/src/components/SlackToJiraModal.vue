@@ -36,8 +36,6 @@ const required = ref<JiraRequiredField[]>([])
 /** Chosen values: option id(s) or text, by field key */
 const values = ref<Record<string, string>>({})
 const loadingFields = ref(false)
-/** Defaults from Settings → Jira → extra fields JSON, by field key */
-const settingDefaults = ref<Record<string, string>>({})
 /** Last values used, per project, so the next issue starts with them */
 const remembered = useLayout().view('jira-create', { fields: {} as Record<string, Record<string, string>> })
 
@@ -50,7 +48,7 @@ watchDebounced(
     try {
       required.value = await api.jiraRequiredFields(project, type)
       const last = remembered.fields[project] ?? {}
-      for (const f of required.value) values.value[f.key] ??= last[f.key] ?? settingDefaults.value[f.key] ?? ''
+      for (const f of required.value) values.value[f.key] ??= last[f.key] ?? ''
     } catch (e) {
       error.value = (e as Error).message
     } finally {
@@ -82,13 +80,6 @@ watch(item, async (it) => {
   claudePicks.value = {}
   const jira = (await api.settings().catch(() => null))?.jira
   if (!projectKey.value) projectKey.value = jira?.create.projectKey ?? ''
-  settingDefaults.value = {}
-  try {
-    for (const [k, v] of Object.entries(JSON.parse(jira?.create.extraFieldsJson || '{}') as Record<string, unknown>))
-      settingDefaults.value[k] = typeof v === 'object' && v && 'id' in v ? String((v as { id: unknown }).id) : String(v)
-  } catch {
-    /* invalid JSON is reported on create */
-  }
 })
 
 async function generate() {

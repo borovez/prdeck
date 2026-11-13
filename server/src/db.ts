@@ -66,11 +66,11 @@ db.exec(`
 `)
 
 // ---------- kv ----------
-function kvGet<T>(key: string, fallback: T): T {
+export function kvGet<T>(key: string, fallback: T): T {
   const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as { value: string } | undefined
   return row ? (JSON.parse(row.value) as T) : fallback
 }
-function kvSet(key: string, value: unknown) {
+export function kvSet(key: string, value: unknown) {
   db.prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
     key,
     JSON.stringify(value),
@@ -92,13 +92,12 @@ export function getSettings(): Settings {
     jira: s.jira
       ? {
           ...s.jira,
-          create: {
-            projectKey: s.jira.projectKeys?.[0] ?? '',
+          create: (({ extraFieldsJson: _gone, ...c }: Partial<NonNullable<Settings['jira']>['create']> & { extraFieldsJson?: string }) => ({
+            projectKey: s.jira!.projectKeys?.[0] ?? '',
             issueType: 'Task',
-            extraFieldsJson: '',
             assignToMe: true,
-            ...(s.jira.create as Partial<NonNullable<Settings['jira']>['create']> | undefined),
-          },
+            ...c,
+          }))((s.jira.create ?? {}) as Partial<NonNullable<Settings['jira']>['create']>),
         }
       : null,
     slack: s.slack ? { lookbackDays: 7, maxConversations: 40, includeSaved: true, todoReactions: ['todo', 'eyes', 'bookmark'], doneReactions: ['white_check_mark', 'heavy_check_mark', 'done'], ...(s.slack as Partial<NonNullable<Settings['slack']>>), token: s.slack.token, userId: s.slack.userId ?? null, teamUrl: s.slack.teamUrl ?? null } : null,
@@ -213,6 +212,16 @@ export function deletePrsNotSyncedAt(syncedAt: string, keep: Set<PrId>) {
 // ---------- Jira ----------
 export function listJira(): JiraIssue[] {
   return (db.prepare('SELECT data FROM jira_issues').all() as { data: string }[]).map((r) => JSON.parse(r.data))
+}
+/** One issue after a write from the composer; keeps whether it's mine from the last sync */
+export function upsertJira(issue: JiraIssue) {
+  const old = db.prepare('SELECT data FROM jira_issues WHERE key = ?').get(issue.key) as { data: string } | undefined
+  const isMine = old ? (JSON.parse(old.data) as JiraIssue).isMine : issue.isMine
+  db.prepare('INSERT INTO jira_issues (key, data, synced_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data').run(
+    issue.key,
+    JSON.stringify({ ...issue, isMine }),
+    new Date().toISOString(),
+  )
 }
 export function replaceJira(issues: JiraIssue[], syncedAt: string) {
   db.exec('BEGIN')

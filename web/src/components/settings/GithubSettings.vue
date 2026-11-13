@@ -1,21 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { PhCircleNotch, PhGithubLogo, PhPencilSimple, PhPlus, PhTrash } from '@phosphor-icons/vue'
-import type { GithubAccount } from '@shared/types'
+import { computed, onMounted, ref } from 'vue'
+import { PhArrowClockwise, PhCircleNotch, PhGithubLogo, PhPencilSimple, PhPlus, PhTrash } from '@phosphor-icons/vue'
+import type { GithubAccount, RepoCatalog } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useSettings } from '@/stores/settings'
-import { clone, splitList } from '@/utils/format'
+import { clone, splitList, timeAgo } from '@/utils/format'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import Field from '@/components/Field.vue'
 import FormDialog from '@/components/FormDialog.vue'
+import MultiPicker from '@/components/MultiPicker.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Separator } from '@/components/ui/separator'
 
 const st = useSettings()
@@ -56,20 +54,35 @@ const importGh = () =>
   })
 
 // ---- Tracked repos and release refs: part of the page form (saved from the action bar)
-const owners = ref<string[]>([])
-const pickOwner = ref('')
-const repoOptions = ref<string[]>([])
-const firstAccount = () => accounts.value.find((a) => a.id)!
-const loadOwners = () => st.run('owners', async () => void (owners.value = await api.owners(firstAccount().id)))
-const loadRepos = () =>
-  st.run('repos', async () => void (repoOptions.value = (await api.repos(firstAccount().id, pickOwner.value)).map((r) => r.nameWithOwner.toLowerCase())))
-function toggleRepo(r: string) {
-  const t = s.value.trackedRepos
-  const i = t.indexOf(r)
-  if (i >= 0) t.splice(i, 1)
-  else t.push(r)
+/** Every repo the accounts can see, cached on the server for an hour; refresh lists again */
+const catalog = ref<RepoCatalog | null>(null)
+const catalogLoading = ref(false)
+async function loadCatalog(refresh = false) {
+  if (!accounts.value.some((a) => a.hasToken)) return
+  catalogLoading.value = true
+  try {
+    catalog.value = await api.repoCatalog(refresh)
+  } catch (e) {
+    catalog.value = { repos: catalog.value?.repos ?? [], fetchedAt: catalog.value?.fetchedAt ?? null, errors: [(e as Error).message] }
+  } finally {
+    catalogLoading.value = false
+  }
 }
-const newRepo = ref('')
+onMounted(() => loadCatalog())
+const repoOptions = computed(() => {
+  const listed = (catalog.value?.repos ?? []).map((r) => ({
+    value: r.nameWithOwner.toLowerCase(),
+    label: r.nameWithOwner.split('/')[1],
+    detail: r.owner,
+    iconUrl: r.ownerAvatarUrl,
+  }))
+  // Tracked repos the catalog doesn't list (typed in, or no access any more) stay choosable
+  const extra = s.value.trackedRepos.filter((t) => !listed.some((o) => o.value === t)).map((t) => ({ value: t, label: t.split('/')[1] ?? t, detail: t.split('/')[0] }))
+  return [...listed, ...extra]
+})
+const owners = computed(() => new Set((catalog.value?.repos ?? []).map((r) => r.owner)).size)
+/** Typed owner/name that isn't listed */
+const typedRepo = (q: string) => (/^[\w.-]+\/[\w.-]+$/.test(q) ? q.toLowerCase() : null)
 const newOverrideRepo = ref('')
 const newOverrideRef = ref('')
 function addOverride() {
@@ -116,27 +129,34 @@ function addOverride() {
         <h3 class="font-medium">Tracked repos (team view)</h3>
         <p class="text-sm text-muted-foreground">Every open PR in these repos is pulled in, not just yours, so you see team work and dependencies.</p>
       </div>
-      <div class="flex flex-wrap gap-1">
-        <Badge v-for="r in s.trackedRepos" :key="r" variant="outline" class="gap-1 pr-1">
-          {{ r }}<button class="rounded px-1 text-muted-foreground hover:text-foreground" :aria-label="`Stop tracking ${r}`" @click="toggleRepo(r)">×</button>
-        </Badge>
-        <span v-if="!s.trackedRepos.length" class="text-sm text-muted-foreground">None yet.</span>
-      </div>
-      <div v-if="accounts.some((a) => a.id && a.hasToken)" class="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" :disabled="st.busy === 'owners'" @click="loadOwners">Browse orgs</Button>
-        <NativeSelect v-if="owners.length" v-model="pickOwner" size="sm" @change="loadRepos">
-          <NativeSelectOption value="" disabled>Pick an org…</NativeSelectOption>
-          <NativeSelectOption v-for="o in owners" :key="o" :value="o">{{ o }}</NativeSelectOption>
-        </NativeSelect>
-        <form class="flex gap-1" @submit.prevent="newRepo && (toggleRepo(newRepo.toLowerCase()), (newRepo = ''))">
-          <Input v-model="newRepo" class="h-8 w-56" placeholder="or type owner/name" />
-          <Button size="sm" variant="outline" type="submit">Add</Button>
-        </form>
-      </div>
-      <div v-if="repoOptions.length" class="grid max-h-60 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg bg-muted/60 p-3 text-sm">
-        <Label v-for="r in repoOptions" :key="r" class="cursor-pointer gap-2 font-normal">
-          <Checkbox :model-value="s.trackedRepos.includes(r)" @update:model-value="toggleRepo(r)" /> {{ r }}
-        </Label>
+      <div class="space-y-1.5">
+        <div class="flex gap-2">
+          <MultiPicker
+            v-model="s.trackedRepos"
+            :options="repoOptions"
+            :loading="catalogLoading && !catalog?.repos.length"
+            :create="typedRepo"
+            placeholder="Choose repos to track…"
+            empty-text="No repos listed yet"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            class="shrink-0"
+            :disabled="catalogLoading || !accounts.some((a) => a.hasToken)"
+            title="List repos again from GitHub"
+            @click="loadCatalog(true)"
+          >
+            <PhArrowClockwise :class="{ 'animate-spin': catalogLoading }" />
+          </Button>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          <template v-if="catalog?.fetchedAt">{{ catalog.repos.length }} repos from {{ owners }} org{{ owners === 1 ? '' : 's' }} · listed {{ timeAgo(catalog.fetchedAt) }}, kept for an hour.</template>
+          <template v-else-if="catalogLoading">Listing repos from your orgs…</template>
+          <template v-else-if="!accounts.some((a) => a.hasToken)">Add a GitHub account to list repos.</template>
+          Type owner/name to add one that isn't listed.
+        </p>
+        <p v-for="e in catalog?.errors ?? []" :key="e" class="text-xs text-destructive">{{ e }}</p>
       </div>
 
       <Separator />

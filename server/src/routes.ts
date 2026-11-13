@@ -6,12 +6,13 @@ import { Hono } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
-import type { AiProvider, GithubAccount, Settings } from '../../shared/types.ts'
+import type { AiProvider, GithubAccount, JiraFieldKind, Settings } from '../../shared/types.ts'
 import {
   listPrs,
   addManualDep,
   DB_PATH,
   getSettings,
+  getSyncState,
   getSlackItem,
   getUiPrefs,
   listJira,
@@ -22,15 +23,31 @@ import {
   setMeta,
   setPrBody,
   setSlackStatus,
+  upsertJira,
 } from './db.ts'
 import { draftJiraFromSlack, envCredentials, testAi } from './ai.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
 import { ghCliToken, listRepos, prDetail, whoAmI } from './github.ts'
-import { createIssue, getIssueDetail, getTransitions, jiraMyself, requiredFields, transition } from './jira.ts'
+import {
+  composeCreate,
+  composeUpdate,
+  createIssue,
+  createMeta,
+  editable,
+  fieldOptions,
+  getIssueDetail,
+  getTransitions,
+  jiraMyself,
+  listProjects,
+  projectIssueTypes,
+  requiredFields,
+  transition,
+} from './jira.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
 import { accountForOwner, runSync } from './sync.ts'
+import { repoCatalog } from './repoCatalog.ts'
 
 export const api = new Hono()
 
@@ -61,6 +78,9 @@ api.post('/sync', async (c) => {
   await runSync()
   return c.json(buildOverview())
 })
+
+/** Progress of the running sync (or the last one), polled by the header while syncing */
+api.get('/sync/status', (c) => c.json(getSyncState()))
 
 /** Header toggle: switch background sync on/off without sending the whole settings object */
 api.put('/sync/auto', async (c) => {
@@ -141,22 +161,12 @@ api.post('/setup/github/gh-cli', async (c) => {
   return c.json({ ...me, settings: maskSettings(s) })
 })
 
-api.get('/setup/github/:accountId/owners', async (c) => {
-  const acc = getSettings().github.accounts.find((a) => a.id === c.req.param('accountId'))
-  if (!acc?.token) throw bad('Unknown account')
-  const me = await whoAmI(acc.token)
-  return c.json([me.login, ...me.orgs])
-})
+/** Every repo the accounts can see (all their orgs), kept an hour; `?refresh=1` lists again */
+api.get('/setup/github/repo-catalog', async (c) => c.json(await repoCatalog(c.req.query('refresh') === '1')))
 
-api.get('/setup/github/:accountId/repos', async (c) => {
-  const acc = getSettings().github.accounts.find((a) => a.id === c.req.param('accountId'))
-  const owner = c.req.query('owner')
-  if (!acc?.token || !owner) throw bad('Unknown account or owner')
-  return c.json(await listRepos(acc.token, owner))
-})
-
-api.post('/setup/jira/test', async (c) => {
-  const body = await c.req.json<{ baseUrl: string; email: string; apiToken?: string }>()
+/** Credentials from the Settings form (a blank token keeps the stored one) */
+async function draftJira(c: { req: { json: <T>() => Promise<T> } }) {
+  const body = await c.req.json<{ baseUrl: string; email: string; apiToken?: string; project?: string }>()
   const stored = getSettings().jira
   const cfg = {
     baseUrl: body.baseUrl,
@@ -164,10 +174,22 @@ api.post('/setup/jira/test', async (c) => {
     apiToken: body.apiToken || stored?.apiToken || '',
     projectKeys: [],
     myJql: '',
-    create: { projectKey: '', issueType: 'Task', extraFieldsJson: '', assignToMe: false },
+    create: { projectKey: '', issueType: 'Task', assignToMe: false },
   }
   if (!cfg.apiToken) throw bad('No API token given')
-  return c.json(await jiraMyself(cfg))
+  return { cfg, project: body.project }
+}
+
+api.post('/setup/jira/test', async (c) => c.json(await jiraMyself((await draftJira(c)).cfg)))
+
+/** Every project the account can create issues in: Settings picks which ones PR Deck uses */
+api.post('/setup/jira/projects', async (c) => c.json(await listProjects((await draftJira(c)).cfg, { all: true })))
+
+/** Issue types of one project, for the default type */
+api.post('/setup/jira/issue-types', async (c) => {
+  const { cfg, project } = await draftJira(c)
+  if (!project) throw bad('project is required')
+  return c.json(await projectIssueTypes(cfg, project))
 })
 
 /** Command for wiring the MCP server into Claude Code. */
@@ -422,6 +444,61 @@ api.get('/jira/required-fields', async (c) => {
   const type = c.req.query('type')
   if (!project || !type) throw bad('project and type are required')
   return c.json(await requiredFields(s.jira, project, type))
+})
+
+// ---------- Jira composer ----------
+
+const jiraCfg = () => {
+  const s = getSettings()
+  if (!s.jira?.apiToken) throw bad('Jira not configured')
+  return s.jira
+}
+const FieldValue = z.union([z.string(), z.array(z.string()), z.number(), z.null()])
+
+/** The projects chosen in Settings → Jira (all when none are chosen) */
+api.get('/jira/projects', async (c) => c.json(await listProjects(jiraCfg())))
+
+api.get('/jira/meta', async (c) => {
+  const project = c.req.query('project')
+  if (!project) throw bad('project is required')
+  return c.json(await createMeta(jiraCfg(), project, c.req.query('type') || undefined))
+})
+
+api.get('/jira/options', async (c) => {
+  const { kind, project, q, issue, field } = c.req.query()
+  if (!kind || !project) throw bad('kind and project are required')
+  return c.json(await fieldOptions(jiraCfg(), kind as JiraFieldKind, { project, q, issueKey: issue || undefined, field }))
+})
+
+api.get('/jira/:key/editable', async (c) => c.json(await editable(jiraCfg(), c.req.param('key'))))
+
+api.post('/jira/issues', async (c) => {
+  const input = z
+    .object({
+      projectKey: z.string().min(1),
+      issueTypeId: z.string().min(1),
+      summary: z.string().trim().min(1),
+      description: z.string().default(''),
+      values: z.record(z.string(), FieldValue).default({}),
+    })
+    .parse(await c.req.json())
+  const issue = await composeCreate(jiraCfg(), input)
+  upsertJira({ ...issue, isMine: issue.assignee?.accountId === (await jiraMyself(jiraCfg()).catch(() => null))?.accountId })
+  return c.json(issue)
+})
+
+api.put('/jira/issues/:key', async (c) => {
+  const changes = z
+    .object({
+      summary: z.string().trim().min(1).optional(),
+      description: z.string().optional(),
+      issueTypeId: z.string().optional(),
+      values: z.record(z.string(), FieldValue).optional(),
+    })
+    .parse(await c.req.json())
+  const issue = await composeUpdate(jiraCfg(), c.req.param('key'), changes)
+  upsertJira(issue)
+  return c.json(issue)
 })
 
 api.post('/jira/create', async (c) => {

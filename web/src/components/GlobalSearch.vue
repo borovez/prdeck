@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { computed, nextTick, ref, watch, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEventListener } from '@vueuse/core'
 import {
   PhArrowsClockwise,
+  PhNotePencil,
   PhDesktop,
   PhGauge,
   PhGear,
@@ -168,6 +170,9 @@ const groups = computed<Group[]>(() => {
   const auto = deck.overview?.autoSync
   const actions: Result[] = [
     { key: 'act:sync', icon: PhArrowsClockwise, label: 'Sync now', run: () => deck.sync() },
+    ...(deck.overview?.configured.jira
+      ? [{ key: 'act:jira-new', icon: PhNotePencil, label: 'New Jira issue', run: () => (deck.composer = { mode: 'create' }) }]
+      : []),
     ...(auto
       ? [
           {
@@ -232,7 +237,8 @@ const indexOf = (r: Result) => flat.value.indexOf(r)
         />
         <kbd class="rounded border px-1.5 font-mono text-[10px] text-muted-foreground">esc</kbd>
       </div>
-      <div ref="list" class="max-h-[60vh] overflow-y-auto p-2" role="listbox">
+      <ScrollArea class="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]">
+      <div ref="list" class="p-2" role="listbox">
         <section v-for="g in groups" :key="g.label" class="mb-1">
           <h3 class="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">{{ g.label }}</h3>
           <button
@@ -259,6 +265,7 @@ const indexOf = (r: Result) => flat.value.indexOf(r)
         </section>
         <p v-if="!flat.length" class="py-10 text-center text-sm text-muted-foreground">No results for “{{ query }}”</p>
       </div>
+      </ScrollArea>
     </DialogContent>
   </Dialog>
 </template>

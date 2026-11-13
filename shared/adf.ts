@@ -92,3 +92,80 @@ export function markdownToAdf(md: string): AdfDoc {
   }
   return { type: 'doc', version: 1, content }
 }
+
+/**
+ * ADF → Markdown, for editing an existing Jira description in the composer. Covers what Jira's
+ * editor writes for text: headings, paragraphs, lists (nested), quotes and panels, code blocks,
+ * rules, tables (as pipe rows), mentions, emoji, smart links, and bold / italic / code / strike /
+ * links. Media becomes a placeholder. The composer only sends the description back when you change
+ * it, so anything lost here only matters for descriptions you edit.
+ */
+export function adfToMarkdown(doc: AdfDoc | null | undefined): string {
+  if (!doc?.content) return ''
+  const inline = (nodes: AdfNode[] = []): string =>
+    nodes
+      .map((n) => {
+        if (n.type === 'hardBreak') return '\n'
+        if (n.type === 'mention') return `@${String(n.attrs?.text ?? '').replace(/^@/, '')}`
+        if (n.type === 'emoji') return String(n.attrs?.text ?? n.attrs?.shortName ?? '')
+        if (n.type === 'inlineCard' || n.type === 'blockCard') return String(n.attrs?.url ?? '')
+        if (n.type === 'status') return `[${String(n.attrs?.text ?? '')}]`
+        if (n.type === 'date') return new Date(Number(n.attrs?.timestamp)).toISOString().slice(0, 10)
+        if (n.type !== 'text') return inline(n.content)
+        let t = n.text ?? ''
+        const marks = n.marks ?? []
+        const link = marks.find((m) => m.type === 'link')?.attrs?.href
+        if (marks.some((m) => m.type === 'code')) t = `\`${t}\``
+        else {
+          if (marks.some((m) => m.type === 'strong')) t = `**${t}**`
+          if (marks.some((m) => m.type === 'em')) t = `*${t}*`
+          if (marks.some((m) => m.type === 'strike')) t = `~~${t}~~`
+        }
+        return link && link !== n.text ? `[${t}](${link})` : t
+      })
+      .join('')
+
+  const block = (n: AdfNode, indent = ''): string => {
+    switch (n.type) {
+      case 'paragraph':
+        return indent + inline(n.content).replace(/\n/g, `\n${indent}`)
+      case 'heading':
+        return `${'#'.repeat(Number(n.attrs?.level ?? 1))} ${inline(n.content)}`
+      case 'bulletList':
+      case 'orderedList':
+        return (n.content ?? [])
+          .map((item, i) => {
+            const bullet = n.type === 'orderedList' ? `${i + 1}. ` : '- '
+            const [first, ...rest] = item.content ?? []
+            const head = first ? block(first).trimStart() : ''
+            const tail = rest.map((c) => block(c, indent + '  ')).join('\n')
+            return `${indent}${bullet}${head}${tail ? `\n${tail}` : ''}`
+          })
+          .join('\n')
+      case 'codeBlock':
+        return `${indent}\`\`\`${n.attrs?.language ?? ''}\n${inline(n.content)}\n${indent}\`\`\``
+      case 'blockquote':
+      case 'panel':
+        return (n.content ?? []).map((c) => block(c).replace(/^/gm, '> ')).join('\n>\n')
+      case 'rule':
+        return '---'
+      case 'table':
+        return (n.content ?? [])
+          .map((row, r) => {
+            const cells = (row.content ?? []).map((cell) => (cell.content ?? []).map((c) => block(c)).join(' ').replace(/\|/g, '\\|'))
+            const line = `| ${cells.join(' | ')} |`
+            return r === 0 ? `${line}\n|${cells.map(() => ' --- |').join('')}` : line
+          })
+          .join('\n')
+      case 'mediaSingle':
+      case 'mediaGroup':
+        return '[attachment]'
+      case 'expand':
+      case 'nestedExpand':
+        return [n.attrs?.title ? `**${n.attrs.title}**` : '', ...(n.content ?? []).map((c) => block(c, indent))].filter(Boolean).join('\n\n')
+      default:
+        return n.content ? n.content.map((c) => block(c, indent)).join('\n\n') : inline([n])
+    }
+  }
+  return doc.content.map((n) => block(n)).join('\n\n').trim()
+}

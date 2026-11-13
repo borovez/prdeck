@@ -106,18 +106,34 @@ export async function whoAmI(token: string) {
   }
 }
 
-export async function listRepos(token: string, owner: string) {
-  // Works for both orgs and users
-  const data = await graphql<{
-    repositoryOwner: { repositories: { nodes: { nameWithOwner: string; isArchived: boolean; pushedAt: string }[] } } | null
-  }>(
-    token,
-    `query($owner: String!) { repositoryOwner(login: $owner) {
-       repositories(first: 100, orderBy: {field: PUSHED_AT, direction: DESC}) { nodes { nameWithOwner isArchived pushedAt } }
-     } }`,
-    { owner },
-  )
-  return (data.repositoryOwner?.repositories.nodes ?? []).filter((r) => !r.isArchived)
+/** An org's or user's repos (not archived), newest push first; every page */
+export async function listRepos(token: string, owner: string, max = 1000) {
+  type Node = { nameWithOwner: string; isArchived: boolean; isPrivate: boolean; pushedAt: string; description: string | null }
+  const out: Node[] = []
+  let avatarUrl: string | null = null
+  let after: string | null = null
+  while (out.length < max) {
+    const data: {
+      repositoryOwner: { avatarUrl: string; repositories: { nodes: Node[]; pageInfo: { hasNextPage: boolean; endCursor: string } } } | null
+    } = await graphql(
+      token,
+      `query($owner: String!, $after: String) { repositoryOwner(login: $owner) {
+         avatarUrl
+         repositories(first: 100, after: $after, orderBy: {field: PUSHED_AT, direction: DESC}) {
+           pageInfo { hasNextPage endCursor }
+           nodes { nameWithOwner isArchived isPrivate pushedAt description }
+         }
+       } }`,
+      { owner, after },
+    )
+    const r = data.repositoryOwner
+    if (!r) break
+    avatarUrl = r.avatarUrl
+    out.push(...r.repositories.nodes)
+    if (!r.repositories.pageInfo.hasNextPage) break
+    after = r.repositories.pageInfo.endCursor
+  }
+  return { avatarUrl, repos: out.filter((x) => !x.isArchived) }
 }
 
 // ---------- PR fetching ----------
@@ -233,27 +249,68 @@ function mapPr(n: GqlPr, accountId: string): PrRecord {
   }
 }
 
-/** Runs a GitHub issue-search query (must include is:pr) and returns every page (capped). */
-export async function searchPrs(account: GithubAccount, q: string, max = 300): Promise<PrRecord[]> {
-  const out: PrRecord[] = []
+export interface PrHit {
+  id: string // owner/repo#number
+  nodeId: string
+  updatedAt: string
+  state: PrRecord['state']
+}
+
+/**
+ * Light search: only ids, so a query of 100 results costs about a second. The full PR fields
+ * (checks, threads, reviews) are fetched separately and only for PRs that need it (fetchPrsByNodeId).
+ */
+export async function searchPrHits(account: GithubAccount, q: string, max = 500): Promise<PrHit[]> {
+  const out: PrHit[] = []
   let after: string | null = null
   while (out.length < max) {
     const data: any = await graphql(
       account.token,
-      `${PR_FRAGMENT}
-       query($q: String!, $after: String) {
-         search(query: $q, type: ISSUE, first: 15, after: $after) {
+      `query($q: String!, $after: String) {
+         search(query: $q, type: ISSUE, first: 100, after: $after) {
            pageInfo { hasNextPage endCursor }
-           nodes { ... on PullRequest { ...PR } }
+           nodes { ... on PullRequest { id number updatedAt state repository { nameWithOwner } } }
          }
        }`,
       { q, after },
     )
-    for (const n of data.search.nodes) if (n?.number) out.push(mapPr(n, account.id))
+    for (const n of data.search.nodes)
+      if (n?.number) out.push({ id: prId(n.repository.nameWithOwner, n.number), nodeId: n.id, updatedAt: n.updatedAt, state: n.state })
     if (!data.search.pageInfo.hasNextPage) break
     after = data.search.pageInfo.endCursor
   }
   return out
+}
+
+/**
+ * Full PR fields by GraphQL node id. Small batches in parallel: the cost is per PR (check runs,
+ * review threads), and 4 batches of 10 at once is about 3x faster than one search page of 15 at a time.
+ */
+export async function fetchPrsByNodeId(
+  account: GithubAccount,
+  nodeIds: string[],
+  onBatch?: (fetched: number) => void,
+  { size = 10, concurrency = 4 } = {},
+): Promise<{ prs: PrRecord[]; errors: string[] }> {
+  const out: PrRecord[] = []
+  const errors: string[] = []
+  const batches: string[][] = []
+  for (let i = 0; i < nodeIds.length; i += size) batches.push(nodeIds.slice(i, i + size))
+  let next = 0
+  const worker = async () => {
+    while (next < batches.length) {
+      const ids = batches[next++]
+      try {
+        const data: any = await graphql(account.token, `${PR_FRAGMENT}\nquery($ids: [ID!]!) { nodes(ids: $ids) { ...PR } }`, { ids })
+        for (const n of data?.nodes ?? []) if (n?.number) out.push(mapPr(n, account.id))
+      } catch (e) {
+        errors.push((e as Error).message)
+      }
+      onBatch?.(out.length)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, batches.length) }, worker))
+  return { prs: out, errors }
 }
 
 /** Fetch specific PRs by id in one aliased query (used for dependency targets). */

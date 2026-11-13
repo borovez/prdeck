@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import type { Overview, PrView, SlackItem } from '@shared/types'
+import type { JiraFieldValue, Overview, PrView, SlackItem, SyncState } from '@shared/types'
+
+/** What the Jira composer opens on */
+export type ComposerTarget =
+  | { mode: 'create'; projectKey?: string; summary?: string; description?: string; values?: Record<string, JiraFieldValue> }
+  | { mode: 'edit'; key: string }
 import { toast } from 'vue-sonner'
 import { api } from '@/api'
 import { clearTransitions } from '@/composables/jiraTransitions'
@@ -18,6 +23,8 @@ export const useDeck = defineStore('deck', () => {
   // One side panel at a time: opening one closes the others
   const panels = [selectedId, selectedSlackId, selectedJiraKey]
   for (const p of panels) watch(p, (v) => v && panels.forEach((o) => o !== p && (o.value = null)))
+  /** Jira issue composer: a new issue (optionally pre-filled) or an existing one to edit */
+  const composer = ref<ComposerTarget | null>(null)
   /** Slack item being turned into a Jira task (opens the modal) */
   const slackToJira = ref<SlackItem | null>(null)
 
@@ -44,11 +51,43 @@ export const useDeck = defineStore('deck', () => {
     }
   }
 
+  /** Live sync progress (steps), polled while a sync runs: mine, the background one or the MCP's */
+  const syncStatus = ref<SyncState | null>(null)
+  const syncRunning = computed(() => syncing.value || !!syncStatus.value?.running)
+  let statusTimer: number | undefined
+  function watchSync() {
+    if (statusTimer) return
+    const tick = async () => {
+      try {
+        syncStatus.value = await api.syncStatus()
+      } catch {
+        /* keep the last state */
+      }
+      if (syncing.value || syncStatus.value?.running) statusTimer = window.setTimeout(tick, 700)
+      else {
+        statusTimer = undefined
+        load() // a background sync finished: show its results
+      }
+    }
+    statusTimer = window.setTimeout(tick, 300)
+  }
+  // A sync someone else started (auto-sync, MCP) shows up in the overview: follow it
+  watch(
+    () => overview.value?.sync,
+    (s) => {
+      if (!s) return
+      if (!syncStatus.value?.running) syncStatus.value = s
+      if (s.running && !syncing.value) watchSync()
+    },
+  )
+
   async function sync() {
-    if (syncing.value) return
+    if (syncRunning.value) return
     syncing.value = true
+    watchSync()
     try {
       overview.value = await api.sync()
+      syncStatus.value = overview.value.sync
       clearTransitions() // workflows may have changed; refetch on next open
       error.value = null
     } catch (e) {
@@ -77,9 +116,9 @@ export const useDeck = defineStore('deck', () => {
   let timer: number | undefined
   function startPolling() {
     clearInterval(timer)
-    timer = window.setInterval(() => !syncing.value && load(), 60_000)
+    timer = window.setInterval(() => !syncRunning.value && load(), 60_000)
   }
 
-  return { overview, loading, syncing, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, prs, byId,
+  return { overview, loading, syncing, syncStatus, syncRunning, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, slackToJira, composer, prs, byId,
     releaseById, selected, jiraByKey, flagByKey, repos, load, sync, mutate, startPolling }
 })

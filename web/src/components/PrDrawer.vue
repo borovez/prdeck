@@ -24,6 +24,8 @@ import {
   PhRocketLaunch,
   PhTrash,
   PhXCircle,
+  PhNotePencil,
+  PhPencilSimple,
 } from '@phosphor-icons/vue'
 import type { DepEdge, PrDetail, PrView } from '@shared/types'
 import { api } from '@/api'
@@ -128,6 +130,13 @@ const banner = computed(() => {
   if (!hasContext && (p.action.kind === 'none' || p.action.kind === 'done')) return null
   return { title: p.action.label, lines }
 })
+/** New Jira issue pre-filled from this PR: title without its Jira keys, and a link back */
+function createIssueFromPr() {
+  const p = pr.value
+  if (!p) return
+  const summary = p.title.replace(/\s*\[[A-Z][A-Z0-9_]+-\d+\]/g, '').replace(/^\w+(\([^)]*\))?!?:\s*/, '').trim()
+  deck.composer = { mode: 'create', summary: summary.charAt(0).toUpperCase() + summary.slice(1), description: `Pull request: [${p.id}](${p.url})` }
+}
 const jira = computed(() => (pr.value?.jiraKeys ?? []).map((k) => ({ key: k, issue: deck.jiraByKey.get(k) })))
 
 // ---- Description / Files: loaded when one of those tabs is shown (cache shared with card previews)
@@ -378,7 +387,13 @@ const removeDep = (e: DepEdge) => deps.remove(e)
           <Separator />
 
           <section>
-            <h3 class="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Jira</h3>
+            <div class="mb-1.5 flex items-center gap-2">
+              <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Jira</h3>
+              <span class="flex-1" />
+              <Button v-if="deck.overview?.configured.jira" variant="ghost" size="sm" class="h-6 px-2 text-xs text-muted-foreground" @click="createIssueFromPr">
+                <PhNotePencil /> Create issue
+              </Button>
+            </div>
             <div v-if="!jira.length" class="text-sm text-muted-foreground">No issue key found in title or branch.</div>
             <div v-for="{ key, issue } in jira" :key="key" :class="['mb-2 rounded-lg border p-3', issue && jiraCardTone(issue.statusCategory)]">
               <template v-if="issue">
@@ -386,6 +401,9 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                   <img v-if="issue.typeIconUrl" :src="issue.typeIconUrl" class="size-4" alt="" />
                   <a :href="issue.url" target="_blank" class="font-mono text-sm hover:underline">{{ issue.key }}</a>
                   <span class="flex-1" />
+                  <Button variant="ghost" size="icon-xs" class="text-muted-foreground" :aria-label="`Edit ${issue.key}`" title="Edit" @click="deck.composer = { mode: 'edit', key: issue.key }">
+                    <PhPencilSimple />
+                  </Button>
                   <JiraTransition :issue-key="issue.key" />
                 </div>
                 <div class="mt-1 text-sm">{{ issue.summary }}</div>
@@ -411,7 +429,8 @@ const removeDep = (e: DepEdge) => deps.remove(e)
             <Badge variant="count">{{ pr.dependsOn.length + pr.dependents.length }}</Badge>
             <Badge v-if="waiting" variant="warning" class="h-4 px-1.5 text-[10px]">{{ waiting }} waiting</Badge>
           </SectionToggle>
-          <div v-show="dv.depsOpen" class="mt-2 max-h-[35vh] overflow-y-auto pr-1">
+          <ScrollArea v-show="dv.depsOpen" class="mt-2 [&>[data-slot=scroll-area-viewport]]:max-h-[35vh]">
+          <div class="pr-3">
             <h4 class="mb-1 text-xs text-muted-foreground">Depends on: merge these first</h4>
             <ul class="space-y-1">
               <li v-for="e in pr.dependsOn" :key="e.to" class="flex items-center gap-2 text-sm">
@@ -479,6 +498,7 @@ const removeDep = (e: DepEdge) => deps.remove(e)
               </p>
             </form>
           </div>
+          </ScrollArea>
         </section>
         <SectionToggle v-if="!dv.noteOpen" v-model:open="dv.noteOpen" label="My note">
           <span v-if="note.trim()" class="truncate text-xs text-muted-foreground normal-case">{{ note.trim().split('\n')[0] }}</span>

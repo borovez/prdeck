@@ -149,6 +149,17 @@
     background-color: var(--primary);
     color: oklch(1 0 0);
   }
+  /*
+   * Native scrollbars (page, dialogs, code blocks) look like shadcn's ScrollArea: a thin rounded
+   * thumb on a transparent track, in both themes. Menus and lists use ScrollArea itself.
+   */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent) transparent;
+  }
+  *:hover {
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 50%, transparent) transparent;
+  }
   /* Icons keep their size in tight flex rows (a shrinking row shouldn't squash them) */
   svg {
     flex-shrink: 0;

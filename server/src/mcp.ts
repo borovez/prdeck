@@ -223,7 +223,7 @@ server.registerTool(
   {
     title: 'Create Jira issue',
     description:
-      'Create a Jira issue (description in Markdown) using the configured defaults (project, extra required fields, assign to me). ' +
+      'Create a Jira issue (description in Markdown) using the configured defaults (project, assign to me). ' +
       'Pass slackItemId to link it to a Slack inbox item and mark that item done; set replyInThread to post the issue link back in the Slack thread. ' +
       'Show the user the draft and get confirmation before calling this.',
     inputSchema: {
@@ -246,13 +246,7 @@ server.registerTool(
     const projectKey = input.projectKey || s.jira.create.projectKey
     if (!projectKey) return text('No projectKey given and no default project configured.')
     // Ask for required fields up front instead of surfacing Jira's 400
-    let defaults: Record<string, unknown> = {}
-    try {
-      defaults = JSON.parse(s.jira.create.extraFieldsJson || '{}')
-    } catch {
-      /* createIssue reports invalid JSON */
-    }
-    const missing = (await requiredFields(s.jira, projectKey, input.issueType)).filter((f) => !(f.key in { ...defaults, ...input.fields }))
+    const missing = (await requiredFields(s.jira, projectKey, input.issueType)).filter((f) => !(f.key in (input.fields ?? {})))
     if (missing.length)
       return text(
         `Not created: ${projectKey} ${input.issueType} needs these fields. Ask the user, then call again with \`fields\`:\n` +

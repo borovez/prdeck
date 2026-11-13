@@ -26,7 +26,7 @@ const login = computed(() => deck.overview?.me[0] ?? null)
 const avatar = (l: string) => `https://github.com/${l}.png?size=64`
 const synced = computed(() => {
   const s = deck.overview?.sync
-  if (s?.running || deck.syncing) return 'Syncing…'
+  if (s?.running || deck.syncRunning) return 'Syncing…'
   return s?.lastFinishedAt ? `Synced ${timeAgo(s.lastFinishedAt)}` : 'Never synced'
 })
 const connections = computed(() => {
@@ -79,8 +79,8 @@ const errors = computed(() => deck.overview?.sync.errors.length ?? 0)
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem :disabled="deck.syncing || !deck.overview?.configured.github" @select="deck.sync()">
-            <PhArrowsClockwise :class="{ 'animate-spin': deck.syncing }" /> Sync now
+          <DropdownMenuItem :disabled="deck.syncRunning || !deck.overview?.configured.github" @select="deck.sync()">
+            <PhArrowsClockwise :class="{ 'animate-spin': deck.syncRunning }" /> Sync now
           </DropdownMenuItem>
           <DropdownMenuItem @select="router.push('/settings')"><PhGear /> Settings</DropdownMenuItem>
         </DropdownMenuContent>
