@@ -349,7 +349,11 @@ async function doSync(): Promise<SyncState> {
           jira,
           [...keys].filter((k) => !mineKeys.has(k)),
         )
-        const all: JiraIssue[] = [...mine, ...issues]
+        // Parents (epics etc.) of those issues, so the panel can open them
+        const have = new Set([...mine, ...issues].map((i) => i.key))
+        const parentKeys = [...new Set([...mine, ...issues].map((i) => i.parent?.key).filter((k): k is string => !!k && !have.has(k)))]
+        const parents = parentKeys.length ? (await fetchIssuesByKey(jira, parentKeys)).issues.map((i) => ({ ...i, parentOnly: true })) : []
+        const all: JiraIssue[] = [...mine, ...issues, ...parents]
         replaceJira(all, syncedAt)
         saveMyJiraKeys([...mineKeys])
         jiraCount = all.length

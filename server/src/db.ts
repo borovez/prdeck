@@ -147,6 +147,11 @@ export function upsertPr(pr: PrRecord, relations: Relation[], syncedAt: string) 
   ).run(pr.id, JSON.stringify(pr), JSON.stringify(relations), syncedAt)
 }
 
+/** One PR re-read from GitHub outside a sync (relations and sync time stay as they were) */
+export function updatePrData(pr: PrRecord) {
+  db.prepare('UPDATE prs SET data = ? WHERE id = ?').run(JSON.stringify(pr), pr.id)
+}
+
 /** Local copy of a PR description after PR Deck edited it on GitHub (the next sync confirms it) */
 export function setPrBody(id: PrId, body: string) {
   db.prepare("UPDATE prs SET data = json_set(data, '$.body', ?) WHERE id = ?").run(body, id)
@@ -213,13 +218,15 @@ export function deletePrsNotSyncedAt(syncedAt: string, keep: Set<PrId>) {
 export function listJira(): JiraIssue[] {
   return (db.prepare('SELECT data FROM jira_issues').all() as { data: string }[]).map((r) => JSON.parse(r.data))
 }
-/** One issue after a write from the composer; keeps whether it's mine from the last sync */
+/** One issue after a write from the composer or a reload; keeps whether it's mine (and parent-only) from the last sync */
 export function upsertJira(issue: JiraIssue) {
   const old = db.prepare('SELECT data FROM jira_issues WHERE key = ?').get(issue.key) as { data: string } | undefined
-  const isMine = old ? (JSON.parse(old.data) as JiraIssue).isMine : issue.isMine
+  const prev = old ? (JSON.parse(old.data) as JiraIssue) : null
+  const isMine = prev ? prev.isMine : issue.isMine
+  const parentOnly = prev ? prev.parentOnly : issue.parentOnly
   db.prepare('INSERT INTO jira_issues (key, data, synced_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data').run(
     issue.key,
-    JSON.stringify({ ...issue, isMine }),
+    JSON.stringify({ ...issue, isMine, parentOnly }),
     new Date().toISOString(),
   )
 }

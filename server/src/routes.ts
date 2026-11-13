@@ -25,12 +25,14 @@ import {
   setPrBody,
   setSlackStatus,
   upsertJira,
+  updatePrData,
+  listReleaseContents,
 } from './db.ts'
 import { draftJiraIssue, envCredentials, testAi } from './ai.ts'
 import { claudeMdGuide } from './guides.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
-import { ghCliToken, listRepos, prDetail, prFileNames, whoAmI } from './github.ts'
+import { fetchPrsByNodeId, ghCliToken, listRepos, prDetail, prFileNames, whoAmI } from './github.ts'
 import {
   addAttachments,
   addComment,
@@ -41,6 +43,7 @@ import {
   createMeta,
   editable,
   fieldOptions,
+  getIssue,
   getIssueDetail,
   getTransitions,
   jiraMyself,
@@ -302,6 +305,21 @@ api.get('/prs/detail', async (c) => {
   return c.json(await prDetail(acc, stored.pr.repo, stored.pr.number))
 })
 
+/** Re-read one PR from GitHub now (and what it ships, for a release PR) without a full sync */
+api.post('/prs/resync', async (c) => {
+  const { id } = await c.req.json<{ id: string }>()
+  const stored = listPrs().find((s) => s.pr.id === id)
+  if (!stored) throw bad('Unknown PR')
+  const accounts = getSettings().github.accounts.filter((a) => a.token)
+  const acc = accounts.find((a) => a.id === stored.pr.accountId) ?? accountForOwner(accounts, stored.pr.owner)
+  if (!acc) throw bad('No GitHub account for this PR')
+  const { prs, errors } = await fetchPrsByNodeId(acc, [stored.pr.nodeId])
+  if (!prs[0]) throw bad(errors[0] ?? 'GitHub returned nothing for this PR')
+  updatePrData(prs[0])
+  if (listReleaseContents().some((r) => r.prId === id)) await computeReleaseContents(acc, prs[0])
+  return c.json(prs[0])
+})
+
 // ---------- Release contents ----------
 api.post('/releases/refresh', async (c) => {
   const { id } = await c.req.json<{ id: string }>()
@@ -323,6 +341,14 @@ api.put('/prs/meta', async (c) => {
 })
 
 // ---------- Jira issue detail (side panel) ----------
+/** Re-read one issue from Jira into the cache (e.g. a parent the sync didn't fetch) */
+api.post('/jira/:key/refresh', async (c) => {
+  // An issue the sync didn't fetch stays off the Jira page list (parentOnly)
+  const issue = { ...(await getIssue(jiraCfg(), c.req.param('key'))), parentOnly: true }
+  upsertJira(issue)
+  return c.json(issue)
+})
+
 api.get('/jira/:key/detail', async (c) => {
   const cfg = getSettings().jira
   if (!cfg?.apiToken) throw bad('Jira not configured')

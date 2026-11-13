@@ -39,6 +39,7 @@ export const api = {
   removeDepFromDescription: (from: string, to: string) => call('POST', '/deps/remove-from-description', { from, to }),
   removeDep: (id: number) => call('DELETE', `/deps/${id}`),
   prDetail: (id: string) => call<PrDetail>('GET', `/prs/detail?id=${encodeURIComponent(id)}`),
+  resyncPr: (id: string) => call('POST', '/prs/resync', { id }),
   refreshRelease: (id: string) => call('POST', '/releases/refresh', { id }),
   setMeta: (id: string, note: string | null, pinned: boolean) => call('PUT', '/prs/meta', { id, note, pinned }),
   jiraProjects: () => call<JiraProjectMeta[]>('GET', '/jira/projects'),
@@ -51,6 +52,7 @@ export const api = {
   jiraDraft: (input: JiraDraftRequest, signal?: AbortSignal) => call<JiraAiDraft>('POST', '/jira/draft', input, signal),
   jiraUpdateIssue: (key: string, changes: { summary?: string; description?: string; issueTypeId?: string; values?: Record<string, JiraFieldValue>; attachments?: ImageAttachment[]; comment?: string }) =>
     call<JiraIssue>('PUT', `/jira/issues/${encodeURIComponent(key)}`, changes),
+  jiraRefresh: (key: string) => call<JiraIssue>('POST', `/jira/${encodeURIComponent(key)}/refresh`),
   jiraDetail: (key: string) => call<JiraIssueDetail>('GET', `/jira/${encodeURIComponent(key)}/detail`),
   transitions: (key: string) =>
     call<{ id: string; name: string; to: string; toCategory: string }[]>('GET', `/jira/${key}/transitions`),

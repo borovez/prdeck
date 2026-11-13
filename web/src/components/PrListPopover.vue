@@ -29,8 +29,10 @@ const props = defineProps<{
 }>()
 /** `detail` slot: extra lines under each PR (e.g. why it is in the list) */
 defineSlots<{ detail?: (p: { id: PrId }) => unknown }>()
+const emit = defineEmits<{ open: [boolean] }>()
 const deck = useDeck()
 const open = ref(false)
+watch(open, (v) => emit('open', v))
 const q = ref('')
 const active = ref(0)
 

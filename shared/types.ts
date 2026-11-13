@@ -243,6 +243,8 @@ export interface JiraIssue {
   links: JiraLink[]
   /** Assigned to me (came from my JQL) */
   isMine: boolean
+  /** Fetched only as the parent of another issue (or opened from the panel): not listed on the Jira page */
+  parentOnly?: boolean
 }
 
 export interface PrView extends Omit<PrRecord, 'body'> {

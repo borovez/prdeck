@@ -160,6 +160,15 @@ watch(
   },
   { immediate: true },
 )
+/** Re-read this PR from GitHub now (checks, reviews, description; contents for a release) without a full sync */
+const resyncing = ref(false)
+async function resync() {
+  const id = pr.value?.id
+  if (!id || resyncing.value) return
+  resyncing.value = true
+  await deck.mutate(() => api.resyncPr(id))
+  resyncing.value = false
+}
 // The beside window follows the PR shown here
 watch(() => pr.value?.url, (url) => url && followBeside(url))
 
@@ -215,6 +224,14 @@ const removeDep = (e: DepEdge) => deps.remove(e)
             <TooltipContent>Show in the release graph</TooltipContent>
           </Tooltip>
         </template>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon-sm" aria-label="Resync from GitHub" :disabled="resyncing" @click="resync">
+              <PhArrowsClockwise :class="{ 'animate-spin': resyncing }" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Resync this PR from GitHub</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon-sm" aria-label="Open beside" @click="openBeside(pr.url)"><PhSquareSplitHorizontal /></Button>

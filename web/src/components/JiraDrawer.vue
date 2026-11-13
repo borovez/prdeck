@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PhArrowSquareOut, PhChatCircle, PhGraph, PhPencilSimple, PhRocketLaunch } from '@phosphor-icons/vue'
+import { PhArrowSquareOut, PhChatCircle, PhGraph, PhPencilSimple, PhRocketLaunch, PhArrowsClockwise, PhSquareSplitHorizontal } from '@phosphor-icons/vue'
 import type { JiraIssueDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
 import { useArrowNav } from '@/composables/prNav'
 import { useReleaseNav } from '@/composables/releaseNav'
+import { followBeside, openBeside } from '@/composables/besideWindow'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { jiraTone, timeAgo, fullDate } from '@/utils/format'
 import AdfView from './AdfView.vue'
@@ -31,29 +32,38 @@ const prs = computed(() => (key.value ? deck.prs.filter((p) => p.jiraKeys.includ
 /** Flags named by this issue's PRs */
 const flags = computed(() => [...new Set(prs.value.flatMap((p) => p.flags))])
 const url = computed(() => issue.value?.url ?? (deck.overview?.jiraBaseUrl && key.value ? `${deck.overview.jiraBaseUrl}/browse/${key.value}` : undefined))
+watch(url, (u) => u && followBeside(u))
 useArrowNav('jira', () => deck.selectedJiraKey, (k) => (deck.selectedJiraKey = k))
 
 /** Description and comments, fetched once per issue for this page session */
 const cache = new Map<string, Promise<JiraIssueDetail>>()
 const detail = ref<JiraIssueDetail | null>(null)
 const error = ref('')
-watch(
-  key,
-  async (k) => {
-    detail.value = null
-    error.value = ''
-    if (!k || !deck.overview?.configured.jira) return
-    if (!cache.has(k)) cache.set(k, api.jiraDetail(k))
-    try {
-      const d = await cache.get(k)!
-      if (key.value === k) detail.value = d
-    } catch (e) {
-      cache.delete(k)
-      if (key.value === k) error.value = (e as Error).message
-    }
-  },
-  { immediate: true },
-)
+async function loadDetail(k: string | null, force = false) {
+  if (!force) detail.value = null
+  error.value = ''
+  if (!k || !deck.overview?.configured.jira) return
+  if (force) cache.delete(k)
+  if (!cache.has(k)) cache.set(k, api.jiraDetail(k))
+  try {
+    const d = await cache.get(k)!
+    if (key.value === k) detail.value = d
+  } catch (e) {
+    cache.delete(k)
+    if (key.value === k) error.value = (e as Error).message
+  }
+}
+watch(key, (k) => loadDetail(k), { immediate: true })
+
+/** Reload: the issue's fields (into the cache, so it shows even when the sync didn't fetch it) and its description and comments */
+const reloading = ref(false)
+async function reload() {
+  const k = key.value
+  if (!k || reloading.value) return
+  reloading.value = true
+  await Promise.all([deck.mutate(() => api.jiraRefresh(k)), loadDetail(k, true)])
+  reloading.value = false
+}
 
 const initials = (name: string) =>
   name
@@ -68,7 +78,7 @@ const details = computed(() => {
   return [
     { label: 'Type', value: i.type },
     { label: 'Priority', value: i.priority ?? 'None' },
-    { label: 'Parent', value: i.parent ? `${i.parent.key} · ${i.parent.summary}` : '—' },
+    { label: 'Parent', value: i.parent ? `${i.parent.key} · ${i.parent.summary}` : '—', open: i.parent?.key },
     { label: 'Fix version', value: i.fixVersions.join(', ') || '—' },
     { label: 'Labels', value: i.labels.join(', ') || '—' },
   ]
@@ -120,7 +130,16 @@ const details = computed(() => {
           </div>
           <div v-for="d in details" :key="d.label" class="min-w-0">
             <div class="text-xs text-muted-foreground">{{ d.label }}</div>
-            <div class="truncate" :title="d.value">{{ d.value }}</div>
+            <button
+              v-if="d.open"
+              type="button"
+              class="block max-w-full truncate text-left text-primary hover:underline"
+              :title="`Open ${d.value}`"
+              @click="deck.selectedJiraKey = d.open"
+            >
+              {{ d.value }}
+            </button>
+            <div v-else class="truncate" :title="d.value">{{ d.value }}</div>
           </div>
         </div>
 
@@ -177,8 +196,9 @@ const details = computed(() => {
       </div>
     </ScrollArea>
     <!-- Pinned actions, like the Slack panel -->
-    <!-- To the release that ships this issue -->
-    <template v-if="key && releaseId" #actions>
+    <!-- To the release that ships this issue; Jira beside this window -->
+    <template v-if="key && (releaseId || url || deck.overview?.configured.jira)" #actions>
+      <template v-if="releaseId">
       <Tooltip>
         <TooltipTrigger as-child>
           <Button variant="ghost" size="icon-sm" aria-label="Open on the Releases page" @click="nav.openReleases(releaseId!, deck.byId.get(releaseId!)?.flow === 'hotfix' ? 'hotfixes' : 'releases')"><PhRocketLaunch /></Button>
@@ -190,6 +210,21 @@ const details = computed(() => {
           <Button variant="ghost" size="icon-sm" aria-label="Show in the release graph" @click="nav.openGraph(releaseId!, releaseId!.split('#')[0])"><PhGraph /></Button>
         </TooltipTrigger>
         <TooltipContent>Show in the release graph</TooltipContent>
+      </Tooltip>
+      </template>
+      <Tooltip v-if="deck.overview?.configured.jira">
+        <TooltipTrigger as-child>
+          <Button variant="ghost" size="icon-sm" aria-label="Reload from Jira" :disabled="reloading" @click="reload">
+            <PhArrowsClockwise :class="{ 'animate-spin': reloading }" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Reload from Jira</TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="url">
+        <TooltipTrigger as-child>
+          <Button variant="ghost" size="icon-sm" aria-label="Open beside" @click="openBeside(url!)"><PhSquareSplitHorizontal /></Button>
+        </TooltipTrigger>
+        <TooltipContent>Open in Jira in a window beside this one (follows the issue you select)</TooltipContent>
       </Tooltip>
     </template>
 

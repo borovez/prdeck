@@ -1,6 +1,6 @@
 /**
- * "Open beside": the PR's GitHub page in a separate window on the right half of the screen. While it
- * stays open it follows the PR shown in the panel. (GitHub can't be embedded in a frame.)
+ * "Open beside": the PR's GitHub page (or the Jira issue) in a separate window on the right half of the screen. While it
+ * stays open it follows the PR or issue shown in the panel. (GitHub and Jira can't be embedded in a frame.)
  */
 let win: Window | null = null
 

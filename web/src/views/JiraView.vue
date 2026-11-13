@@ -92,7 +92,7 @@ const collapsed = layout.view('jira-collapsed', {} as Record<string, boolean | u
 const items = computed<Item[]>(() => {
   const keys = new Map<string, PrView[]>()
   for (const p of deck.prs) for (const k of p.jiraKeys) keys.set(k, [...(keys.get(k) ?? []), p])
-  for (const j of deck.overview?.jira ?? []) if (!keys.has(j.key)) keys.set(j.key, [])
+  for (const j of deck.overview?.jira ?? []) if (!j.parentOnly && !keys.has(j.key)) keys.set(j.key, [])
   return [...keys].map(([key, prs]) => {
     const issue = deck.jiraByKey.get(key) ?? null
     const updated = [issue?.updated ?? '', ...prs.map((p) => p.updatedAt)].sort().at(-1)!
