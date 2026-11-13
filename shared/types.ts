@@ -376,15 +376,6 @@ export interface SlackItem {
 }
 
 /** A field Jira requires when creating an issue of a given project + type (beyond summary, description etc.) */
-export interface JiraRequiredField {
-  key: string // e.g. customfield_12345
-  name: string
-  /** Select options; empty for free-text fields */
-  options: { id: string; label: string }[]
-  /** Multi-select: the value is a list */
-  multiple: boolean
-}
-
 /** A message shown around a Slack inbox item (side panel) */
 export interface SlackMessage {
   ts: string

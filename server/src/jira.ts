@@ -12,7 +12,6 @@ import type {
   JiraIssueTypeMeta,
   JiraLink,
   JiraProjectMeta,
-  JiraRequiredField,
   JiraValueLabels,
   JiraWriteInput,
 } from '../../shared/types.ts'
@@ -196,46 +195,6 @@ export async function transition(cfg: JiraConfig, key: string, transitionId: str
   return mapIssue(cfg, raw, false)
 }
 
-// ---------- Create ----------
-
-/** Minimal Markdown → Atlassian Document Format: headings, bullet/numbered lists, code fences, paragraphs, links. */
-
-/** Fields set elsewhere (draft, settings) or by Jira itself; everything else that's required is asked for. */
-const HANDLED_FIELDS = new Set(['project', 'issuetype', 'summary', 'description', 'reporter', 'assignee', 'labels'])
-
-/** Required fields for creating an issue of this type in this project (Jira create metadata). */
-export async function requiredFields(cfg: JiraConfig, projectKey: string, issueType: string): Promise<JiraRequiredField[]> {
-  type Page<T> = { issueTypes?: T[]; fields?: T[]; values?: T[] }
-  const types = await request<Page<{ id: string; name: string }>>(cfg, `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`)
-  const type = (types.issueTypes ?? types.values ?? []).find((t) => t.name.toLowerCase() === issueType.toLowerCase())
-  if (!type) throw new JiraError(`Project ${projectKey} has no issue type "${issueType}"`)
-  const meta = await request<Page<any>>(cfg, `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes/${type.id}?maxResults=200`)
-  return (meta.fields ?? meta.values ?? [])
-    .filter((f) => f.required && !f.hasDefaultValue && !HANDLED_FIELDS.has(f.fieldId))
-    .map((f) => ({
-      key: f.fieldId,
-      name: f.name,
-      options: (f.allowedValues ?? []).map((v: any) => ({ id: String(v.id), label: v.value ?? v.name ?? String(v.id) })),
-      multiple: f.schema?.type === 'array',
-    }))
-}
-
-export async function createIssue(
-  cfg: JiraConfig,
-  input: { projectKey: string; issueType: string; summary: string; description: string; labels?: string[]; fields?: Record<string, unknown> },
-): Promise<{ key: string; url: string }> {
-  const fields: Record<string, unknown> = {
-    project: { key: input.projectKey },
-    issuetype: { name: input.issueType },
-    summary: input.summary.slice(0, 254),
-    description: markdownToAdf(input.description),
-    ...(input.labels?.length ? { labels: input.labels.map((l) => l.replace(/\s+/g, '-')) } : {}),
-    ...input.fields,
-  }
-  if (cfg.create?.assignToMe) fields.assignee = { accountId: (await jiraMyself(cfg)).accountId }
-  const r = await request<{ key: string }>(cfg, '/rest/api/3/issue', { method: 'POST', body: JSON.stringify({ fields }) })
-  return { key: r.key, url: `${base(cfg)}/browse/${r.key}` }
-}
 
 // ---------- Composer: metadata, field values, create and edit ----------
 
@@ -606,4 +565,73 @@ export async function composeUpdate(
   }
   if (Object.keys(fields).length) await request(cfg, `/rest/api/3/issue/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ fields }) })
   return getIssue(cfg, key)
+}
+
+// ---------- Friendly field input (MCP): names and labels instead of ids ----------
+
+/** A field by key ("priority", "customfield_10102") or name ("Story Points"), case-insensitive */
+export function findField(fields: JiraFieldMeta[], keyOrName: string) {
+  const k = keyOrName.trim().toLowerCase()
+  return fields.find((f) => f.key.toLowerCase() === k) ?? fields.find((f) => f.name.toLowerCase() === k)
+}
+
+/** The choices for a field: its fixed options, or users / epics / sprints looked up on Jira */
+export async function choicesFor(cfg: JiraConfig, project: string, f: JiraFieldMeta, q = '', issueKey?: string): Promise<JiraFieldOption[]> {
+  if (f.options.length) return f.options
+  if (['user', 'users', 'parent', 'sprint'].includes(f.kind)) return fieldOptions(cfg, f.kind, { project, q, issueKey }).catch(() => [])
+  return []
+}
+
+/**
+ * Turn {field name or key: value} into composer values. Options match by label or id, users by name,
+ * email or account id, parent by issue key, sprint by name or id; arrays for multi fields; null clears.
+ * Returns what couldn't be matched (with the choices) instead of guessing.
+ */
+export async function resolveFieldInput(
+  cfg: JiraConfig,
+  project: string,
+  fields: JiraFieldMeta[],
+  input: Record<string, unknown>,
+  issueKey?: string,
+): Promise<{ values: Record<string, JiraFieldValue>; problems: string[] }> {
+  const values: Record<string, JiraFieldValue> = {}
+  const problems: string[] = []
+  for (const [name, raw] of Object.entries(input)) {
+    const f = findField(fields, name)
+    if (!f) {
+      problems.push(`No field "${name}" here. Fields: ${fields.map((x) => x.name).join(', ')}`)
+      continue
+    }
+    if (raw === null || raw === '' || (Array.isArray(raw) && !raw.length)) {
+      values[f.key] = ['options', 'users', 'labels'].includes(f.kind) ? [] : null
+      continue
+    }
+    const list = (Array.isArray(raw) ? raw : [raw]).map((x) => String(x).trim())
+    if (f.kind === 'labels') values[f.key] = list.map((l) => l.replace(/\s+/g, '-'))
+    else if (f.kind === 'number') {
+      const n = Number(list[0])
+      if (Number.isNaN(n)) problems.push(`${f.name} needs a number, got "${list[0]}"`)
+      else values[f.key] = n
+    } else if (f.kind === 'string' || f.kind === 'text') values[f.key] = String(Array.isArray(raw) ? raw.join('\n') : raw)
+    else if (f.kind === 'date') {
+      if (!/^\d{4}-\d{2}-\d{2}/.test(list[0])) problems.push(`${f.name} needs a date as YYYY-MM-DD, got "${list[0]}"`)
+      else values[f.key] = list[0].slice(0, 10)
+    } else if (f.kind === 'parent') values[f.key] = list[0].toUpperCase()
+    else {
+      // option(s), user(s), sprint: match each against the choices
+      const ids: string[] = []
+      for (const want of list) {
+        const choices = await choicesFor(cfg, project, f, f.kind.startsWith('user') ? want : '', issueKey)
+        const w = want.toLowerCase()
+        // Exact id or label first; a partial match only when it's the only one ("Sprint 5" could be 54 or 55)
+        const partial = choices.filter((o) => o.label.toLowerCase().includes(w))
+        const hit = choices.find((o) => o.id === want) ?? choices.find((o) => o.label.toLowerCase() === w) ?? (partial.length === 1 ? partial[0] : undefined)
+        if (hit) ids.push(hit.id)
+        else if (partial.length > 1) problems.push(`${f.name}: "${want}" matches several: ${partial.map((o) => o.label).join(' | ')}`)
+        else problems.push(`${f.name}: no choice matches "${want}". Choices: ${choices.slice(0, 30).map((o) => o.label).join(' | ') || '(none found)'}`)
+      }
+      if (ids.length) values[f.key] = f.kind === 'options' || f.kind === 'users' ? ids : ids[0]
+    }
+  }
+  return { values, problems }
 }

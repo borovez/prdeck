@@ -28,11 +28,13 @@ nothing is hosted.
   transitions.
 - **Slack inbox**: mentions, unanswered DMs and group DMs, saved messages, and messages you reacted to
   with a "todo" emoji, shown in context and formatted.
-- **Slack to Jira**: Claude drafts an issue from a Slack thread, including the project's required
-  fields, and can reply in the thread with the link.
+- **Write Jira issues with Claude**: create and edit issues in a composer with every field your project
+  has (required ones, sprint, story points, epics). Claude drafts or reworks the issue from your request,
+  a PR, a Slack thread, screenshots, the repo's CLAUDE.md and a per-project writing guide; edits are
+  reviewed as a diff before saving. From Slack it can reply in the thread with the link.
 - **MCP server** for Claude Code with tools: `overview`, `list_prs`, `get_pr`, `jira_issue`,
   `add_dependency`, `remove_dependency`, `sync`, `slack_inbox`, `slack_thread`, `set_slack_status`,
-  `create_jira_issue`.
+  `jira_fields`, `create_jira_issue`, `update_jira_issue`.
 - Light, dark and system themes; keyboard navigation (arrow keys, Escape, shortcuts in the Slack
   panel).
 
@@ -64,7 +66,7 @@ Open <http://localhost:5317> and go to **Settings**:
 4. **LaunchDarkly** (optional, read only): an access token with the Reader role
    ([Organization settings → Authorization](https://app.launchdarkly.com/settings/authorization)),
    the project key and the environments to show.
-5. **Claude** (optional, for drafting Jira issues): use your local
+5. **Claude** (optional, for writing Jira issues): use your local
    [Claude Code](https://claude.com/claude-code) login (no API key needed), or an Anthropic API key.
 
 Then press **Sync**. With **Auto** on, the server syncs in the background (every 5 minutes by

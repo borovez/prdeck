@@ -2,9 +2,10 @@ import './quiet.ts'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import type { Overview, PrView } from '../../shared/types.ts'
-import { addManualDep, getSettings, getSlackItem, listSlack, removeManualDep, setSlackStatus } from './db.ts'
-import { createIssue, requiredFields } from './jira.ts'
+import type { JiraFieldMeta, JiraFieldValue, JiraValueLabels, Overview, PrView } from '../../shared/types.ts'
+import { addManualDep, getSettings, getSlackItem, listSlack, removeManualDep, setSlackStatus, upsertJira } from './db.ts'
+import { addComment, choicesFor, composeCreate, composeUpdate, createMeta, editable, resolveFieldInput } from './jira.ts'
+import { claudeMdGuide } from './guides.ts'
 import { replyInThread, threadContext } from './slack.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
@@ -218,51 +219,200 @@ server.registerTool(
   },
 )
 
+/** How a field's value reads for Claude: option labels, names, keys */
+function valueText(f: JiraFieldMeta, v: JiraFieldValue | undefined, known: JiraValueLabels): string {
+  if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) return 'none'
+  const list = Array.isArray(v) ? v : [String(v)]
+  return list.map((x) => f.options.find((o) => o.id === x)?.label ?? known[f.key]?.[x]?.label ?? x).join(', ')
+}
+
+server.registerTool(
+  'jira_fields',
+  {
+    title: 'Jira fields and writing guide',
+    description:
+      'Before creating or editing a Jira issue: the fields it has (type, required, choices such as priorities, active/future sprints, open epics), ' +
+      "the project's writing guide (PR Deck settings) and optionally a repo's CLAUDE.md guidance. With `key`, also the issue's current " +
+      'summary, Markdown description and field values (edit the description from this text: image lines ![…](jira-media:…) are its attachments and must be kept).',
+    inputSchema: {
+      key: z.string().optional().describe('An existing issue to edit, e.g. PROJ-123'),
+      projectKey: z.string().optional().describe('For a new issue; defaults to the configured project'),
+      issueType: z.string().optional().describe('For a new issue, e.g. Bug; defaults to the configured type'),
+      repo: z.string().optional().describe('owner/name whose CLAUDE.md has issue-writing guidance'),
+    },
+  },
+  async ({ key, projectKey, issueType, repo }) => {
+    const s = getSettings()
+    const cfg = s.jira
+    if (!cfg?.apiToken) return text('Jira is not configured in PR Deck settings.')
+    let head: string
+    let fields: JiraFieldMeta[]
+    let values: Record<string, JiraFieldValue> = {}
+    let known: JiraValueLabels = {}
+    let project: string
+    let current = ''
+    if (key) {
+      const e = await editable(cfg, key.toUpperCase())
+      project = e.project.key
+      fields = e.fields
+      values = e.values
+      known = e.labels
+      const type = e.issueTypes.find((t) => t.id === e.issueTypeId)?.name ?? ''
+      head = `${e.key} (${project}) · type ${type} (can change to: ${e.issueTypes.map((t) => t.name).join(', ')})\n${e.url}`
+      current = `\n\n## Current summary\n${e.summary}\n\n## Current description (Markdown)\n${e.description || '(empty)'}`
+    } else {
+      project = (projectKey || cfg.create.projectKey || '').toUpperCase()
+      if (!project) return text('No projectKey given and no default project configured.')
+      let meta = await createMeta(cfg, project)
+      const wanted = issueType && meta.issueTypes.find((t) => t.name.toLowerCase() === issueType.toLowerCase())
+      if (wanted && wanted.id !== meta.issueTypeId) meta = await createMeta(cfg, project, wanted.id)
+      fields = meta.fields
+      values = meta.defaults
+      known = meta.labels
+      const type = meta.issueTypes.find((t) => t.id === meta.issueTypeId)?.name ?? ''
+      head = `New ${type} in ${meta.project.key} (${meta.project.name}) · types: ${meta.issueTypes.filter((t) => !t.subtask).map((t) => t.name).join(', ')}`
+    }
+    const rows = await Promise.all(
+      fields.map(async (f) => {
+        const choices = f.kind.startsWith('user') ? [] : await choicesFor(cfg, project, f, '', key)
+        const c = choices.length ? `: ${choices.slice(0, 40).map((o) => (o.detail ? `${o.label} [${o.detail}]` : o.label)).join(' | ')}` : f.kind.startsWith('user') ? ': a person (name or email)' : ''
+        const now = values[f.key] !== undefined ? ` (current: ${valueText(f, values[f.key], known)})` : ''
+        return `- ${f.name}${f.required ? ' *' : ''} [${f.kind}]${c}${now}`
+      }),
+    )
+    const guide = cfg.guides?.[project]?.trim()
+    const repoGuide = repo ? await claudeMdGuide(repo).catch(() => null) : null
+    return text(
+      [
+        head,
+        guide ? `## Writing guide for ${project} (PR Deck settings; follow it)\n${guide}` : '',
+        repoGuide ? `## ${repo} CLAUDE.md (issue guidance)\n${repoGuide}` : '',
+        `## Fields (* = required; pass them to create_jira_issue / update_jira_issue by name, choices by label)\n${rows.join('\n')}`,
+        current,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    )
+  },
+)
+
+const FieldsInput = z
+  .record(z.string(), z.unknown())
+  .optional()
+  .describe('By field name or key: {"Priority": "High", "Story Points": 3, "Sprint": "Sprint 54", "Parent": "PROJ-12", "Labels": ["api"]}. null clears.')
+
 server.registerTool(
   'create_jira_issue',
   {
     title: 'Create Jira issue',
     description:
-      'Create a Jira issue (description in Markdown) using the configured defaults (project, assign to me). ' +
-      'Pass slackItemId to link it to a Slack inbox item and mark that item done; set replyInThread to post the issue link back in the Slack thread. ' +
-      'Show the user the draft and get confirmation before calling this.',
+      'Create a Jira issue (description in Markdown). Call jira_fields first for the fields, choices and writing guide. ' +
+      'Uses the configured defaults (project, type, assign to me). Pass slackItemId to link it to a Slack inbox item and mark that item done; ' +
+      'set replyInThread to post the issue link back in the Slack thread. Show the user the draft and get confirmation before calling this.',
     inputSchema: {
       summary: z.string(),
       description: z.string().describe('Markdown'),
-      issueType: z.string().default('Task'),
+      issueType: z.string().optional().describe('e.g. Task, Bug; defaults to the configured type'),
       projectKey: z.string().optional().describe('Defaults to the configured project'),
-      labels: z.array(z.string()).optional(),
+      fields: FieldsInput,
       slackItemId: z.string().optional(),
       replyInThread: z.boolean().default(false),
-      fields: z
-        .record(z.string(), z.unknown())
-        .optional()
-        .describe('Values for fields the project requires, in Jira shape, e.g. {"customfield_12345": {"id": "10001"}}. If one is missing, the tool lists the options.'),
     },
   },
   async (input) => {
     const s = getSettings()
-    if (!s.jira?.apiToken) return text('Jira is not configured in PR Deck settings.')
-    const projectKey = input.projectKey || s.jira.create.projectKey
+    const cfg = s.jira
+    if (!cfg?.apiToken) return text('Jira is not configured in PR Deck settings.')
+    const projectKey = (input.projectKey || cfg.create.projectKey || '').toUpperCase()
     if (!projectKey) return text('No projectKey given and no default project configured.')
-    // Ask for required fields up front instead of surfacing Jira's 400
-    const missing = (await requiredFields(s.jira, projectKey, input.issueType)).filter((f) => !(f.key in (input.fields ?? {})))
-    if (missing.length)
-      return text(
-        `Not created: ${projectKey} ${input.issueType} needs these fields. Ask the user, then call again with \`fields\`:\n` +
-          missing
-            .map((f) => `- ${f.name} (${f.key})${f.options.length ? `: ${f.options.map((o) => `${o.label} = {"id": "${o.id}"}`).join(', ')}` : ': text'}`)
-            .join('\n'),
-      )
+    let meta = await createMeta(cfg, projectKey)
+    if (input.issueType) {
+      const t = meta.issueTypes.find((x) => x.name.toLowerCase() === input.issueType!.toLowerCase())
+      if (!t) return text(`Not created: ${projectKey} has no issue type "${input.issueType}". Types: ${meta.issueTypes.map((x) => x.name).join(', ')}`)
+      if (t.id !== meta.issueTypeId) meta = await createMeta(cfg, projectKey, t.id)
+    }
+    const { values, problems } = await resolveFieldInput(cfg, projectKey, meta.fields, input.fields ?? {})
+    const all = { ...meta.defaults, ...values }
+    const empty = (v: JiraFieldValue | undefined) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)
+    for (const f of meta.fields.filter((x) => x.required && empty(all[x.key]))) {
+      const choices = await choicesFor(cfg, projectKey, f)
+      problems.push(`${f.name} is required${choices.length ? `. Choices: ${choices.map((o) => o.label).join(' | ')}` : ''}`)
+    }
+    if (problems.length) return text(`Not created. Ask the user, then call again:\n${problems.map((p) => `- ${p}`).join('\n')}`)
     const item = input.slackItemId ? getSlackItem(input.slackItemId) : null
     const description = item?.permalink ? `${input.description}\n\n---\nSource: [Slack message from ${item.userName}](${item.permalink})` : input.description
-    const created = await createIssue(s.jira, { ...input, projectKey, description })
+    const issue = await composeCreate(cfg, {
+      projectKey,
+      issueTypeId: meta.issueTypeId,
+      summary: input.summary,
+      description,
+      values: Object.fromEntries(Object.entries(all).filter(([, v]) => !empty(v))),
+    })
+    upsertJira(issue)
     if (item) {
-      setSlackStatus(item.id, 'done', created.key)
+      setSlackStatus(item.id, 'done', issue.key)
       if (input.replyInThread && s.slack?.token)
-        await replyInThread(s.slack, item, `Tracked in Jira: <${created.url}|${created.key}> – ${input.summary}`)
+        await replyInThread(s.slack, item, `Tracked in Jira: <${issue.url}|${issue.key}> – ${input.summary}`)
     }
-    return text(`Created ${created.key}: ${created.url}`)
+    return text(`Created ${issue.key}: ${issue.url}`)
+  },
+)
+
+server.registerTool(
+  'update_jira_issue',
+  {
+    title: 'Update Jira issue',
+    description:
+      'Change an existing Jira issue: only what you pass is written. Call jira_fields with the key first, and edit the description from the ' +
+      'Markdown it returns (keep its image lines). Optionally add a comment (Markdown) saying what changed. ' +
+      'Show the user the changes and get confirmation before calling this.',
+    inputSchema: {
+      key: z.string().describe('e.g. PROJ-123'),
+      summary: z.string().optional(),
+      description: z.string().optional().describe('Markdown: the whole new description'),
+      issueType: z.string().optional(),
+      fields: FieldsInput,
+      comment: z.string().optional().describe('Markdown comment to add'),
+    },
+  },
+  async (input) => {
+    const cfg = getSettings().jira
+    if (!cfg?.apiToken) return text('Jira is not configured in PR Deck settings.')
+    const key = input.key.toUpperCase()
+    const e = await editable(cfg, key)
+    const { values, problems } = await resolveFieldInput(cfg, e.project.key, e.fields, input.fields ?? {}, key)
+    let issueTypeId: string | undefined
+    if (input.issueType) {
+      const t = e.issueTypes.find((x) => x.name.toLowerCase() === input.issueType!.toLowerCase())
+      if (!t) problems.push(`No issue type "${input.issueType}" for ${key}. Types: ${e.issueTypes.map((x) => x.name).join(', ')}`)
+      else if (t.id !== e.issueTypeId) issueTypeId = t.id
+    }
+    if (problems.length) return text(`Not updated. Ask the user, then call again:\n${problems.map((p) => `- ${p}`).join('\n')}`)
+    // Lost Jira images would be a silent loss: refuse a description that drops them
+    const media = (md: string) => [...md.matchAll(/jira-media:([\w-]+)/g)].map((m) => m[1])
+    if (input.description !== undefined) {
+      const dropped = media(e.description).filter((id) => !media(input.description!).includes(id))
+      if (dropped.length)
+        return text(
+          `Not updated: the new description drops ${dropped.length} of the issue's image(s). Keep their ![…](jira-media:…) lines from jira_fields; images can only be removed in Jira itself.`,
+        )
+    }
+    const issue = await composeUpdate(cfg, key, {
+      ...(input.summary !== undefined ? { summary: input.summary } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(issueTypeId ? { issueTypeId } : {}),
+      values,
+    })
+    if (input.comment?.trim()) await addComment(cfg, key, input.comment)
+    upsertJira(issue)
+    const changed = [
+      input.summary !== undefined && 'summary',
+      input.description !== undefined && 'description',
+      issueTypeId && 'type',
+      ...Object.keys(values).map((k) => e.fields.find((f) => f.key === k)?.name ?? k),
+      input.comment?.trim() && 'comment added',
+    ].filter(Boolean)
+    return text(`Updated ${issue.key} (${changed.join(', ') || 'nothing changed'}): ${issue.url}`)
   },
 )
 

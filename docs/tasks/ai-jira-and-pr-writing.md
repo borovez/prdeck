@@ -88,8 +88,9 @@ the change.
 
 ### 1.4 MCP
 
-`jira_draft` (returns a draft without writing) and `jira_update` (writes given fields), so Claude Code
-can do the same from the terminal.
+Claude Code writes the text itself, so the tools give it what PR Deck knows and write safely:
+`jira_fields` (fields, choices, current values and description, writing guides), `create_jira_issue` and
+`update_jira_issue` (fields by name, choices by label; refuse with the choices when something doesn't match).
 
 ### Steps
 
@@ -99,7 +100,7 @@ can do the same from the terminal.
    guides (Settings + repo CLAUDE.md), replace `SlackToJiraModal` (reply in thread and mark done move
    into the composer when it's opened from Slack).
 4. ✅ Claude updates for edit, with the diff review.
-5. MCP tools, CLAUDE.md, README.
+5. ✅ MCP tools (`jira_fields`, `create_jira_issue`, `update_jira_issue`), CLAUDE.md, README.
 
 ---
 
