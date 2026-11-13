@@ -5,7 +5,14 @@
 set -eu
 
 LABEL="prdeck.server"
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="${PRDECK_REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+# git pull may replace this very file while it runs: run from a copy
+if [ -z "${PRDECK_UPDATE_COPY:-}" ]; then
+  COPY="$(mktemp -t prdeck-update)"
+  cp "$0" "$COPY"
+  PRDECK_UPDATE_COPY=1 PRDECK_REPO="$REPO" exec sh "$COPY"
+fi
 cd "$REPO"
 
 echo "== $(date '+%Y-%m-%d %H:%M:%S') updating PR Deck in $REPO"
@@ -16,8 +23,10 @@ fi
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 git fetch --tags origin
 git pull --ff-only origin "$BRANCH"
-npm install --no-audit --no-fund
-npm run build --silent
+# The server runs with NODE_ENV=production, which makes npm skip dev dependencies (vite, vue-tsc,
+# tsx): install and build without it
+env -u NODE_ENV npm install --include=dev --no-audit --no-fund
+env -u NODE_ENV npm run build --silent
 
 # The background service picks up the new code on restart; a dev server reloads by itself
 if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
@@ -25,3 +34,4 @@ if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
   launchctl kickstart -k "gui/$(id -u)/$LABEL"
 fi
 echo "== updated to $(node -p "require('./package.json').version") ($(git rev-parse --short HEAD))"
+rm -f "$0"

@@ -441,6 +441,8 @@ export interface UpdateStatus {
   /** Why it can't update itself */
   reason: string | null
   updating: boolean
+  /** The last update attempt failed: when, and the end of its log */
+  failed: { at: string; message: string } | null
   /** Where the update script writes */
   log: string
 }

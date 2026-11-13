@@ -31,6 +31,11 @@ const notes = computed(() => markdownToAdf(status.value?.notes ?? ''))
         <div class="px-3 py-2 text-sm"><AdfView :doc="notes" /></div>
       </ScrollArea>
       <p v-if="installing" class="text-xs text-muted-foreground">Pulling, installing and rebuilding; the app reloads when the new version is running. Log: {{ status.log }}</p>
+      <div v-else-if="status.failed" class="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+        <p class="font-medium">The last update failed</p>
+        <pre class="mt-1 max-h-28 overflow-auto font-mono text-[11px] whitespace-pre-wrap">{{ status.failed.message }}</pre>
+        <p class="mt-1 text-muted-foreground">Log: {{ status.log }}</p>
+      </div>
       <p v-else-if="!status.canSelfUpdate && status.reason" class="text-xs text-muted-foreground">{{ status.reason }}</p>
       <div class="flex justify-end gap-2">
         <Button variant="ghost" size="sm" as="a" :href="status.url" target="_blank" rel="noopener"><PhArrowSquareOut /> Release</Button>

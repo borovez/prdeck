@@ -77,6 +77,15 @@ async function selfUpdate(): Promise<{ can: boolean; reason: string | null }> {
 }
 
 let updating = false
+/** The last run of the update script, if it failed (kept until the next attempt) */
+let failed: { at: string; message: string } | null = null
+const logTail = () => {
+  try {
+    return readFileSync(UPDATE_LOG, 'utf8').trimEnd().split('\n').slice(-6).join('\n')
+  } catch {
+    return ''
+  }
+}
 
 export async function updateStatus(force = false): Promise<UpdateStatus> {
   const [latest, self] = await Promise.all([latestRelease(force), selfUpdate()])
@@ -95,6 +104,7 @@ export async function updateStatus(force = false): Promise<UpdateStatus> {
     canSelfUpdate: self.can,
     reason: self.reason,
     updating,
+    failed,
     log: UPDATE_LOG,
   }
 }
@@ -107,7 +117,12 @@ export async function startUpdate() {
   mkdirSync(join(homedir(), 'Library', 'Logs'), { recursive: true })
   const out = openSync(UPDATE_LOG, 'a')
   const child = spawn('sh', [join(ROOT, 'scripts', 'app-update.sh')], { cwd: ROOT, detached: true, stdio: ['ignore', out, out], env: process.env })
-  child.on('exit', () => (updating = false))
+  // A successful update restarts this server, so only a failure is ever seen here
+  child.on('exit', (code) => {
+    updating = false
+    if (code) failed = { at: new Date().toISOString(), message: logTail() || `The update script exited with ${code}` }
+  })
   child.unref()
+  failed = null
   updating = true
 }

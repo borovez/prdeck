@@ -58,6 +58,16 @@ async function install() {
   const started = Date.now()
   const poll = async () => {
     const h = await api.health().catch(() => null)
+    // Same server still up: did the update script fail?
+    if (h && h.version === status.value?.current) {
+      const s = await api.updateStatus().catch(() => null)
+      if (s?.failed && !s.updating) {
+        status.value = s
+        installing.value = false
+        toast.error('The update failed', { description: `${s.failed.message.split('\n').slice(-2).join(' ')} (log: ${s.log})`, duration: 20_000 })
+        return
+      }
+    }
     if (h && h.version !== status.value?.current) {
       toast.success(`Updated to ${h.version}`, { description: 'Reloading…' })
       setTimeout(() => location.reload(), 800)
