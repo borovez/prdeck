@@ -53,18 +53,20 @@ function startResize(ev: MouseEvent) {
     <aside
       v-if="open"
       data-side-panel
-      class="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l bg-background shadow-2xl"
-      :style="{ width: layout.prefs.drawerWidth + 'px' }"
+      class="fixed inset-y-0 right-0 z-40 flex w-full max-w-full flex-col border-l bg-background shadow-2xl sm:w-(--panel-w)"
+      :style="{ '--panel-w': layout.prefs.drawerWidth + 'px' }"
     >
       <!-- z-30: the body's scroll area is positioned and would otherwise cover the handle below the header -->
       <div
-        class="absolute inset-y-0 -left-1 z-30 w-2.5 cursor-col-resize transition-colors hover:bg-primary/30"
+        class="absolute inset-y-0 -left-1 z-30 w-2.5 cursor-col-resize transition-colors hover:bg-primary/30 max-sm:hidden"
         title="Drag to resize · double-click for widest / narrowest"
         @mousedown="startResize"
         @dblclick="toggleWidth"
       />
-      <header class="flex items-start gap-2 border-b p-4">
-        <div class="min-w-0 flex-1"><slot name="header" /></div>
+      <!-- Narrow screens: the buttons get their own row above the title -->
+      <header class="flex flex-wrap items-start gap-x-2 gap-y-1 border-b p-3 sm:flex-nowrap sm:p-4">
+        <div class="order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto"><slot name="header" /></div>
+        <span class="flex-1 sm:hidden" />
         <slot name="actions" />
         <Tooltip>
           <TooltipTrigger as-child>

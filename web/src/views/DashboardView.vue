@@ -295,18 +295,18 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
             <div v-for="c in openChains.slice(0, p.limit)" :key="c.id" class="rounded-lg px-3 py-2 hover:bg-accent/60">
               <div class="mb-2 text-xs text-muted-foreground">{{ c.repos.join(' · ') }}</div>
               <ol class="flex flex-wrap items-center gap-1 text-xs">
-                <li v-for="(id, i) in c.prs" :key="id" class="flex items-center gap-1">
+                <li v-for="(id, i) in c.prs" :key="id" class="flex max-w-full min-w-0 items-center gap-1">
                   <span v-if="i" class="text-muted-foreground">→</span>
                   <button
-                    class="flex items-center gap-1 rounded-md border px-2 py-1 transition-colors hover:bg-accent"
+                    class="flex max-w-full min-w-0 items-center gap-1 rounded-md border px-2 py-1 transition-colors hover:bg-accent"
                     :class="id === c.nextStep ? 'border-primary bg-primary/10' : ''"
                     @click="deck.selectedId = id"
                   >
                     <PhCheckCircle v-if="stepDone(id)" weight="fill" class="text-success" />
                     <PhCircle v-else-if="id === c.nextStep" weight="fill" class="text-primary" />
                     <PhCircleDashed v-else class="text-muted-foreground" />
-                    <RepoName :id="id" class="max-w-56 font-mono" />
-                    <span class="max-w-36 truncate text-muted-foreground">{{ stateOf(id)?.action.label ?? 'not synced' }}</span>
+                    <RepoName :id="id" class="max-w-56 min-w-0 font-mono" />
+                    <span class="max-w-36 shrink-0 truncate text-muted-foreground max-sm:hidden">{{ stateOf(id)?.action.label ?? 'not synced' }}</span>
                   </button>
                 </li>
               </ol>

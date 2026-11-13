@@ -41,13 +41,14 @@ const initials = (name: string) =>
     :class="cn('group cursor-pointer px-4 py-3 transition-colors hover:bg-accent/50', deck.selectedJiraKey === issueKey && 'bg-accent/60 ring-2 ring-primary ring-inset')"
     @click="select"
   >
-    <div class="flex items-start gap-2">
+    <div class="flex flex-wrap items-start gap-x-2 gap-y-1.5 sm:flex-nowrap">
       <img v-if="issue?.typeIconUrl" :src="issue.typeIconUrl" :title="issue.type" class="mt-0.5 size-4 shrink-0" alt="" />
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
+        <!-- Narrow screens: the summary wraps to two lines instead of a few truncated characters -->
+        <div class="flex items-baseline gap-2">
           <a :href="href" target="_blank" rel="noopener" class="shrink-0 font-mono text-xs font-medium hover:underline">{{ issueKey }}</a>
-          <span v-if="issue" class="truncate text-sm font-medium" :title="issue.summary">{{ issue.summary }}</span>
-          <span v-else class="truncate text-sm text-muted-foreground">{{ prs[0]?.title ?? 'Not loaded from Jira' }}</span>
+          <span v-if="issue" class="line-clamp-2 text-sm font-medium sm:truncate" :title="issue.summary">{{ issue.summary }}</span>
+          <span v-else class="line-clamp-2 text-sm text-muted-foreground sm:truncate">{{ prs[0]?.title ?? 'Not loaded from Jira' }}</span>
         </div>
         <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span v-if="issue?.assignee" class="flex items-center gap-1">
@@ -77,7 +78,7 @@ const initials = (name: string) =>
       >
         <PhRobot />
       </Button>
-      <JiraTransition v-if="issue" :issue-key="issueKey" />
+      <div v-if="issue" class="w-full pl-6 sm:w-auto sm:pl-0"><JiraTransition :issue-key="issueKey" /></div>
     </div>
 
     <div v-if="prs.length && !dense" class="mt-1 ml-1.5 border-l pl-2">

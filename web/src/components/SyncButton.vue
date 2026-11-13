@@ -56,7 +56,7 @@ const ICON = {
     <HoverCardTrigger as-child>
       <Button size="sm" variant="outline" :disabled="disabled" :aria-disabled="running" :aria-busy="running" @click="!running && deck.sync()">
         <PhArrowsClockwise :class="{ 'animate-spin': running }" />
-        {{ running ? 'Syncing' : 'Sync' }}
+        <span class="max-sm:hidden">{{ running ? 'Syncing' : 'Sync' }}</span>
         <Badge v-if="running && steps.length" variant="primary" class="h-4.5 px-1.5 text-[11px] tabular-nums">
           {{ Math.min(doneCount + 1, steps.length) }}/{{ steps.length }}
         </Badge>

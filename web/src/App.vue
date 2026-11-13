@@ -143,11 +143,11 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
 
       <SidebarInset class="min-w-0">
         <!-- Three columns so the search stays centred: title and sync status | search | actions -->
-        <header class="app-titlebar app-titlebar-right sticky top-0 z-20 grid h-14 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
-          <div class="flex min-w-0 items-center gap-2">
+        <header class="app-titlebar app-titlebar-right sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:grid sm:grid-cols-[1fr_auto_1fr] sm:px-4">
+          <div class="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-1 data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center" />
-          <h1 class="text-sm font-semibold">{{ title }}</h1>
+          <h1 class="truncate text-sm font-semibold">{{ title }}</h1>
           <span class="ml-2 hidden truncate text-xs text-muted-foreground lg:inline">
             <template v-if="deck.overview?.sync.lastFinishedAt">
               Synced {{ timeAgo(deck.overview.sync.lastFinishedAt) }}
@@ -160,7 +160,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
           </div>
           <GlobalSearch />
 
-          <div class="flex min-w-0 items-center justify-end gap-2">
+          <div class="flex min-w-0 shrink-0 items-center justify-end gap-1 sm:gap-2">
           <UpdateButton />
           <SyncErrors />
           <Tooltip v-if="deck.overview?.configured.jira">
@@ -175,7 +175,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
             <Tooltip v-if="autoSync">
               <TooltipTrigger as-child>
                 <Toggle size="sm" variant="outline" :model-value="autoSync.enabled" :disabled="needsSetup" aria-label="Auto-sync" @update:model-value="setAutoSync">
-                  <PhTimer /> Auto
+                  <PhTimer /> <span class="max-sm:hidden">Auto</span>
                 </Toggle>
               </TooltipTrigger>
               <TooltipContent>

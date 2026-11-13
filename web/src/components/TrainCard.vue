@@ -76,12 +76,12 @@ const other = (l: ReleaseTrain['links'][number], id: string) => (l.from === id ?
           <ul class="mt-0.5 space-y-0.5 pl-3 text-xs text-muted-foreground">
             <li v-for="l in s.after" :key="`a${l.from}`" class="flex items-center gap-1.5">
               <PhArrowBendDownRight :size="12" class="shrink-0" />after
-              <button class="font-mono text-primary hover:underline" @click="deck.selectedId = l.from"><RepoName :id="l.from" /></button>
+              <button class="min-w-0 shrink font-mono text-primary hover:underline" @click="deck.selectedId = l.from"><RepoName :id="l.from" /></button>
               <span class="truncate">: {{ l.reasons.join('; ') }}</span>
             </li>
             <li v-for="l in s.shares" :key="`j${other(l, s.id)}`" class="flex items-center gap-1.5">
               <PhLinkSimple :size="12" class="shrink-0" />with
-              <button class="font-mono text-primary hover:underline" @click="deck.selectedId = other(l, s.id)"><RepoName :id="other(l, s.id)" /></button>
+              <button class="min-w-0 shrink font-mono text-primary hover:underline" @click="deck.selectedId = other(l, s.id)"><RepoName :id="other(l, s.id)" /></button>
               <span class="truncate">: {{ l.reasons.join('; ') }}</span>
             </li>
           </ul>

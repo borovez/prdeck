@@ -28,8 +28,8 @@ const href = computed(
     @click.stop="open"
   >
     <img v-if="issue?.typeIconUrl" :src="issue.typeIconUrl" class="size-3.5" alt="" />
-    <span class="font-mono font-medium hover:underline">{{ issueKey }}</span>
-    <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)" class="h-4 px-1.5 text-[10px]">{{ issue.status }}</Badge>
+    <span class="font-mono font-medium whitespace-nowrap hover:underline">{{ issueKey }}</span>
+    <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)" class="h-4 max-w-40 truncate px-1.5 text-[10px]">{{ issue.status }}</Badge>
     <span v-if="showSummary && issue" class="truncate text-muted-foreground">{{ issue.summary }}</span>
   </a>
 </template>

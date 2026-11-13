@@ -19,7 +19,7 @@ const deck = useDeck()
   <div
     :data-slack-id="item.id"
     :class="cn(
-      'group flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 hover:bg-accent',
+      'group flex cursor-pointer flex-wrap items-start gap-x-3 gap-y-1 rounded-lg px-3 py-2.5 hover:bg-accent sm:flex-nowrap',
       item.status !== 'new' && 'opacity-60',
       deck.selectedSlackId === item.id && 'bg-accent ring-2 ring-primary ring-inset',
     )"
@@ -29,7 +29,8 @@ const deck = useDeck()
       <AvatarImage v-if="item.userAvatar" :src="item.userAvatar" :alt="item.userName" />
       <AvatarFallback class="text-[10px]">{{ item.userName.slice(0, 2).toUpperCase() }}</AvatarFallback>
     </Avatar>
-    <div class="min-w-0 flex-1">
+    <!-- Narrow screens: time and actions go on a line under the message -->
+    <div class="min-w-0 flex-1 max-sm:basis-[calc(100%-2.5rem)]">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         <span class="font-semibold">{{ item.userName }}</span>
         <span class="inline-flex items-center gap-1 text-muted-foreground">
@@ -46,7 +47,7 @@ const deck = useDeck()
     <time
       :datetime="item.postedAt"
       :title="fullDate(item.postedAt)"
-      class="w-16 shrink-0 pt-0.5 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+      class="w-16 shrink-0 pt-0.5 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums max-sm:ml-10 max-sm:w-auto max-sm:flex-1 max-sm:self-center max-sm:pt-0 max-sm:text-left"
     >
       {{ timeAgo(item.postedAt) }}
     </time>

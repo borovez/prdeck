@@ -275,7 +275,7 @@ const hasAnyEdges = computed(() => allEdges.value.length > 0)
       <!-- Kind of dependency created by dragging from one card's right dot to another card's left dot -->
       <Tooltip>
         <TooltipTrigger as-child>
-          <span class="flex cursor-help items-center gap-1 text-xs text-muted-foreground"><PhHandGrabbing :size="14" />Drag a link: next PR waits for its</span>
+          <span class="flex cursor-help items-center gap-1 text-xs text-muted-foreground max-sm:hidden"><PhHandGrabbing :size="14" />Drag a link: next PR waits for its</span>
         </TooltipTrigger>
         <TooltipContent class="max-w-72">
           Drag from a card's right dot to another card's left dot to add a dependency. The card on the right then waits for the one

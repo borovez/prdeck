@@ -41,7 +41,7 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
   <div
     :data-pr-id="pr.id"
     :class="cn(
-      'group flex min-w-0 cursor-pointer items-start gap-3 rounded-lg px-3 transition-colors hover:bg-accent',
+      'group flex min-w-0 cursor-pointer flex-wrap items-start gap-x-3 gap-y-1.5 rounded-lg px-3 transition-colors hover:bg-accent sm:flex-nowrap',
       compact ? 'py-1.5' : 'py-2.5',
       deck.selectedId === pr.id && 'bg-accent ring-2 ring-primary ring-inset',
       props.class,
@@ -72,7 +72,8 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
       <div v-if="pr.action.detail && !compact && show('detail')" class="mt-1 truncate text-xs text-muted-foreground">{{ pr.action.detail }}</div>
     </div>
 
-    <div class="flex shrink-0 items-center gap-2">
+    <!-- Status icons and badges: under the title on narrow screens, on the right from sm up -->
+    <div :class="cn('flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-nowrap', show('avatar') && 'pl-10 sm:pl-0')">
       <template v-if="show('deps')">
       <Tooltip v-if="openDeps">
         <TooltipTrigger as-child><PhLockSimple :size="16" class="text-warning" /></TooltipTrigger>

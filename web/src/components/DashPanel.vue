@@ -62,18 +62,18 @@ const LIMITS = [5, 8, 12, 20, 50, 999]
     @dragleave="dragOver = false"
     @drop.prevent="onDrop"
   >
-    <header :class="cn('flex items-center gap-1 px-2 py-1.5', !panel.collapsed && 'border-b')">
+    <header :class="cn('flex min-w-0 items-center gap-1 px-2 py-1.5', !panel.collapsed && 'border-b')">
       <span
-        class="cursor-grab rounded p-1 text-muted-foreground/60 hover:bg-accent hover:text-foreground active:cursor-grabbing"
+        class="cursor-grab max-sm:hidden rounded p-1 text-muted-foreground/60 hover:bg-accent hover:text-foreground active:cursor-grabbing"
         title="Drag to reorder"
         @mousedown="draggable = true"
         @mouseup="draggable = false"
       >
         <PhDotsSixVertical :size="16" />
       </span>
-      <Button variant="ghost" size="sm" class="h-7 gap-1 px-1.5" @click="set({ collapsed: !panel.collapsed })">
+      <Button variant="ghost" size="sm" class="h-7 min-w-0 shrink gap-1 px-1.5" @click="set({ collapsed: !panel.collapsed })">
         <PhCaretRight v-if="panel.collapsed" /><PhCaretDown v-else />
-        <span class="font-semibold">{{ panel.title }}</span>
+        <span class="truncate font-semibold">{{ panel.title }}</span>
       </Button>
       <Badge :variant="count ? 'primary' : 'count'">{{ count }}</Badge>
       <PhPushPin v-if="panel.pinned" :size="13" weight="fill" class="text-primary" />
