@@ -71,6 +71,13 @@ ipcMain.handle('prdeck:unlock', async () => {
 powerMonitor.on('lock-screen', () => prefs.requireUnlock && showLock())
 powerMonitor.on('suspend', () => prefs.requireUnlock && showLock())
 
+// Run from source (npm run desktop) Electron shows its own name and icon: use PR Deck's
+// (the packaged app gets both from electron-builder)
+if (!app.isPackaged) {
+  app.setName('PR Deck')
+  app.whenReady().then(() => app.dock?.setIcon(join(HERE, 'build', 'icon.png')))
+}
+
 if (!app.requestSingleInstanceLock()) app.quit()
 app.on('second-instance', () => {
   if (window) (window.isMinimized() && window.restore(), window.focus())

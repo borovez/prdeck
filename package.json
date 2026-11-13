@@ -22,7 +22,8 @@
     "app:update": "sh scripts/app-update.sh",
     "release": "sh scripts/release.sh",
     "desktop": "npm run start -w desktop",
-    "desktop:dist": "npm run dist -w desktop"
+    "desktop:dist": "npm run dist -w desktop",
+    "desktop:dist:all": "npm run dist:all -w desktop"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

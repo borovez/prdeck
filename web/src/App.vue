@@ -2,16 +2,13 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  PhDesktop,
   PhGauge,
   PhGear,
   PhGitPullRequest,
   PhGraph,
   PhRocketLaunch,
   PhKanban,
-  PhMoon,
   PhSlackLogo,
-  PhSun,
   PhTimer,
   PhWarning,
   PhNotePencil,
@@ -25,6 +22,7 @@ import GlobalSearch from '@/components/GlobalSearch.vue'
 import SyncErrors from '@/components/SyncErrors.vue'
 import SyncButton from '@/components/SyncButton.vue'
 import UpdateButton from '@/components/UpdateButton.vue'
+import AppVersion from '@/components/AppVersion.vue'
 import NavUser from '@/components/NavUser.vue'
 import PrDrawer from '@/components/PrDrawer.vue'
 import SlackDrawer from '@/components/SlackDrawer.vue'
@@ -37,13 +35,6 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Toggle } from '@/components/ui/toggle'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Separator } from '@/components/ui/separator'
 import { Toaster } from '@/components/ui/sonner'
 import {
@@ -113,9 +104,11 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarHeader class="app-titlebar app-titlebar-left">
-          <div class="flex items-center gap-2 px-2 py-1.5 text-base font-semibold group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <div class="flex min-w-0 items-center gap-2 overflow-hidden px-2 py-1.5 text-base font-semibold whitespace-nowrap group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <PhGitPullRequest :size="22" weight="duotone" class="shrink-0 text-primary" />
-            <span class="group-data-[collapsible=icon]:hidden">PR Deck</span>
+            <span class="shrink-0 group-data-[collapsible=icon]:hidden">PR Deck</span>
+            <!-- Hidden when the sidebar is collapsed to icons (no room beside the logo) -->
+            <span class="ml-auto shrink-0 group-data-[collapsible=icon]:hidden"><AppVersion /></span>
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -184,20 +177,6 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
             </Tooltip>
           </ButtonGroup>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="ghost" size="icon-sm" title="Theme">
-                <PhSun class="dark:hidden" /><PhMoon class="hidden dark:block" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuRadioGroup v-model="theme">
-                <DropdownMenuRadioItem value="light"><PhSun /> Light</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark"><PhMoon /> Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="auto"><PhDesktop /> System</DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
           </div>
         </header>
 

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- macOS icon grid: 824px rounded square centred on a 1024 canvas, with a soft shadow -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
+  <!-- The PR Deck glyph (web/public/icons/icon.svg), scaled from 512 to 824 -->
+  <g transform="translate(100 100) scale(1.609375) translate(8 0)" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="168" cy="152" r="40"/>
+    <circle cx="168" cy="360" r="40"/>
+    <circle cx="344" cy="360" r="40"/>
+    <path d="M168 192v128"/>
+    <path d="M344 320V216a56 56 0 0 0-56-56h-36"/>
+    <path d="M282 126l-34 34 34 34"/>
+  </g>
+</svg>

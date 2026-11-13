@@ -10,7 +10,8 @@
   "scripts": {
     "bundle": "node scripts/bundle.mjs",
     "start": "npm run bundle && electron .",
-    "dist": "npm run bundle && electron-builder --mac --publish never"
+    "dist": "npm run bundle && electron-builder --mac --publish never",
+    "dist:all": "npm run bundle && electron-builder --mac --arm64 --x64 --publish never"
   },
   "build": {
     "appId": "app.prdeck.desktop",
@@ -29,11 +30,7 @@
       "category": "public.app-category.developer-tools",
       "target": [
         {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
+          "target": "dmg"
         }
       ],
       "icon": "build/icon.png",

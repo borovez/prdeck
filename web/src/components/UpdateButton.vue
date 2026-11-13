@@ -10,12 +10,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import AdfView from './AdfView.vue'
 
 /** "Update available" in the header: the release notes, and Update and restart (or a link to download) */
-const { status, installing, install } = useUpdates()
+const { status, installing, install, popoverOpen } = useUpdates()
 const notes = computed(() => markdownToAdf(status.value?.notes ?? ''))
 </script>
 
 <template>
-  <Popover v-if="status?.available">
+  <Popover v-if="status?.available" v-model:open="popoverOpen">
     <PopoverTrigger as-child>
       <Button size="sm" variant="outline" class="h-8 gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary">
         <PhCircleNotch v-if="installing" class="animate-spin" /><PhArrowCircleUp v-else weight="fill" />

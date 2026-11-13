@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { PhArrowCircleUp, PhArrowsClockwise, PhCaretUpDown, PhGear } from '@phosphor-icons/vue'
+import { PhArrowCircleUp, PhArrowsClockwise, PhCaretUpDown, PhDesktop, PhGear, PhMoon, PhSun } from '@phosphor-icons/vue'
 import { useDeck } from '@/stores/deck'
 import { useUpdates } from '@/composables/updates'
+import { useTheme } from '@/composables/theme'
 import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -13,7 +14,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
@@ -22,6 +28,8 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/c
 const deck = useDeck()
 const router = useRouter()
 const updates = useUpdates()
+const theme = useTheme()
+const THEMES = { light: 'Light', dark: 'Dark', auto: 'System' } as const
 const { isMobile } = useSidebar()
 
 const login = computed(() => deck.overview?.me[0] ?? null)
@@ -85,6 +93,19 @@ const errors = computed(() => deck.overview?.sync.errors.length ?? 0)
             <PhArrowsClockwise :class="{ 'animate-spin': deck.syncRunning }" /> Sync now
           </DropdownMenuItem>
           <DropdownMenuItem @select="router.push('/settings')"><PhGear /> Settings</DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PhSun class="dark:hidden" /><PhMoon class="hidden dark:block" /> Theme
+              <span class="ml-auto text-xs text-muted-foreground">{{ THEMES[theme] }}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup v-model="theme">
+                <DropdownMenuRadioItem value="light"><PhSun /> Light</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark"><PhMoon /> Dark</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="auto"><PhDesktop /> System</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem :disabled="updates.checking.value" @select.prevent="updates.load(true)">
             <PhArrowCircleUp /> {{ updates.status.value?.available ? `Update to ${updates.status.value.latest}` : 'Check for updates' }}

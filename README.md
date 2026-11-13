@@ -76,8 +76,8 @@ default).
 
 ## Mac app
 
-`npm run desktop:dist` builds PR Deck as a Mac app (`desktop/dist/PR-Deck-<version>-arm64.dmg` for
-Apple Silicon, `-x64.dmg` for Intel); `npm run desktop` runs it from source. Open the `.dmg` and drag
+`npm run desktop:dist` builds PR Deck as a Mac app for this Mac (`desktop/dist/PR-Deck-<version>-arm64.dmg`
+on Apple Silicon; `npm run desktop:dist:all` also builds `-x64.dmg` for Intel); `npm run desktop` runs it from source. Open the `.dmg` and drag
 **PR Deck** to Applications. It includes everything (no Node, git or npm needed) and keeps its data
 in `~/.prdeck`. If the background server from `npm run app:install` is running, the app uses it.
 
@@ -138,7 +138,8 @@ Settings → MCP shows the exact `claude mcp add` command for your machine. It r
 | `npm run app:update` | Pull the latest version, rebuild and restart (what **Update and restart** runs) |
 | `npm run release -- patch\|minor\|major` | Bump the version, tag, push and create a GitHub Release (installed apps offer the update); `WITH_DESKTOP=1` also attaches the Mac app |
 | `npm run desktop` | Run the Mac app from source |
-| `npm run desktop:dist` | Build the Mac app (`desktop/dist/*.dmg`, unsigned) |
+| `npm run desktop:dist` | Build the Mac app for this Mac (`desktop/dist/*.dmg`, unsigned) |
+| `npm run desktop:dist:all` | Build it for both Apple Silicon and Intel (what releases attach) |
 
 ## Configuration
 

@@ -2,17 +2,39 @@ import { ref } from 'vue'
 import { toast } from 'vue-sonner'
 import type { UpdateStatus } from '@shared/types'
 import { api } from '@/api'
+import { useLayout } from '@/stores/layout'
 
 /** Release check shared by the header pill and the user menu */
 const status = ref<UpdateStatus | null>(null)
 const checking = ref(false)
 const installing = ref(false)
+/** The header's update popover, opened from the toast's "What's new" */
+const popoverOpen = ref(false)
 let timer: number | undefined
+
+/** One toast per new version: "PR Deck X is available", with the action that fits this install */
+function announce(s: UpdateStatus) {
+  const seen = useLayout().view('updates', { announced: '' })
+  if (!s.available || !s.latest || seen.announced === s.latest) return
+  seen.announced = s.latest
+  const action = s.canSelfUpdate
+    ? { label: 'Update', onClick: () => install() }
+    : s.downloadUrl
+      ? { label: 'Download', onClick: () => window.open(s.downloadUrl!, '_blank', 'noopener') }
+      : { label: 'View release', onClick: () => window.open(s.url, '_blank', 'noopener') }
+  toast.info(`PR Deck ${s.latest} is available`, {
+    description: `You have ${s.current}.`,
+    duration: 15_000,
+    action,
+    cancel: { label: 'What’s new', onClick: () => (popoverOpen.value = true) },
+  })
+}
 
 async function load(refresh = false) {
   checking.value = true
   try {
     status.value = await api.updateStatus(refresh)
+    announce(status.value)
     if (refresh && !status.value.available)
       toast.success(status.value.error ? 'Couldn’t check for updates' : `PR Deck ${status.value.current} is the latest`, { description: status.value.error ?? undefined })
   } catch {
@@ -56,5 +78,5 @@ export function useUpdates() {
     load()
     timer = window.setInterval(() => load(), 30 * 60_000)
   }
-  return { status, checking, installing, load, install }
+  return { status, checking, installing, popoverOpen, load, install }
 }

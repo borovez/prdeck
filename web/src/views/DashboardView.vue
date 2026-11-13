@@ -8,7 +8,7 @@ import { useReleaseFlags } from '@/composables/flags'
 import type { PrView } from '@shared/types'
 import { useDeck } from '@/stores/deck'
 import { filterPrs, sortPrs, useLayout, type PanelConfig, type PanelType } from '@/stores/layout'
-import { jiraTone, timeAgo } from '@/utils/format'
+import { jiraTone } from '@/utils/format'
 import { type PrFocus } from '@/utils/prFocus'
 import DashPanel from '@/components/DashPanel.vue'
 import RepoName from '@/components/RepoName.vue'
@@ -316,9 +316,5 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
       </DashPanel>
     </div>
 
-    <p class="text-center text-xs text-muted-foreground">
-      Drag panels by their handle to reorder · pin, collapse, resize and sort from each panel header · layout saves automatically
-      <template v-if="deck.overview?.sync.lastFinishedAt"> · synced {{ timeAgo(deck.overview.sync.lastFinishedAt) }}</template>
-    </p>
   </div>
 </template>

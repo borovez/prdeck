@@ -22,7 +22,7 @@ gh release create "$VERSION" --title "PR Deck $VERSION" --generate-notes
 # The Mac app (unsigned .dmg for Apple Silicon and Intel), attached only when asked: WITH_DESKTOP=1
 if [ "$(uname)" = "Darwin" ] && [ "${WITH_DESKTOP:-}" = "1" ]; then
   echo "Building the Mac app…"
-  npm run desktop:dist
+  npm run desktop:dist:all
   gh release upload "$VERSION" desktop/dist/PR-Deck-*.dmg --clobber
 fi
 echo "Released $VERSION"
