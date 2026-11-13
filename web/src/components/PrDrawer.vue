@@ -27,6 +27,7 @@ import {
   PhNotePencil,
   PhPencilSimple,
   PhMagicWand,
+  PhRobot,
 } from '@phosphor-icons/vue'
 import type { DepEdge, PrDetail, PrView } from '@shared/types'
 import { api } from '@/api'
@@ -425,6 +426,9 @@ const removeDep = (e: DepEdge) => deps.remove(e)
                   <img v-if="issue.typeIconUrl" :src="issue.typeIconUrl" class="size-4" alt="" />
                   <a :href="issue.url" target="_blank" class="font-mono text-sm hover:underline">{{ issue.key }}</a>
                   <span class="flex-1" />
+                  <Button variant="ghost" size="icon-xs" class="text-muted-foreground hover:text-primary" :aria-label="`Prompt for an AI agent to implement ${issue.key}`" title="Prompt for an AI agent" @click="deck.agentPromptKey = issue.key">
+                    <PhRobot />
+                  </Button>
                   <Button variant="ghost" size="icon-xs" class="text-muted-foreground" :aria-label="`Edit ${issue.key}`" title="Edit" @click="deck.composer = { mode: 'edit', key: issue.key }">
                     <PhPencilSimple />
                   </Button>

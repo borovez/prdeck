@@ -30,6 +30,7 @@ import SlackDrawer from '@/components/SlackDrawer.vue'
 import JiraDrawer from '@/components/JiraDrawer.vue'
 import JiraComposer from '@/components/JiraComposer.vue'
 import PrWriter from '@/components/PrWriter.vue'
+import AgentPromptDialog from '@/components/AgentPromptDialog.vue'
 import { onKeyStroke } from '@vueuse/core'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -220,6 +221,7 @@ const needsSetup = computed(() => !!deck.overview && !deck.overview.configured.g
     <JiraDrawer />
     <JiraComposer />
     <PrWriter />
+    <AgentPromptDialog />
     <Toaster :theme="theme === 'auto' ? 'system' : theme" position="bottom-right" close-button />
   </TooltipProvider>
 </template>

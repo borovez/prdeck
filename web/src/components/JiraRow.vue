@@ -8,6 +8,8 @@ import JiraTransition from './JiraTransition.vue'
 import PrListPopover from './PrListPopover.vue'
 import PrRow from './PrRow.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { PhRobot } from '@phosphor-icons/vue'
 
 const props = defineProps<{ issueKey: string; issue: JiraIssueView | null; prs: PrView[]; dense?: boolean }>()
 /** Opens the Jira panel, unless the click was on a linked PR, a link or a button (they do their own thing) */
@@ -36,7 +38,7 @@ const initials = (name: string) =>
 <template>
   <div
     :data-jira-id="issueKey"
-    :class="cn('cursor-pointer px-4 py-3 transition-colors hover:bg-accent/50', deck.selectedJiraKey === issueKey && 'bg-accent/60 ring-2 ring-primary ring-inset')"
+    :class="cn('group cursor-pointer px-4 py-3 transition-colors hover:bg-accent/50', deck.selectedJiraKey === issueKey && 'bg-accent/60 ring-2 ring-primary ring-inset')"
     @click="select"
   >
     <div class="flex items-start gap-2">
@@ -65,6 +67,16 @@ const initials = (name: string) =>
           <span v-if="prSummary">{{ prSummary }}</span>
         </div>
       </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-primary"
+        :aria-label="`Prompt for an AI agent to implement ${issueKey}`"
+        title="Prompt for an AI agent"
+        @click="deck.agentPromptKey = issueKey"
+      >
+        <PhRobot />
+      </Button>
       <JiraTransition v-if="issue" :issue-key="issueKey" />
     </div>
 

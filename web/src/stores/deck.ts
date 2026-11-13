@@ -36,6 +36,8 @@ export const useDeck = defineStore('deck', () => {
   const composer = ref<ComposerTarget | null>(null)
   /** PR whose title and description are open in the PR writer */
   const prWriter = ref<string | null>(null)
+  /** Jira issue whose AI-agent prompt is open */
+  const agentPromptKey = ref<string | null>(null)
 
   const prs = computed(() => overview.value?.prs ?? [])
   const byId = computed(() => new Map(prs.value.map((p) => [p.id, p])))
@@ -128,6 +130,6 @@ export const useDeck = defineStore('deck', () => {
     timer = window.setInterval(() => !syncRunning.value && load(), 60_000)
   }
 
-  return { overview, loading, syncing, syncStatus, syncRunning, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, composer, prWriter, prs, byId,
+  return { overview, loading, syncing, syncStatus, syncRunning, error, selectedId, selectedSlackId, selectedSlack, selectedJiraKey, composer, prWriter, agentPromptKey, prs, byId,
     releaseById, selected, jiraByKey, flagByKey, repos, load, sync, mutate, startPolling }
 })

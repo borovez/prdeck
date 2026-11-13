@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { PhArrowClockwise, PhCheck, PhCopy, PhRobot } from '@phosphor-icons/vue'
 import { api } from '@/api'
+import { useDeck } from '@/stores/deck'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -12,8 +13,9 @@ import { Textarea } from '@/components/ui/textarea'
  * The implementation prompt for a Jira issue, to paste into any AI agent: links to the issue, its parent
  * and related issues, PRs, repos, flags, Slack threads and comments, plus how to work. Editable before copying.
  */
-const props = defineProps<{ issueKey: string }>()
-const open = defineModel<boolean>('open', { required: true })
+const deck = useDeck()
+const issueKey = computed(() => deck.agentPromptKey ?? '')
+const open = computed({ get: () => !!deck.agentPromptKey, set: (v) => !v && (deck.agentPromptKey = null) })
 
 const prompt = ref('')
 const loading = ref(false)
@@ -23,14 +25,14 @@ async function load() {
   loading.value = true
   copied.value = false
   try {
-    prompt.value = (await api.jiraAgentPrompt(props.issueKey)).prompt
+    prompt.value = (await api.jiraAgentPrompt(issueKey.value)).prompt
   } catch (e) {
     toast.error((e as Error).message)
   } finally {
     loading.value = false
   }
 }
-watch(open, (o) => o && load())
+watch(issueKey, (k) => k && load(), { immediate: true })
 
 async function copy() {
   try {

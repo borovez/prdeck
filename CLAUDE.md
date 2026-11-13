@@ -77,7 +77,7 @@ One row per Jira key: my JQL issues plus keys found in PRs, so it works before J
 
 ### Agent prompt (copy-paste brief for any AI agent)
 
-`server/src/agentPrompt.ts` `buildAgentPrompt(key)` builds Markdown from what PR Deck knows (no AI call): issue facts and link, parent, description (headings nested, Jira images noted as not viewable), related issues, linked PRs (release PRs as a "Ships in" line), repos, flags with LaunchDarkly state, Slack threads with the key, latest comments, and how to work (repo CLAUDE.md, branch name, tests, PR title/JIRA section/dependency, flag and deployment rules). `GET /jira/:key/agent-prompt`, the Jira panel's Prompt button (`AgentPromptDialog.vue`: editable, Copy, Rebuild) and the MCP tool `jira_prompt`.
+`server/src/agentPrompt.ts` `buildAgentPrompt(key)` builds Markdown from what PR Deck knows (no AI call): issue facts and link, parent, description (headings nested, Jira images noted as not viewable), related issues, linked PRs (release PRs as a "Ships in" line), repos, flags with LaunchDarkly state, Slack threads with the key, latest comments, and how to work (repo CLAUDE.md, branch name, tests, PR title/JIRA section/dependency, flag and deployment rules). `GET /jira/:key/agent-prompt` and the MCP tool `jira_prompt`. UI: one global `AgentPromptDialog.vue` (editable, Copy, Rebuild) opened with `deck.agentPromptKey = key` from the Jira panel's Prompt button, the robot button on Jira list rows (shown on hover/focus) and on linked issues in the PR panel.
 
 ### PR writer (Claude rewrites a PR's title and description)
 
