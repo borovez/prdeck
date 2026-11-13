@@ -7,7 +7,8 @@
   "type": "module",
   "workspaces": [
     "server",
-    "web"
+    "web",
+    "desktop"
   ],
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
@@ -20,7 +21,9 @@
     "app:logs": "tail -f ~/Library/Logs/PRDeck.log",
     "app:update": "sh scripts/app-update.sh",
     "release": "sh scripts/release.sh",
-    "phone": "sh scripts/phone.sh"
+    "phone": "sh scripts/phone.sh",
+    "desktop": "npm run start -w desktop",
+    "desktop:dist": "npm run dist -w desktop"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

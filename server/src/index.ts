@@ -17,7 +17,8 @@ const app = new Hono()
 app.route('/api', api)
 
 // In production, serve the built Vue app.
-const dist = fileURLToPath(new URL('../../web/dist', import.meta.url))
+// The desktop app bundles the server and points it at its copy of the web app
+const dist = process.env.PRDECK_WEB_DIR ?? fileURLToPath(new URL('../../web/dist', import.meta.url))
 if (existsSync(dist)) {
   app.use('/*', serveStatic({ root: dist }))
   // SPA fallback. Read on each request: a rebuild renames the hashed assets it points to

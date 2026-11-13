@@ -74,6 +74,23 @@ Open <http://localhost:5317> and go to **Settings**:
 Then press **Sync**. With **Auto** on, the server syncs in the background (every 5 minutes by
 default).
 
+## Download the Mac app
+
+Download `PR-Deck-<version>-arm64.dmg` (Apple Silicon) or `-x64.dmg` (Intel) from
+[Releases](https://github.com/borovez/prdeck/releases), open it and drag **PR Deck** to Applications.
+It includes everything (no Node, git or npm needed) and keeps its data in `~/.prdeck`.
+
+The app isn't signed with an Apple Developer ID yet, so the first time macOS says it can't check it:
+right-click PR Deck in Applications → **Open** → **Open** (or System Settings → Privacy & Security →
+**Open Anyway**). After that it opens normally.
+
+Updates: the app checks GitHub for new releases and offers the new `.dmg` (menu **PR Deck → Check for
+Updates…**, and **Update available** in the header). Download it and drag it to Applications,
+replacing the old one; your data stays.
+
+If the background server from `npm run app:install` is running, the app uses it instead of starting
+its own.
+
 ## Install as a Mac app
 
 PR Deck is a Progressive Web App: install it from the browser and it gets a Dock icon, its own
@@ -139,7 +156,9 @@ Settings → MCP shows the exact `claude mcp add` command for your machine. It r
 | `npm run app:logs` | Follow the background server's log |
 | `npm run app:update` | Pull the latest version, rebuild and restart (what **Update and restart** runs) |
 | `npm run phone` | Open PR Deck on an Android phone connected by USB (adb reverse) |
-| `npm run release -- patch\|minor\|major` | Bump the version, tag, push and create a GitHub Release (installed apps offer the update) |
+| `npm run release -- patch\|minor\|major` | Bump the version, tag, push, create a GitHub Release and attach the Mac app (installed apps offer the update) |
+| `npm run desktop` | Run the Mac app from source |
+| `npm run desktop:dist` | Build the Mac app (`desktop/dist/*.dmg`, unsigned) |
 
 ## Configuration
 

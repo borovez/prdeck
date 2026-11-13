@@ -9,7 +9,11 @@ import { kvGet, kvSet } from './db.ts'
 
 const run = promisify(execFile)
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
-const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string; repository?: string }
+/** The desktop app passes its version and how it was installed; a source checkout reads package.json */
+const DESKTOP = process.env.PRDECK_INSTALL === 'desktop'
+const pkg: { version: string; repository?: string } = DESKTOP
+  ? { version: process.env.PRDECK_VERSION ?? '0.0.0' }
+  : JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 export const VERSION = pkg.version
 const REPO = (pkg.repository ?? 'github:borovez/prdeck').replace(/^github:/, '')
 const CHECK_EVERY_MS = 6 * 60 * 60_000
@@ -23,7 +27,9 @@ export function newer(a: string, b: string) {
   return false
 }
 
-type Latest = { version: string; url: string; notes: string; publishedAt: string; checkedAt: string } | { error: string; checkedAt: string }
+type Latest =
+  | { version: string; url: string; notes: string; publishedAt: string; checkedAt: string; downloadUrl?: string | null }
+  | { error: string; checkedAt: string }
 
 /** The newest GitHub release of this repo (no token needed for a public repo); cached six hours */
 async function latestRelease(force: boolean): Promise<Latest> {
@@ -36,8 +42,18 @@ async function latestRelease(force: boolean): Promise<Latest> {
     if (res.status === 404) latest = { version: VERSION, url: `https://github.com/${REPO}/releases`, notes: '', publishedAt: '', checkedAt }
     else if (!res.ok) latest = { error: `GitHub ${res.status}`, checkedAt }
     else {
-      const r = (await res.json()) as { tag_name: string; html_url: string; body: string | null; published_at: string }
-      latest = { version: r.tag_name.replace(/^v/, ''), url: r.html_url, notes: r.body ?? '', publishedAt: r.published_at, checkedAt }
+      const r = (await res.json()) as {
+        tag_name: string
+        html_url: string
+        body: string | null
+        published_at: string
+        assets?: { name: string; browser_download_url: string }[]
+      }
+      // The Mac app's .dmg for this machine's chip, if the release has one
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+      const dmgs = (r.assets ?? []).filter((a) => a.name.endsWith('.dmg'))
+      const dmg = dmgs.find((a) => a.name.includes(arch)) ?? dmgs[0]
+      latest = { version: r.tag_name.replace(/^v/, ''), url: r.html_url, notes: r.body ?? '', publishedAt: r.published_at, checkedAt, downloadUrl: dmg?.browser_download_url ?? null }
     }
   } catch (e) {
     latest = { error: (e as Error).message, checkedAt }
@@ -48,6 +64,7 @@ async function latestRelease(force: boolean): Promise<Latest> {
 
 /** Whether this install can update itself, and why not */
 async function selfUpdate(): Promise<{ can: boolean; reason: string | null }> {
+  if (DESKTOP) return { can: false, reason: 'Download the new version and drag it to Applications (replacing this one).' }
   if (!existsSync(join(ROOT, '.git'))) return { can: false, reason: 'Not installed from a git checkout: download the new version instead.' }
   try {
     const { stdout } = await run('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT })
@@ -69,6 +86,8 @@ export async function updateStatus(force = false): Promise<UpdateStatus> {
     latest: ok ? latest.version : null,
     available: ok && newer(latest.version, VERSION),
     url: ok ? latest.url : `https://github.com/${REPO}/releases`,
+    downloadUrl: ok ? (latest.downloadUrl ?? null) : null,
+    desktop: DESKTOP,
     notes: ok ? latest.notes : '',
     publishedAt: ok ? latest.publishedAt || null : null,
     checkedAt: latest.checkedAt,

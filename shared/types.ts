@@ -427,6 +427,10 @@ export interface UpdateStatus {
   latest: string | null
   available: boolean
   url: string
+  /** The Mac app's .dmg in the release (for desktop installs) */
+  downloadUrl: string | null
+  /** Running inside the desktop app */
+  desktop: boolean
   /** Release notes (Markdown) */
   notes: string
   publishedAt: string | null

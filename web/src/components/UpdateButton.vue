@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhArrowCircleUp, PhArrowSquareOut, PhCircleNotch } from '@phosphor-icons/vue'
+import { PhArrowCircleUp, PhArrowSquareOut, PhCircleNotch, PhDownloadSimple } from '@phosphor-icons/vue'
 import { markdownToAdf } from '@shared/adf'
 import { useUpdates } from '@/composables/updates'
 import { timeAgo } from '@/utils/format'
@@ -34,6 +34,9 @@ const notes = computed(() => markdownToAdf(status.value?.notes ?? ''))
       <p v-else-if="!status.canSelfUpdate && status.reason" class="text-xs text-muted-foreground">{{ status.reason }}</p>
       <div class="flex justify-end gap-2">
         <Button variant="ghost" size="sm" as="a" :href="status.url" target="_blank" rel="noopener"><PhArrowSquareOut /> Release</Button>
+        <Button v-if="!status.canSelfUpdate && status.downloadUrl" size="sm" as="a" :href="status.downloadUrl" target="_blank" rel="noopener">
+          <PhDownloadSimple /> Download {{ status.latest }}
+        </Button>
         <Button v-if="status.canSelfUpdate" size="sm" :disabled="installing" @click="install">
           <PhCircleNotch v-if="installing" class="animate-spin" /> Update and restart
         </Button>

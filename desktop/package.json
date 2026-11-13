@@ -1,0 +1,53 @@
+{
+  "name": "prdeck-desktop",
+  "productName": "PR Deck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PR Deck as a Mac app: the local server and the web app in one window",
+  "license": "MIT",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "start": "npm run bundle && electron .",
+    "dist": "npm run bundle && electron-builder --mac --publish never"
+  },
+  "build": {
+    "appId": "app.prdeck.desktop",
+    "productName": "PR Deck",
+    "files": [
+      "main.mjs",
+      "app/**"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "identity": null
+    },
+    "dmg": {
+      "title": "PR Deck ${version}"
+    },
+    "artifactName": "PR-Deck-${version}-${arch}.${ext}",
+    "asar": false,
+    "electronVersion": "45.3.2"
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2"
+  },
+  "author": "PR Deck"
+}
