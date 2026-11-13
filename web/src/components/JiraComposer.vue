@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { PhArrowCounterClockwise, PhArrowSquareOut, PhArrowsIn, PhArrowsOut, PhCaretRight, PhCheck, PhGitBranch, PhGitPullRequest, PhMagicWand, PhSlackLogo, PhSparkle, PhStop, PhCircleNotch, PhDotsThree, PhKanban, PhX } from '@phosphor-icons/vue'
+import { PhArrowCounterClockwise, PhArrowSquareOut, PhArrowsIn, PhArrowsOut, PhCaretRight, PhCheck, PhGitBranch, PhGitPullRequest, PhSlackLogo, PhSparkle, PhCircleNotch, PhDotsThree, PhKanban, PhX } from '@phosphor-icons/vue'
 import type { JiraAiDraft, JiraFieldMeta, JiraFieldOption, JiraFieldValue, JiraIssueTypeMeta, JiraProjectMeta, JiraValueLabels } from '@shared/types'
 import { api } from '@/api'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import JiraFieldChip from './JiraFieldChip.vue'
+import AiPromptBox from './AiPromptBox.vue'
 import { Checkbox } from '@/components/ui/checkbox'
 import { lineDiff } from '@/utils/lineDiff'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
@@ -412,12 +413,6 @@ function applyProposal() {
   proposal.value = null
 }
 
-function onPromptKey(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-    e.preventDefault()
-    draftWithClaude()
-  }
-}
 
 // ---------- Submit ----------
 
@@ -535,38 +530,17 @@ async function submit() {
       </div>
 
       <!-- Ask Claude: writes or reworks the issue from your request and the context chips -->
-      <div
-        data-ai-images
-        :class="{ 'ai-writing': drafting }"
-        class="mx-4 mt-3 rounded-lg border border-primary/30 bg-linear-to-br from-primary/12 via-primary/6 to-merged/12 shadow-[0_0_24px_-12px_var(--primary)] transition-[border-color,box-shadow] focus-within:border-primary/60 focus-within:shadow-[0_0_28px_-10px_var(--primary)]"
+      <AiPromptBox
+        v-model="aiPrompt"
+        class="mx-4 mt-3"
+        :drafting="drafting"
+        :ready="aiReady && !!project"
+        :placeholder="editKey ? 'What should change? “add acceptance criteria from the comments”, “it’s a bug, priority high”…' : summary || description ? 'Ask Claude to change it: “make it a bug”, “add acceptance criteria”… (paste screenshots here too)' : 'Ask Claude to write it: describe the issue, paste notes, an error or a screenshot…'"
+        :action="editKey ? 'Suggest changes' : drafted || summary || description ? 'Rewrite with Claude' : 'Draft with Claude'"
+        @submit="draftWithClaude"
+        @stop="stopDrafting"
       >
-        <div class="flex items-start gap-2 px-3 pt-2.5">
-          <PhSparkle class="mt-1 size-4 shrink-0 text-primary" :class="{ 'animate-pulse': drafting }" weight="fill" />
-          <textarea
-            v-model="aiPrompt"
-            rows="1"
-            :readonly="drafting"
-            :disabled="!aiReady"
-            :placeholder="aiReady ? (editKey ? 'What should change? “add acceptance criteria from the comments”, “it’s a bug, priority high”…' : summary || description ? 'Ask Claude to change it: “make it a bug”, “add acceptance criteria”… (paste screenshots here too)' : 'Ask Claude to write it: describe the issue, paste notes, an error or a screenshot…') : 'Set up Claude in Settings to draft issues'"
-            class="field-sizing-content max-h-40 min-h-6 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-primary/60 disabled:opacity-60"
-            @keydown="onPromptKey"
-          />
-          <Button v-if="drafting" size="sm" variant="outline" class="h-8 shrink-0 gap-1.5 border-primary/40 px-3" title="Stop Claude" @click="stopDrafting">
-            <PhCircleNotch class="animate-spin text-primary" /> Writing… <PhStop weight="fill" class="text-destructive" /> Stop
-          </Button>
-          <Button
-            v-else
-            size="sm"
-            class="h-8 shrink-0 gap-1.5 bg-linear-to-r from-primary to-merged px-3.5 font-semibold text-white shadow-[0_2px_12px_-2px_var(--primary)] hover:brightness-110 disabled:opacity-50 disabled:shadow-none"
-            :disabled="!canDraft"
-            :title="!aiPrompt.trim() ? 'Type what Claude should write or change' : 'Enter'"
-            @click="draftWithClaude"
-          >
-            <PhMagicWand weight="fill" />
-            {{ editKey ? 'Suggest changes' : drafted || summary || description ? 'Rewrite with Claude' : 'Draft with Claude' }}
-          </Button>
-        </div>
-        <div class="flex flex-wrap items-center gap-1.5 px-3 pt-2 pb-2.5">
+        <template #context>
           <span class="text-xs font-medium text-primary/80">Context</span>
           <JiraFieldChip v-if="project" v-model="prModel" :field="prField" :project="project.key" :icon="PhGitPullRequest" />
           <JiraFieldChip v-if="project" v-model="repoModel" :field="repoField" :project="project.key" :icon="PhGitBranch" />
@@ -586,7 +560,8 @@ async function submit() {
             <PhSlackLogo class="size-3.5" />
             <span class="truncate">{{ slackItem ? `${slackItem.userName} in ${slackItem.channelName}` : 'Slack message' }}</span>
           </span>
-        </div>
+        </template>
+
         <!-- Edit mode: review Claude's changes before they touch the form -->
         <div v-if="proposal" class="border-t border-primary/20 px-3 py-2.5">
           <p class="flex items-start gap-2 text-xs text-muted-foreground">
@@ -637,7 +612,7 @@ async function submit() {
           </p>
           <button v-if="undo" type="button" class="flex shrink-0 items-center gap-1 hover:text-foreground" @click="undoDraft"><PhArrowCounterClockwise /> Undo</button>
         </div>
-      </div>
+      </AiPromptBox>
 
       <div class="mx-4 mt-3 h-px bg-border" />
 

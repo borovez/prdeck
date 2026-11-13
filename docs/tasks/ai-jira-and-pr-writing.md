@@ -104,7 +104,7 @@ Claude Code writes the text itself, so the tools give it what PR Deck knows and 
 
 ---
 
-## Part 2: Pull requests (update only, later)
+## Part 2: Pull requests (update only) ✅
 
 PR Deck never opens PRs; it rewrites an existing PR's **title and description** with Claude:
 
@@ -116,7 +116,7 @@ PR Deck never opens PRs; it rewrites an existing PR's **title and description** 
 - Review as a diff in the PR panel, then Save (PATCH title/body, the same path as dependency writes).
 - Entry point: PR panel **Rewrite with Claude**, with an optional instruction ("shorter", "add deployment steps").
 
-Details to plan when Part 1 is done.
+Built: `PrWriter.vue` (PR panel wand button), `POST /prs/rewrite`, `PUT /prs/text`; dropped dependency and flag lines are put back by the server (`keepDeclarations`).
 
 ---
 

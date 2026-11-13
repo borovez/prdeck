@@ -418,6 +418,26 @@ export interface RepoCatalog {
   errors: string[]
 }
 
+// ---------- PR writer: Claude rewrites a PR's title and description ----------
+
+export interface PrRewriteRequest {
+  prId: PrId
+  prompt: string
+  /** What's in the editor now (Claude reworks this) */
+  current: { title: string; body: string }
+  images?: ImageAttachment[]
+}
+
+export interface PrRewrite {
+  title: string
+  body: string
+  rationale: string
+  /** What Claude was given */
+  used: { claudeMd: boolean; template: string | null; files: number; commits: number; jira: string[] }
+  /** Dependency or flag lines Claude dropped that were put back */
+  kept: string[]
+}
+
 // ---------- Jira issue composer (create and edit) ----------
 
 /**

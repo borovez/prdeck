@@ -26,6 +26,7 @@ import {
   PhXCircle,
   PhNotePencil,
   PhPencilSimple,
+  PhMagicWand,
 } from '@phosphor-icons/vue'
 import type { DepEdge, PrDetail, PrView } from '@shared/types'
 import { api } from '@/api'
@@ -231,6 +232,12 @@ const removeDep = (e: DepEdge) => deps.remove(e)
             </Button>
           </TooltipTrigger>
           <TooltipContent>Resync this PR from GitHub</TooltipContent>
+        </Tooltip>
+        <Tooltip v-if="pr.state === 'OPEN'">
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon-sm" aria-label="Edit title and description" class="text-primary" @click="deck.prWriter = pr.id"><PhMagicWand weight="fill" /></Button>
+          </TooltipTrigger>
+          <TooltipContent>Edit title and description, with Claude</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>

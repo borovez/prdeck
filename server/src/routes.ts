@@ -25,14 +25,16 @@ import {
   setPrBody,
   setSlackStatus,
   upsertJira,
+  setPrTitle,
   updatePrData,
   listReleaseContents,
 } from './db.ts'
-import { draftJiraIssue, envCredentials, testAi } from './ai.ts'
+import { draftJiraIssue, draftPrText, envCredentials, testAi } from './ai.ts'
+import { keepDeclarations } from './prWriter.ts'
 import { claudeMdGuide } from './guides.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
-import { fetchPrsByNodeId, ghCliToken, listRepos, prDetail, prFileNames, whoAmI } from './github.ts'
+import { fetchPrsByNodeId, getPrText, ghCliToken, listRepos, prCommits, prDetail, prFileNames, prTemplate, updatePrText, whoAmI } from './github.ts'
 import {
   addAttachments,
   addComment,
@@ -438,6 +440,94 @@ api.get('/slack/:id/around', async (c) => {
   if (!s.slack?.token || !item) throw bad('Unknown Slack item')
   const n = (q: string | undefined) => Math.min(50, Math.max(0, Number(q ?? 2) || 0))
   return c.json(await messagesAround(s.slack, item, n(c.req.query('before')), n(c.req.query('after'))))
+})
+
+// ---------- PR writer: Claude rewrites a PR's title and description ----------
+
+function prAccount(prId: string) {
+  const s = getSettings()
+  const stored = listPrs().find((p) => p.pr.id === prId)?.pr
+  if (!stored) throw bad(`Unknown PR ${prId}`)
+  const accounts = s.github.accounts.filter((a) => a.token)
+  const acc = accounts.find((a) => a.id === stored.accountId) ?? accountForOwner(accounts, stored.owner)
+  if (!acc) throw bad('No GitHub account for this PR')
+  return { pr: stored, acc }
+}
+
+/** Title and description as they are on GitHub now (the editor starts from these) */
+api.get('/prs/text', async (c) => {
+  const { pr, acc } = prAccount(c.req.query('id') ?? '')
+  return c.json(await getPrText(acc, pr.repo, pr.number))
+})
+
+api.post('/prs/rewrite', async (c) => {
+  const input = z
+    .object({ prId: z.string(), prompt: z.string().default(''), current: z.object({ title: z.string(), body: z.string() }), images: Images })
+    .parse(await c.req.json())
+  if (!input.prompt.trim()) throw bad('Tell Claude what to write or change')
+  const s = getSettings()
+  const { pr, acc } = prAccount(input.prId)
+  const stop = new AbortController()
+  const out = (c.env as { outgoing?: import('node:http').ServerResponse } | undefined)?.outgoing
+  out?.on('close', () => !out.writableFinished && stop.abort())
+
+  const view = buildOverview().prs.find((p) => p.id === pr.id)
+  const [template, claudeMd, detail, commits] = await Promise.all([
+    prTemplate(acc, pr.repo, pr.baseRef).catch(() => null),
+    claudeMdGuide(pr.repo, 'pr').catch(() => null),
+    prDetail(acc, pr.repo, pr.number).catch(() => null),
+    prCommits(acc, pr.repo, pr.number).catch(() => []),
+  ])
+  // Linked Jira issues with their descriptions (first three)
+  const jiraKeys = view?.jiraKeys ?? []
+  const cached = new Map(listJira().map((j) => [j.key, j]))
+  const jira = await Promise.all(
+    jiraKeys.slice(0, 3).map(async (key) => {
+      const j = cached.get(key)
+      const detail = s.jira?.apiToken ? await getIssueDetail(s.jira, key, 0).catch(() => null) : null
+      return { key, summary: j?.summary ?? '', status: j?.status ?? '', url: j?.url ?? '', description: adfToMarkdown(detail?.description) }
+    }),
+  )
+  const facts = [
+    ...(view?.dependsOn ?? []).map((d) => `Depends on ${d.to} (${d.kind === 'release' ? 'needs its release' : 'needs it merged'}${d.satisfied ? ', done' : ''})`),
+    ...(view?.dependents ?? []).map((d) => `${d.from} waits for this PR (${d.kind})`),
+    ...(view?.flags ?? []).map((f) => `Feature flag: ${f}`),
+  ]
+  const draft = await draftPrText(
+    s.ai,
+    {
+      pr: { id: pr.id, title: pr.title, base: pr.baseRef, head: pr.headRef, author: pr.author.login },
+      prompt: input.prompt,
+      current: input.current,
+      claudeMd,
+      template,
+      files: detail?.files ?? [],
+      commits,
+      jira,
+      facts,
+      images: input.images,
+    },
+    stop.signal,
+  )
+  // Never lose a dependency or flag line the description had
+  const { body, kept } = keepDeclarations(input.current.body, draft.body, pr.repo, pr.id)
+  return c.json({
+    title: draft.title,
+    body,
+    rationale: draft.rationale,
+    used: { claudeMd: !!claudeMd, template: template?.path ?? null, files: detail?.files.length ?? 0, commits: commits.length, jira: jiraKeys.slice(0, 3) },
+    kept,
+  })
+})
+
+/** Save a PR's title and/or description to GitHub */
+api.put('/prs/text', async (c) => {
+  const input = z.object({ prId: z.string(), title: z.string().trim().min(1).optional(), body: z.string().optional() }).parse(await c.req.json())
+  const { pr, acc } = prAccount(input.prId)
+  await updatePrText(acc, pr.repo, pr.number, { title: input.title, body: input.body })
+  if (input.title !== undefined) setPrTitle(pr.id, input.title)
+  if (input.body !== undefined) setPrBody(pr.id, input.body)
+  return c.json({ ok: true })
 })
 
 // ---------- Jira composer ----------

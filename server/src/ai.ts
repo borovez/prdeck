@@ -208,3 +208,96 @@ export async function draftJiraIssue(cfg: AiConfig, input: IssueDraftInput, sign
     changeSummary: input.issue ? raw.changeSummary : '',
   }
 }
+
+// ---------- PR writer: title and description of an existing PR ----------
+
+const PR_SYSTEM = `You write pull request titles and descriptions for a software team.
+Follow the repo's pull request template (keep its sections and order; drop only comment-only hints) and the
+rules in its CLAUDE.md (title format, Jira section, dependency and feature-flag lines, deployment steps).
+Describe what the change does and why, from the diff, commits and linked issues; be specific (endpoints,
+tables, components), no filler. Never invent facts: where the template asks for something the material doesn't
+show (how it was tested, deployment specifics), write a short TODO for the author instead of guessing.
+Keep these from the current description exactly as they are: dependency lines (Depends on / Requires release of /
+Blocks / Release blocks), feature flag lines, ticked checklist items, images and links. When the request asks for a
+specific change, change only that and keep the rest.`
+
+export interface PrDraftInput {
+  pr: { id: string; title: string; base: string; head: string; author: string }
+  prompt: string
+  current: { title: string; body: string }
+  claudeMd: string | null
+  template: { path: string; text: string } | null
+  files: { filename: string; status: string; additions: number; deletions: number; patch: string | null }[]
+  commits: string[]
+  jira: { key: string; summary: string; status: string; url: string; description: string }[]
+  facts: string[]
+  images: { name: string; type: string; data: string }[]
+}
+
+export async function draftPrText(cfg: AiConfig, input: PrDraftInput, signal?: AbortSignal) {
+  const schema = z.object({
+    title: z.string().describe('PR title, following the repo conventions'),
+    body: z.string().describe('The full PR description in GitHub Markdown'),
+    rationale: z.string().describe('One sentence: what you changed and anything the author should fill in or check'),
+  })
+  // Diff within a budget: every file listed, patches until ~40k characters
+  let budget = 40_000
+  const diff = input.files
+    .map((f) => {
+      const headLine = `### ${f.filename} (${f.status}, +${f.additions} -${f.deletions})`
+      if (!f.patch || budget <= 0) return headLine
+      const patch = f.patch.slice(0, Math.min(budget, 6000))
+      budget -= patch.length
+      return `${headLine}\n\`\`\`diff\n${patch}${patch.length < f.patch.length ? '\n… (cut)' : ''}\n\`\`\``
+    })
+    .join('\n\n')
+  const prompt = [
+    `Pull request ${input.pr.id} by ${input.pr.author}: ${input.pr.head} → ${input.pr.base}`,
+    input.claudeMd ? `<repo_claude_md>\n${input.claudeMd}\n</repo_claude_md>` : '',
+    input.template ? `<pull_request_template path="${input.template.path}">\n${input.template.text}\n</pull_request_template>` : '',
+    input.jira.length
+      ? `<jira_issues>\n${input.jira.map((j) => `${j.key} [${j.status}] ${j.summary} (${j.url})\n${j.description.slice(0, 2000)}`).join('\n\n')}\n</jira_issues>`
+      : '',
+    input.facts.length ? `<known_from_pr_deck>\n${input.facts.join('\n')}\n</known_from_pr_deck>` : '',
+    input.commits.length ? `<commits>\n${input.commits.slice(0, 60).map((c) => `- ${c.slice(0, 500)}`).join('\n')}\n</commits>` : '',
+    `<diff>\n${diff}\n</diff>`,
+    input.images.length ? `${input.images.length} image(s) are attached above: use what they show.` : '',
+    `<current_title>\n${input.current.title}\n</current_title>`,
+    `<current_description>\n${input.current.body || '(empty)'}\n</current_description>`,
+    `<request>\n${input.prompt.trim()}\n</request>`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  type Raw = { title: string; body: string; rationale: string }
+  if (cfg.provider === 'claude-code') {
+    const { data } = await claudeCodeJson<Raw>({ system: PR_SYSTEM, prompt, schema: z.toJSONSchema(schema), model: cfg.model || 'claude-opus-5-5', signal, images: input.images })
+    return schema.parse(data) as Raw
+  }
+  const response = await aiClient(cfg).beta.messages.parse(
+    {
+      model: cfg.model || 'claude-opus-5-5',
+      max_tokens: 16000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'medium', format: betaZodOutputFormat(schema) },
+      system: PR_SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            ...input.images.map((i) => ({
+              type: 'image' as const,
+              source: { type: 'base64' as const, media_type: i.type as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp', data: i.data },
+            })),
+            { type: 'text' as const, text: prompt },
+          ],
+        },
+      ],
+    },
+    { signal },
+  )
+  if (response.stop_reason === 'refusal') throw new Error('Claude declined to write this description')
+  if (!response.parsed_output) throw new Error(`Claude returned no description (stop_reason: ${response.stop_reason})`)
+  return response.parsed_output as Raw
+}

@@ -153,6 +153,10 @@ export function updatePrData(pr: PrRecord) {
 }
 
 /** Local copy of a PR description after PR Deck edited it on GitHub (the next sync confirms it) */
+export function setPrTitle(id: PrId, title: string) {
+  db.prepare("UPDATE prs SET data = json_set(data, '$.title', ?) WHERE id = ?").run(title, id)
+}
+
 export function setPrBody(id: PrId, body: string) {
   db.prepare("UPDATE prs SET data = json_set(data, '$.body', ?) WHERE id = ?").run(body, id)
 }

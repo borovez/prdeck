@@ -20,7 +20,8 @@ export function lineDiff(before: string, after: string, context = 2): DiffLine[]
   let j = 0
   while (i < a.length || j < b.length) {
     if (i < a.length && j < b.length && a[i] === b[j]) (out.push({ kind: 'same', text: a[i] }), i++, j++)
-    else if (j < b.length && (i >= a.length || lcs[i][j + 1] >= lcs[i + 1][j])) out.push({ kind: 'add', text: b[j++] })
+    // Removed lines before added ones, like git
+    else if (j < b.length && (i >= a.length || lcs[i][j + 1] > lcs[i + 1][j])) out.push({ kind: 'add', text: b[j++] })
     else out.push({ kind: 'del', text: a[i++] })
   }
   // Collapse long unchanged runs

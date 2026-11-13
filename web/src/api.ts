@@ -1,4 +1,4 @@
-import type { AiConfig, ImageAttachment, JiraAiDraft, JiraDraftRequest, RepoCatalog, JiraIssueTypeMeta, JiraCreateMeta, JiraEditable, JiraFieldKind, JiraFieldOption, JiraIssue, JiraProjectMeta, JiraWriteInput, JiraFieldValue, JiraIssueDetail, PrDetail, Overview, Settings, SlackContext, SlackStatus, SyncState } from '@shared/types'
+import type { PrRewrite, PrRewriteRequest, AiConfig, ImageAttachment, JiraAiDraft, JiraDraftRequest, RepoCatalog, JiraIssueTypeMeta, JiraCreateMeta, JiraEditable, JiraFieldKind, JiraFieldOption, JiraIssue, JiraProjectMeta, JiraWriteInput, JiraFieldValue, JiraIssueDetail, PrDetail, Overview, Settings, SlackContext, SlackStatus, SyncState } from '@shared/types'
 
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -42,6 +42,9 @@ export const api = {
   resyncPr: (id: string) => call('POST', '/prs/resync', { id }),
   refreshRelease: (id: string) => call('POST', '/releases/refresh', { id }),
   setMeta: (id: string, note: string | null, pinned: boolean) => call('PUT', '/prs/meta', { id, note, pinned }),
+  prText: (id: string) => call<{ title: string; body: string }>('GET', `/prs/text?id=${encodeURIComponent(id)}`),
+  prRewrite: (input: PrRewriteRequest, signal?: AbortSignal) => call<PrRewrite>('POST', '/prs/rewrite', input, signal),
+  savePrText: (input: { prId: string; title?: string; body?: string }) => call<{ ok: boolean }>('PUT', '/prs/text', input),
   jiraProjects: () => call<JiraProjectMeta[]>('GET', '/jira/projects'),
   jiraMeta: (project: string, type?: string) =>
     call<JiraCreateMeta>('GET', `/jira/meta?project=${encodeURIComponent(project)}${type ? `&type=${encodeURIComponent(type)}` : ''}`),

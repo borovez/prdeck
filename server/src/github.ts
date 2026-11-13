@@ -496,14 +496,46 @@ export async function releaseContents(
 // ---------- PR description edits ----------
 
 /** A text file from a repo's default branch, or null when it isn't there */
-export async function repoFile(account: GithubAccount, repo: string, path: string): Promise<string | null> {
+export async function repoFile(account: GithubAccount, repo: string, path: string, ref?: string): Promise<string | null> {
   try {
-    const r = await request<{ content?: string; encoding?: string }>(account.token, `/repos/${repo}/contents/${path}`)
+    const r = await request<{ content?: string; encoding?: string }>(account.token, `/repos/${repo}/contents/${path}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`)
     return r.content && r.encoding === 'base64' ? Buffer.from(r.content, 'base64').toString('utf8') : null
   } catch (e) {
     if (e instanceof GithubError && e.status === 404) return null
     throw e
   }
+}
+
+/** The repo's pull request template on a branch: the usual single-file places, else the first file of a template folder */
+export async function prTemplate(account: GithubAccount, repo: string, ref: string): Promise<{ path: string; text: string } | null> {
+  for (const path of ['.github/pull_request_template.md', '.github/PULL_REQUEST_TEMPLATE.md', 'pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md', 'docs/pull_request_template.md', 'docs/PULL_REQUEST_TEMPLATE.md']) {
+    const text = await repoFile(account, repo, path, ref)
+    if (text) return { path, text }
+  }
+  try {
+    const dir = await request<{ name: string; path: string; type: string }[]>(account.token, `/repos/${repo}/contents/.github/PULL_REQUEST_TEMPLATE?ref=${encodeURIComponent(ref)}`)
+    const file = dir.find((f) => f.type === 'file' && /\.md$/i.test(f.name))
+    const text = file ? await repoFile(account, repo, file.path, ref) : null
+    return file && text ? { path: file.path, text } : null
+  } catch {
+    return null
+  }
+}
+
+/** A PR's commits (first 100): first line and body of each message */
+export async function prCommits(account: GithubAccount, repo: string, number: number): Promise<string[]> {
+  const commits = await request<{ commit: { message: string } }[]>(account.token, `/repos/${repo}/pulls/${number}/commits?per_page=100`)
+  return commits.map((c) => c.commit.message.trim())
+}
+
+/** Title and description now on GitHub */
+export async function getPrText(account: GithubAccount, repo: string, number: number): Promise<{ title: string; body: string }> {
+  const pr = await request<{ title: string; body: string | null }>(account.token, `/repos/${repo}/pulls/${number}`)
+  return { title: pr.title, body: pr.body ?? '' }
+}
+
+export async function updatePrText(account: GithubAccount, repo: string, number: number, text: { title?: string; body?: string }): Promise<void> {
+  await request(account.token, `/repos/${repo}/pulls/${number}`, { method: 'PATCH', body: JSON.stringify(text) })
 }
 
 /** Changed file paths of a PR (first 100), for context */
