@@ -10,7 +10,6 @@ import ViewMenu, { type ViewSection } from '@/components/ViewMenu.vue'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -53,7 +52,7 @@ const chips = computed(() =>
 
 <template>
   <!-- Width cap on the children, not the page, so the scrollbar sits at the far right -->
-  <div class="h-page flex flex-col gap-4 *:max-w-5xl">
+  <div class="flex flex-col gap-4 *:max-w-5xl">
     <Alert v-if="!deck.overview?.configured.slack">
       <PhSlackLogo />
       <AlertTitle>Slack isn't connected yet</AlertTitle>
@@ -76,15 +75,13 @@ const chips = computed(() =>
       <span class="flex-1" />
       <ViewMenu :state="v" :sections="viewSections" :defaults="VIEW_DEFAULTS" />
     </div>
-    <ScrollArea type="auto" class="min-h-0 flex-1 max-w-none!">
-      <!-- p-px keeps the card's ring inside the clipping viewport -->
-      <div class="max-w-5xl p-px">
+    <!-- The page scrolls (native scrollbar at the window edge, like Settings) -->
+    <div>
         <!-- overflow-visible: Card clips by default, which would make it the sticky container for the headings -->
         <Card class="gap-0 overflow-visible py-0">
           <SlackList :items="items" sticky class="[&>section:first-child>h3]:rounded-t-xl [&>section:last-child_[data-slack-id]:last-child]:rounded-b-xl" />
           <div v-if="!items.length" class="py-12 text-center text-muted-foreground">Nothing here.</div>
         </Card>
-      </div>
-    </ScrollArea>
+    </div>
   </div>
 </template>
