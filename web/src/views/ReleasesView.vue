@@ -178,7 +178,7 @@ async function refresh(id: string) {
             </template>
             <div class="space-y-2">
               <div class="flex items-center gap-2 rounded-md bg-muted/50">
-                <PrRow :pr="r" compact class="min-w-0 flex-1" />
+                <PrRow :pr="r" compact class="min-w-0 flex-1" :hide="['contents']" />
                 <Button variant="ghost" size="icon-sm" class="mr-1.5" :disabled="refreshing === r.id" :title="refreshing === r.id ? 'Reading the release from GitHub…' : 'Re-read the release from GitHub'" @click="refresh(r.id)">
                   <PhArrowsClockwise :class="{ 'animate-spin': refreshing === r.id }" />
                 </Button>

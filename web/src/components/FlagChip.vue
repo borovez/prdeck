@@ -3,15 +3,20 @@ import { computed } from 'vue'
 import { PhFlag } from '@phosphor-icons/vue'
 import { useDeck } from '@/stores/deck'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import PrListPopover from './PrListPopover.vue'
+import { useFlagPrs } from '@/composables/flags'
 
 /** One feature flag as a chip: green when on in the first environment, muted when off or unknown; opens LaunchDarkly */
 const props = defineProps<{ flagKey: string }>()
 const deck = useDeck()
 const flag = computed(() => deck.flagByKey.get(props.flagKey))
+const flagPrs = useFlagPrs()
+const prIds = computed(() => flagPrs(props.flagKey))
 const on = computed(() => flag.value?.envs[0]?.on)
 </script>
 
 <template>
+  <span class="inline-flex items-center gap-1">
   <Tooltip>
     <TooltipTrigger as-child>
       <a
@@ -32,4 +37,6 @@ const on = computed(() => flag.value?.envs[0]?.on)
       <span v-else>{{ flag?.error ?? (deck.overview?.configured.launchdarkly ? 'Not synced yet' : 'LaunchDarkly not connected') }}</span>
     </TooltipContent>
   </Tooltip>
+  <PrListPopover v-if="prIds.length" compact :ids="prIds" :placeholder="`Go to a PR using ${flagKey}…`" />
+  </span>
 </template>

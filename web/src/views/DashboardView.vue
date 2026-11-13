@@ -12,6 +12,7 @@ import { jiraTone, timeAgo } from '@/utils/format'
 import { type PrFocus } from '@/utils/prFocus'
 import DashPanel from '@/components/DashPanel.vue'
 import RepoName from '@/components/RepoName.vue'
+import PrListPopover from '@/components/PrListPopover.vue'
 import PrRow from '@/components/PrRow.vue'
 import SlackList from '@/components/SlackList.vue'
 import { Badge } from '@/components/ui/badge'
@@ -250,7 +251,7 @@ const stepDone = (id: string) => stateOf(id)?.state === 'MERGED' && (stateOf(id)
               <img v-if="j.typeIconUrl" :src="j.typeIconUrl" class="size-4" alt="" />
               <span class="font-mono text-xs">{{ j.key }}</span>
               <span class="flex-1 truncate">{{ j.summary }}</span>
-              <Badge v-if="j.prs.length" variant="muted">{{ j.prs.length }} PR</Badge>
+              <PrListPopover v-if="j.prs.length" :ids="j.prs" :placeholder="`Go to a PR for ${j.key}…`" />
               <Badge :variant="jiraTone(j.statusCategory)">{{ j.status }}</Badge>
             </a>
           </template>

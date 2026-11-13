@@ -5,6 +5,7 @@ import { useDeck } from '@/stores/deck'
 import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import JiraTransition from './JiraTransition.vue'
+import PrListPopover from './PrListPopover.vue'
 import PrRow from './PrRow.vue'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
@@ -60,13 +61,14 @@ const initials = (name: string) =>
           <span v-if="issue?.parent" :title="issue.parent.summary">in <span class="font-mono">{{ issue.parent.key }}</span></span>
           <span v-if="issue?.fixVersions.length">{{ issue.fixVersions.join(', ') }}</span>
           <span v-if="issue">updated {{ timeAgo(issue.updated) }}</span>
+          <PrListPopover v-if="dense && prs.length" compact :ids="prs.map((p) => p.id)" :placeholder="`Go to a PR for ${issueKey}…`" />
           <span v-if="prSummary">{{ prSummary }}</span>
         </div>
       </div>
       <JiraTransition v-if="issue" :issue-key="issueKey" />
     </div>
 
-    <div v-if="prs.length" class="mt-1 ml-1.5 border-l pl-2">
+    <div v-if="prs.length && !dense" class="mt-1 ml-1.5 border-l pl-2">
       <PrRow v-for="p in prs" :key="p.id" :pr="p" compact />
     </div>
     <div v-else-if="!dense" class="mt-1 ml-6 text-xs text-muted-foreground">No linked pull requests</div>

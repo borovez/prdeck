@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import ThreadCount from './ThreadCount.vue'
 import FlagStatus from './FlagStatus.vue'
 import RepoName from './RepoName.vue'
+import PrListPopover from './PrListPopover.vue'
 
 /**
  * Compact PR card (graph nodes, board columns). `pr` is null for a PR that isn't synced yet.
@@ -17,6 +18,10 @@ import RepoName from './RepoName.vue'
  */
 const props = defineProps<{ id: string; pr: PrView | null; isNext?: boolean; accent?: string; selected?: boolean; class?: HTMLAttributes['class'] }>()
 const deck = useDeck()
+/** Release PRs: what they ship */
+const contents = computed(() => deck.releaseById.get(props.id))
+const contentIds = computed(() => contents.value?.items.map((i) => i.id) ?? [])
+const contentItem = (id: string) => contents.value?.items.find((i) => i.id === id)
 const check = computed(() => (props.pr ? CHECK_STYLE[props.pr.checks.state] : null))
 const jira = computed(() => {
   const key = props.pr?.jiraKeys[0]
@@ -54,6 +59,7 @@ const jira = computed(() => {
         <span class="flex-1" />
         <Badge v-if="isNext" variant="primary" class="h-4 gap-0.5 px-1.5 text-[10px]"><PhArrowRight />Next</Badge>
         <template v-if="pr">
+          <PrListPopover v-if="contentIds.length" compact :ids="contentIds" :fallback="contentItem" placeholder="Go to a PR in this release…" />
           <ThreadCount :pr="pr" />
       <FlagStatus :keys="pr.flags" />
           <span v-if="pr.state === 'OPEN' && check" :title="check.label" class="flex shrink-0">

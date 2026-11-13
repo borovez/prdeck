@@ -22,12 +22,17 @@ import PrHover from './PrHover.vue'
 import RepoName from './RepoName.vue'
 import ThreadCount from './ThreadCount.vue'
 import FlagStatus from './FlagStatus.vue'
+import PrListPopover from './PrListPopover.vue'
 
 /** preview: hover preview (off for rows inside side panels) */
 const props = withDefaults(defineProps<{ pr: PrView; compact?: boolean; preview?: boolean; class?: HTMLAttributes['class']; /** Flags to show instead of the PR's own (e.g. a release's roll-up) */ flags?: string[]; /** Parts to leave out (PR_PROPERTIES keys) */ hide?: string[] }>(), { preview: true })
 const deck = useDeck()
 const check = computed(() => CHECK_STYLE[props.pr.checks.state])
 const show = (part: string) => !props.hide?.includes(part)
+/** Release PRs: what they ship */
+const contents = computed(() => deck.releaseById.get(props.pr.id))
+const contentIds = computed(() => contents.value?.items.map((i) => i.id) ?? [])
+const contentItem = (id: string) => contents.value?.items.find((i) => i.id === id)
 const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).length)
 </script>
 
@@ -94,6 +99,13 @@ const openDeps = computed(() => props.pr.dependsOn.filter((d) => !d.satisfied).l
       <PhGitMerge v-else-if="pr.state === 'MERGED'" :size="18" class="text-merged" />
       </template>
       <PhRocketLaunch v-if="pr.release?.released && show('release')" :size="16" class="text-success" />
+      <!-- Release PRs: what they ship -->
+      <PrListPopover
+        v-if="contentIds.length && show('contents')"
+        :ids="contentIds"
+        :fallback="contentItem"
+        placeholder="Go to a PR in this release…"
+      />
       <!-- Extra badges from the parent (e.g. "release · 13" in release contents) -->
       <slot name="badges" />
       <Badge v-if="show('action')" :variant="ACTION_TONE[pr.action.kind]">{{ pr.action.label }}</Badge>

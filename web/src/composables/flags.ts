@@ -9,3 +9,13 @@ export function useReleaseFlags() {
     return [...new Set([...own, ...shipped])]
   }
 }
+
+/** PRs whose description names a flag, open first, then most recently updated */
+export function useFlagPrs() {
+  const deck = useDeck()
+  return (flagKey: string): string[] =>
+    deck.prs
+      .filter((p) => p.flags.includes(flagKey))
+      .sort((a, b) => Number(b.state === 'OPEN') - Number(a.state === 'OPEN') || b.updatedAt.localeCompare(a.updatedAt))
+      .map((p) => p.id)
+}
