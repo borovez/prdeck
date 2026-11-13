@@ -1,6 +1,6 @@
 #!/bin/sh
 # Publishes a PR Deck release: bumps the version (patch, minor or major), tags it, pushes, creates
-# a GitHub Release with generated notes, and attaches the Mac app (.dmg; SKIP_DESKTOP=1 to skip). Installed apps see it within a few hours (or on "Check for
+# a GitHub Release with generated notes, and with WITH_DESKTOP=1 attaches the Mac app (.dmg). Installed apps see it within a few hours (or on "Check for
 # updates") and offer to update.   Usage: npm run release -- minor
 set -eu
 
@@ -19,8 +19,8 @@ VERSION="$(npm version "$BUMP" -m "Release v%s")"
 git push --follow-tags
 gh release create "$VERSION" --title "PR Deck $VERSION" --generate-notes
 
-# The Mac app (unsigned .dmg for Apple Silicon and Intel), attached to the release
-if [ "$(uname)" = "Darwin" ] && [ "${SKIP_DESKTOP:-}" != "1" ]; then
+# The Mac app (unsigned .dmg for Apple Silicon and Intel), attached only when asked: WITH_DESKTOP=1
+if [ "$(uname)" = "Darwin" ] && [ "${WITH_DESKTOP:-}" = "1" ]; then
   echo "Building the Mac app…"
   npm run desktop:dist
   gh release upload "$VERSION" desktop/dist/PR-Deck-*.dmg --clobber

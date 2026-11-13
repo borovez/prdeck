@@ -21,7 +21,6 @@
     "app:logs": "tail -f ~/Library/Logs/PRDeck.log",
     "app:update": "sh scripts/app-update.sh",
     "release": "sh scripts/release.sh",
-    "phone": "sh scripts/phone.sh",
     "desktop": "npm run start -w desktop",
     "desktop:dist": "npm run dist -w desktop"
   },

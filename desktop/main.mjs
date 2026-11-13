@@ -1,8 +1,9 @@
 // PR Deck for Mac: starts the bundled server (or reuses one already running, e.g. the background
 // service from `npm run app:install`), opens the app in a window, and checks GitHub for new releases.
-import { app, BrowserWindow, dialog, shell, Menu } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, powerMonitor, shell, systemPreferences } from 'electron'
 import { spawn } from 'node:child_process'
-import { createWriteStream, mkdirSync } from 'node:fs'
+import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +16,60 @@ const LOG = join(homedir(), 'Library', 'Logs', 'PRDeck-desktop.log')
 
 let server = null
 let window = null
+
+// ---------- Lock: Touch ID (or the Mac password) before the app shows anything ----------
+
+const PREFS = join(app.getPath('userData'), 'prefs.json')
+const prefs = (() => {
+  try {
+    return { requireUnlock: true, ...JSON.parse(readFileSync(PREFS, 'utf8')) }
+  } catch {
+    return { requireUnlock: true }
+  }
+})()
+const savePrefs = () => writeFileSync(PREFS, JSON.stringify(prefs, null, 2))
+let locked = prefs.requireUnlock
+
+/** Touch ID where the Mac has it, else the standard macOS password prompt */
+async function authenticate() {
+  if (systemPreferences.canPromptTouchID()) {
+    try {
+      await systemPreferences.promptTouchID('unlock PR Deck')
+      return { ok: true }
+    } catch (e) {
+      // Cancelled or too many tries: offer the password instead of giving up
+      if (!/cancel/i.test(String(e?.message))) return passwordPrompt()
+      return { ok: false, message: 'Cancelled' }
+    }
+  }
+  return passwordPrompt()
+}
+function passwordPrompt() {
+  // macOS's own authentication dialog (offers Touch ID too where it can); needs an admin account
+  return new Promise((resolve) =>
+    execFile(
+      '/usr/bin/osascript',
+      ['-e', 'do shell script "true" with prompt "PR Deck wants to unlock." with administrator privileges'],
+      (err) => resolve(err ? { ok: false, message: /cancel/i.test(String(err.message)) ? 'Cancelled' : 'Not unlocked' } : { ok: true }),
+    ),
+  )
+}
+
+function showLock() {
+  locked = true
+  window?.loadFile(join(HERE, 'lock.html'))
+}
+ipcMain.handle('prdeck:unlock', async () => {
+  const r = await authenticate()
+  if (r.ok) {
+    locked = false
+    window?.loadURL(BASE)
+  }
+  return r
+})
+// Lock again when the screen locks or the Mac sleeps
+powerMonitor.on('lock-screen', () => prefs.requireUnlock && showLock())
+powerMonitor.on('suspend', () => prefs.requireUnlock && showLock())
 
 if (!app.requestSingleInstanceLock()) app.quit()
 app.on('second-instance', () => {
@@ -67,15 +122,19 @@ function createWindow() {
     minHeight: 600,
     title: 'PR Deck',
     backgroundColor: '#09090b',
-    webPreferences: { contextIsolation: true, sandbox: true },
+    webPreferences: { contextIsolation: true, sandbox: true, preload: join(HERE, 'preload.cjs') },
   })
-  window.loadURL(BASE)
+  if (locked) window.loadFile(join(HERE, 'lock.html'))
+  else window.loadURL(BASE)
   // Links and popups (GitHub, Jira, Slack) open in the browser
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url)
     return { action: 'deny' }
   })
   window.webContents.on('will-navigate', (e, url) => {
+    if (url.startsWith('file:')) return
+    // While locked, nothing but the lock screen loads
+    if (locked) return e.preventDefault()
     if (!url.startsWith(BASE)) (e.preventDefault(), shell.openExternal(url))
   })
   window.on('closed', () => (window = null))
@@ -124,6 +183,18 @@ function setMenu() {
       submenu: [
         { role: 'about' },
         { label: 'Check for Updates…', click: () => checkForUpdate(true) },
+        {
+          label: 'Require Unlock',
+          type: 'checkbox',
+          checked: prefs.requireUnlock,
+          click: async (item) => {
+            // Turning it off needs an unlock too
+            if (!item.checked && !(await authenticate()).ok) return (item.checked = true)
+            prefs.requireUnlock = item.checked
+            savePrefs()
+          },
+        },
+        { label: 'Lock Now', accelerator: 'CmdOrCtrl+L', click: () => showLock() },
         { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },

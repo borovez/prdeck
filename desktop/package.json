@@ -17,6 +17,8 @@
     "productName": "PR Deck",
     "files": [
       "main.mjs",
+      "preload.cjs",
+      "lock.html",
       "app/**"
     ],
     "directories": {

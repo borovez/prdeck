@@ -74,22 +74,19 @@ Open <http://localhost:5317> and go to **Settings**:
 Then press **Sync**. With **Auto** on, the server syncs in the background (every 5 minutes by
 default).
 
-## Download the Mac app
+## Mac app
 
-Download `PR-Deck-<version>-arm64.dmg` (Apple Silicon) or `-x64.dmg` (Intel) from
-[Releases](https://github.com/borovez/prdeck/releases), open it and drag **PR Deck** to Applications.
-It includes everything (no Node, git or npm needed) and keeps its data in `~/.prdeck`.
+`npm run desktop:dist` builds PR Deck as a Mac app (`desktop/dist/PR-Deck-<version>-arm64.dmg` for
+Apple Silicon, `-x64.dmg` for Intel); `npm run desktop` runs it from source. Open the `.dmg` and drag
+**PR Deck** to Applications. It includes everything (no Node, git or npm needed) and keeps its data
+in `~/.prdeck`. If the background server from `npm run app:install` is running, the app uses it.
+
+It asks for Touch ID (or your Mac password) when it opens, and again after the screen locks or the
+Mac sleeps (PR Deck menu → Require Unlock; Lock Now with ⌘L).
 
 The app isn't signed with an Apple Developer ID yet, so the first time macOS says it can't check it:
-right-click PR Deck in Applications → **Open** → **Open** (or System Settings → Privacy & Security →
-**Open Anyway**). After that it opens normally.
-
-Updates: the app checks GitHub for new releases and offers the new `.dmg` (menu **PR Deck → Check for
-Updates…**, and **Update available** in the header). Download it and drag it to Applications,
-replacing the old one; your data stays.
-
-If the background server from `npm run app:install` is running, the app uses it instead of starting
-its own.
+right-click PR Deck in Applications → **Open** → **Open**. It checks GitHub for new releases (menu
+**PR Deck → Check for Updates…**) and offers the new `.dmg` when a release has one.
 
 ## Install as a Mac app
 
@@ -121,22 +118,6 @@ in the header, with the release notes and **Update and restart** (it pulls, inst
 restarts the background server, then reloads). By hand: `npm run app:update`. The user menu shows the
 version and **Check for updates**.
 
-### On an Android phone (USB-C)
-
-With the phone connected by cable and USB debugging on (Settings → About phone → Software information
-→ tap Build number 7 times; then Developer options → USB debugging), run `npm run phone` (needs
-`brew install android-platform-tools`). It forwards the phone's `localhost:4317` to your Mac and opens
-PR Deck in Chrome; Chrome menu → Add to home screen → Install. It works while the cable is connected
-(run it again after reconnecting); the server and your tokens stay on the Mac.
-
-Removing: `npm run app:uninstall` stops the server and removes it from login. Remove the app itself
-like any other app (in Chrome, its window menu → *Uninstall*; for Safari web apps, drag it out of
-`~/Applications`). Your data in `~/.prdeck` stays.
-
-The background server and `npm run dev` both use port 4317 by default, so stop one before starting
-the other (`npm run app:uninstall`, or give the service another port with
-`PRDECK_PORT=4320 npm run app:install`).
-
 ### Use from Claude Code
 
 Settings → MCP shows the exact `claude mcp add` command for your machine. It runs `npm run mcp`
@@ -155,8 +136,7 @@ Settings → MCP shows the exact `claude mcp add` command for your machine. It r
 | `npm run app:uninstall` | Stop the background server and remove it from login |
 | `npm run app:logs` | Follow the background server's log |
 | `npm run app:update` | Pull the latest version, rebuild and restart (what **Update and restart** runs) |
-| `npm run phone` | Open PR Deck on an Android phone connected by USB (adb reverse) |
-| `npm run release -- patch\|minor\|major` | Bump the version, tag, push, create a GitHub Release and attach the Mac app (installed apps offer the update) |
+| `npm run release -- patch\|minor\|major` | Bump the version, tag, push and create a GitHub Release (installed apps offer the update); `WITH_DESKTOP=1` also attaches the Mac app |
 | `npm run desktop` | Run the Mac app from source |
 | `npm run desktop:dist` | Build the Mac app (`desktop/dist/*.dmg`, unsigned) |
 
@@ -172,8 +152,14 @@ Settings → MCP shows the exact `claude mcp add` command for your machine. It r
 ## Security
 
 - The API only listens on loopback (`127.0.0.1`) and never returns stored tokens to the browser.
-- Tokens are stored unencrypted in the local database under `PRDECK_DATA_DIR`. Protect that folder
-  like any other credentials file.
+- On macOS, tokens and keys live in the **macOS Keychain** (items named "PR Deck: …", visible in
+  Keychain Access); the database only notes that they're there. Older installs move their tokens
+  there on first start and the database is rewritten so no copy is left. Elsewhere (or with
+  `PRDECK_KEYCHAIN=0`) they stay in the database under `PRDECK_DATA_DIR`: protect that folder like
+  any other credentials file.
+- The Mac app asks for **Touch ID** (or your Mac password) when it opens, when the screen locks and
+  when the Mac sleeps (PR Deck menu → Require Unlock; Lock Now with ⌘L). This locks the app window;
+  the local server itself still answers on `127.0.0.1` for this Mac (browser, Claude Code).
 - Drafting through Claude Code runs `claude -p` in safe mode with no tools and no saved session.
 
 ## Stack

@@ -20,6 +20,7 @@ import type {
   SyncState,
 } from '../../shared/types.ts'
 import { DEFAULT_SETTINGS } from '../../shared/types.ts'
+import { deleteSecret, KEYCHAIN_MARK, keychainEnabled, readSecret, writeSecret } from './secrets.ts'
 
 export const DATA_DIR = process.env.PRDECK_DATA_DIR ?? join(homedir(), '.prdeck')
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 })
@@ -27,6 +28,8 @@ export const DB_PATH = join(DATA_DIR, 'prdeck.db')
 
 // Shared by the API server and the MCP server (separate processes) – WAL keeps that safe.
 export const db = new DatabaseSync(DB_PATH)
+// Freed pages are zeroed, so old values (e.g. tokens moved to the Keychain) don't linger in the file
+db.exec('PRAGMA secure_delete = ON')
 try {
   chmodSync(DB_PATH, 0o600) // tokens live in here
 } catch {}
@@ -77,8 +80,54 @@ export function kvSet(key: string, value: unknown) {
   )
 }
 
-export function getSettings(): Settings {
+// ---------- Secrets: in the macOS Keychain, a marker in the database (see secrets.ts) ----------
+
+type Slot = { name: string; label: string; get: () => string | undefined; set: (v: string) => void }
+/** Every secret in a settings object, with where it lives */
+function secretSlots(s: Partial<Settings>): Slot[] {
+  const slots: Slot[] = (s.github?.accounts ?? []).map((a) => ({
+    name: `github:${a.id}`,
+    label: `PR Deck: GitHub token (${a.label || a.login || a.id})`,
+    get: () => a.token,
+    set: (v) => (a.token = v),
+  }))
+  if (s.jira) slots.push({ name: 'jira', label: 'PR Deck: Jira API token', get: () => s.jira!.apiToken, set: (v) => (s.jira!.apiToken = v) })
+  if (s.slack) slots.push({ name: 'slack', label: 'PR Deck: Slack token', get: () => s.slack!.token, set: (v) => (s.slack!.token = v) })
+  if (s.launchdarkly)
+    slots.push({ name: 'launchdarkly', label: 'PR Deck: LaunchDarkly token', get: () => s.launchdarkly!.apiToken, set: (v) => (s.launchdarkly!.apiToken = v) })
+  if (s.ai) slots.push({ name: 'anthropic', label: 'PR Deck: Anthropic API key', get: () => s.ai!.apiKey, set: (v) => (s.ai!.apiKey = v) })
+  return slots
+}
+
+/** Settings as stored, with secrets read from the Keychain; plaintext secrets left in the database move there first */
+function storedSettings(): Partial<Settings> {
   const s = kvGet<Partial<Settings>>('settings', {})
+  if (!keychainEnabled) return s
+  let moved = false
+  for (const slot of secretSlots(s)) {
+    const v = slot.get()
+    if (!v || v === KEYCHAIN_MARK) continue
+    // Only blanked in the database once the Keychain read it back identically
+    writeSecret(slot.name, v, slot.label)
+    slot.set(KEYCHAIN_MARK)
+    moved = true
+  }
+  if (moved) {
+    kvSet('settings', s)
+    // Rewrite the file so the old plaintext isn't left in free pages or the write-ahead log
+    try {
+      db.exec('VACUUM')
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+    } catch {
+      /* busy: secure_delete still zeroes the old pages as they're reused */
+    }
+  }
+  for (const slot of secretSlots(s)) if (slot.get() === KEYCHAIN_MARK) slot.set(readSecret(slot.name) ?? '')
+  return s
+}
+
+export function getSettings(): Settings {
+  const s = storedSettings()
   return {
     ...DEFAULT_SETTINGS,
     ...s,
@@ -103,7 +152,28 @@ export function getSettings(): Settings {
     slack: s.slack ? { lookbackDays: 7, maxConversations: 40, includeSaved: true, todoReactions: ['todo', 'eyes', 'bookmark'], doneReactions: ['white_check_mark', 'heavy_check_mark', 'done'], ...(s.slack as Partial<NonNullable<Settings['slack']>>), token: s.slack.token, userId: s.slack.userId ?? null, teamUrl: s.slack.teamUrl ?? null } : null,
   }
 }
-export const saveSettings = (s: Settings) => kvSet('settings', s)
+export function saveSettings(s: Settings) {
+  if (!keychainEnabled) return kvSet('settings', s)
+  const out = structuredClone(s)
+  const before = new Map(secretSlots(kvGet<Partial<Settings>>('settings', {})).map((x) => [x.name, x.get()]))
+  for (const slot of secretSlots(out)) {
+    const v = slot.get()
+    if (v && v !== KEYCHAIN_MARK) {
+      if (readSecret(slot.name) !== v) writeSecret(slot.name, v, slot.label)
+      slot.set(KEYCHAIN_MARK)
+    } else if (!v) {
+      // Cleared on purpose, or unreadable (a locked keychain): only delete what can be read, else keep the reference
+      if (readSecret(slot.name) !== null) {
+        deleteSecret(slot.name)
+        slot.set('')
+      } else slot.set(before.get(slot.name) === KEYCHAIN_MARK ? KEYCHAIN_MARK : '')
+    }
+  }
+  // Secrets of accounts or integrations that were removed
+  const keep = new Set(secretSlots(out).map((x) => x.name))
+  for (const slot of secretSlots(kvGet<Partial<Settings>>('settings', {}))) if (!keep.has(slot.name)) deleteSecret(slot.name)
+  kvSet('settings', out)
+}
 
 const EMPTY_SYNC: SyncState = {
   running: false,
