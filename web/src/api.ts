@@ -45,6 +45,7 @@ export const api = {
   prText: (id: string) => call<{ title: string; body: string }>('GET', `/prs/text?id=${encodeURIComponent(id)}`),
   prRewrite: (input: PrRewriteRequest, signal?: AbortSignal) => call<PrRewrite>('POST', '/prs/rewrite', input, signal),
   savePrText: (input: { prId: string; title?: string; body?: string }) => call<{ ok: boolean }>('PUT', '/prs/text', input),
+  jiraAgentPrompt: (key: string) => call<{ prompt: string }>('GET', `/jira/${encodeURIComponent(key)}/agent-prompt`),
   jiraProjects: () => call<JiraProjectMeta[]>('GET', '/jira/projects'),
   jiraMeta: (project: string, type?: string) =>
     call<JiraCreateMeta>('GET', `/jira/meta?project=${encodeURIComponent(project)}${type ? `&type=${encodeURIComponent(type)}` : ''}`),

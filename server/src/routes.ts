@@ -31,6 +31,7 @@ import {
 } from './db.ts'
 import { draftJiraIssue, draftPrText, envCredentials, testAi } from './ai.ts'
 import { keepDeclarations } from './prWriter.ts'
+import { buildAgentPrompt } from './agentPrompt.ts'
 import { claudeMdGuide } from './guides.ts'
 import { claudeBin } from './claudeCode.ts'
 import { messagesAround, replyInThread, slackAuthTest, threadContext } from './slack.ts'
@@ -558,6 +559,9 @@ api.get('/jira/options', async (c) => {
   if (!kind || !project) throw bad('kind and project are required')
   return c.json(await fieldOptions(jiraCfg(), kind as JiraFieldKind, { project, q, issueKey: issue || undefined, field }))
 })
+
+/** A copy-paste prompt for an AI agent to implement the issue, with links to all its context */
+api.get('/jira/:key/agent-prompt', async (c) => c.json({ prompt: await buildAgentPrompt(c.req.param('key')) }))
 
 api.get('/jira/:key/editable', async (c) => c.json(await editable(jiraCfg(), c.req.param('key'))))
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PhArrowSquareOut, PhChatCircle, PhGraph, PhPencilSimple, PhRocketLaunch, PhArrowsClockwise, PhSquareSplitHorizontal } from '@phosphor-icons/vue'
+import { PhArrowSquareOut, PhChatCircle, PhGraph, PhPencilSimple, PhRocketLaunch, PhArrowsClockwise, PhSquareSplitHorizontal, PhRobot } from '@phosphor-icons/vue'
 import type { JiraIssueDetail } from '@shared/types'
 import { api } from '@/api'
 import { useDeck } from '@/stores/deck'
@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { jiraTone, timeAgo, fullDate } from '@/utils/format'
 import AdfView from './AdfView.vue'
 import JiraLinks from './JiraLinks.vue'
+import AgentPromptDialog from './AgentPromptDialog.vue'
 import JiraTransition from './JiraTransition.vue'
 import PrRow from './PrRow.vue'
 import FlagList from './FlagList.vue'
@@ -24,6 +25,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 /** Side panel for a Jira issue: details, linked PRs and issues, description and latest comments. */
 const deck = useDeck()
+/** The copy-paste prompt for an AI agent */
+const promptOpen = ref(false)
 const key = computed(() => deck.selectedJiraKey)
 const nav = useReleaseNav()
 const releaseId = computed(() => (key.value ? nav.releaseForIssue(key.value) : null))
@@ -103,6 +106,9 @@ const details = computed(() => {
         <span v-else class="font-mono text-sm font-medium">{{ key }}</span>
         <Badge v-if="issue" :variant="jiraTone(issue.statusCategory)">{{ issue.status }}</Badge>
         <span class="flex-1" />
+        <Button variant="outline" size="sm" class="h-7" title="Copy a prompt for an AI agent to implement this issue" @click="promptOpen = true">
+          <PhRobot /> Prompt
+        </Button>
         <Button v-if="deck.overview?.configured.jira" variant="outline" size="sm" class="h-7" @click="deck.composer = { mode: 'edit', key: key! }">
           <PhPencilSimple /> Edit
         </Button>
@@ -233,5 +239,6 @@ const details = computed(() => {
       <span class="flex-1" />
       <JiraTransition v-if="issue" :issue-key="key" prominent />
     </template>
+    <AgentPromptDialog v-if="key" v-model:open="promptOpen" :issue-key="key" />
   </SidePanel>
 </template>

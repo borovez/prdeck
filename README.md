@@ -32,9 +32,11 @@ nothing is hosted.
   has (required ones, sprint, story points, epics). Claude drafts or reworks the issue from your request,
   a PR, a Slack thread, screenshots, the repo's CLAUDE.md and a per-project writing guide; edits are
   reviewed as a diff before saving. From Slack it can reply in the thread with the link.
+- **Prompts for AI agents**: copy a ready-to-paste brief for any Jira issue, with links to the issue,
+  its parent and related issues, PRs, repos, feature flags, Slack threads and comments, plus how to work.
 - **MCP server** for Claude Code with tools: `overview`, `list_prs`, `get_pr`, `jira_issue`,
   `add_dependency`, `remove_dependency`, `sync`, `slack_inbox`, `slack_thread`, `set_slack_status`,
-  `jira_fields`, `create_jira_issue`, `update_jira_issue`.
+  `jira_prompt`, `jira_fields`, `create_jira_issue`, `update_jira_issue`.
 - Light, dark and system themes; keyboard navigation (arrow keys, Escape, shortcuts in the Slack
   panel).
 

@@ -6,6 +6,7 @@ import type { JiraFieldMeta, JiraFieldValue, JiraValueLabels, Overview, PrView }
 import { addManualDep, getSettings, getSlackItem, listSlack, removeManualDep, setSlackStatus, upsertJira } from './db.ts'
 import { addComment, choicesFor, composeCreate, composeUpdate, createMeta, editable, resolveFieldInput } from './jira.ts'
 import { claudeMdGuide } from './guides.ts'
+import { buildAgentPrompt } from './agentPrompt.ts'
 import { replyInThread, threadContext } from './slack.ts'
 import { buildOverview } from './model.ts'
 import { normaliseRef } from './refs.ts'
@@ -225,6 +226,18 @@ function valueText(f: JiraFieldMeta, v: JiraFieldValue | undefined, known: JiraV
   const list = Array.isArray(v) ? v : [String(v)]
   return list.map((x) => f.options.find((o) => o.id === x)?.label ?? known[f.key]?.[x]?.label ?? x).join(', ')
 }
+
+server.registerTool(
+  'jira_prompt',
+  {
+    title: 'Implementation brief for a Jira issue',
+    description:
+      'Everything needed to implement a Jira issue, as one Markdown brief: the issue, description, parent and related issues, ' +
+      'its PRs and repos, feature flags, Slack threads, latest comments, and how to work (branch, PR rules). Use it before starting the work.',
+    inputSchema: { key: z.string().describe('e.g. PROJ-123') },
+  },
+  async ({ key }) => text(await buildAgentPrompt(key)),
+)
 
 server.registerTool(
   'jira_fields',
